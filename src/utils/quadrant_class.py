@@ -50,7 +50,7 @@ class Quadrant:
         """
 
         # Load image
-        self.original_image = imread(self.impath)
+        self.original_image = imread(self.impath + ".tif")
 
         # If for some reason the image has a fourth alpha channel, discard this
         if np.shape(self.original_image)[-1] == 4:
@@ -65,11 +65,9 @@ class Quadrant:
 
         # Convert to grayscale and resize
         self.gray_image = rgb2gray(self.original_image)
-        self.gray_image = resize(self.gray_image, [np.round(self.res * np.shape(self.gray_image)[0]),
-                                                   np.round(self.res * np.shape(self.gray_image)[1])])
-
-        # Set imshape for mask loading later on
-        self.current_imshape = np.shape(self.gray_image)
+        self.target_size = [np.round(self.res * np.shape(self.gray_image)[0]),
+                            np.round(self.res * np.shape(self.gray_image)[1])]
+        self.gray_image = resize(self.gray_image, self.target_size)
 
         return
 
@@ -79,9 +77,8 @@ class Quadrant:
         stitching algorithm but may be used for prettier plotting of the result.
         """
 
-        # Resize
-        self.colour_image = resize(self.original_image, [np.round(self.res * np.shape(self.original_image)[0]),
-                                                         np.round(self.res * np.shape(self.original_image)[1])])
+        # Resize to smaller resolution
+        self.colour_image = resize(self.original_image, self.target_size)
 
         return
 
@@ -91,41 +88,33 @@ class Quadrant:
         the mask that was previously obtained by the background segmentation algorithm.
         """
 
-        # Mask can be either .tif or .tiff. Check whether file exists, else change extension
-        mask_path = os.path.join(self.maskdir, self.file_name)
+        # Mask extension can be .tif or .tiff depending on how it was preprocessed
+        extensions = [".tif", ".tiff"]
+        base_path = self.impath.replace("images", "masks")
 
-        if not os.path.isfile(mask_path):
-            if "tiff" in mask_path:
-                mask_path = mask_path.replace("tiff", "tif")
+        # Try different extensions
+        for ext in extensions:
+
+            mask_path = base_path + ext
+
+            if not os.path.isfile(mask_path):
+                continue
             else:
-                mask_path = mask_path.replace("tif", "tiff")
-        else:
-            temp = np.array(imread(mask_path))
+                self.mask = imread(mask_path)
 
-            # If mask contains fourth alpha channel, discard this
-            if np.shape(temp)[-1] > 3:
-                temp = temp[:, :, :3]
+                # Check if mask is RGB format
+                if len(np.shape(self.mask))>2:
+                    self.mask = self.mask[:, :, 0]
 
-            self.mask = resize(temp, self.current_imshape)
-            self.mask = (self.mask > 0.5)*1
+                # Resize mask to match images
+                self.mask = resize(self.mask, self.target_size)
+                self.mask = (self.mask > 0.5) * 1
 
-            return
+                return
 
-        # If neither the .tif and .tiff variant exists, no mask exists.
-        if not os.path.isfile(mask_path):
-            raise UnboundLocalError(f"No mask found for {mask_path}")
-
-        else:
-            temp = np.array(imread(mask_path))
-
-            # If mask contains fourth alpha channel, discard this
-            if np.shape(temp)[-1] > 3:
-                temp = temp[:, :, :3]
-
-            self.mask = resize(temp, self.current_imshape)
-            self.mask = (self.mask > 0.5) * 1
-
-            return
+        # Raise error if mask is not found
+        raise ValueError("No mask found")
+        return
 
     def apply_masks(self):
         """
@@ -133,8 +122,22 @@ class Quadrant:
         """
 
         # Apply mask to gray and colour image
-        self.colour_image = self.mask * self.colour_image
-        self.gray_image = self.mask[:, :, 0] * self.gray_image
+        self.colour_image = self.mask[:, :, np.newaxis] * self.colour_image
+        self.gray_image = self.mask * self.gray_image
+
+        # Crop the image and apply a fixed level of padding. This will standardize
+        # further processing steps down the line
+        c, r = np.nonzero(self.gray_image)
+        cmin, cmax = np.min(c), np.max(c)
+        rmin, rmax = np.min(r), np.max(r)
+
+        self.colour_image = self.colour_image[cmin:cmax, rmin:rmax]
+        self.gray_image = self.gray_image[cmin:cmax, rmin:rmax]
+        self.mask = self.mask[cmin:cmax, rmin:rmax]
+
+        self.colour_image = np.pad(self.colour_image, [[self.pad, self.pad], [self.pad, self.pad], [0, 0]])
+        self.gray_image = np.pad(self.gray_image, [[self.pad, self.pad], [self.pad, self.pad]])
+        self.mask = np.pad(self.mask, [[self.pad, self.pad], [self.pad, self.pad]])
 
         return
 
@@ -265,6 +268,10 @@ class Quadrant:
             self.angle = -(90 - self.angle)
         elif self.angle < -45:
             self.angle = 90 + self.angle
+
+        # Pad image to prepare for rotating
+        self.gray_image = np.pad(self.gray_image, [[self.pad, self.pad], [self.pad, self.pad]])
+
 
         ### Obtain translation offset due to rotation
         if self.quadrant_name == "UL":

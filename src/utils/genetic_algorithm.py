@@ -67,6 +67,8 @@ def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters
         gene_space = param_range,               # parameter search range
         mutation_probability=0.3,               # probability that a gene mutates
         mutation_type="random",                 # mutation type
+        random_mutation_min_val=-5,             # max value
+        random_mutation_max_val=5,
         save_best_solutions=True,
         save_solutions=True,
         suppress_warnings=True
@@ -109,6 +111,9 @@ def fitness_func(solution, solution_idx):
     # General cost function costfun_parameters
     costfun_parameters["intensity_cost_weights"] = 1 - costfun_parameters["overunderlap_weights"][costfun_quadrant_A.iteration]
     costfun_parameters["center_of_mass"] = np.mean(costfun_parameters["image_centers"], axis=0)
+
+    # Set translation range to [-5, 5] and angle range to [-1, 1]
+    solution[[2, 5, 8, 11]] /= 5
 
     # Recompute transform to account for translation induced by rotation
     tform_a, tform_b, tform_c, tform_d = recompute_transform(costfun_quadrant_A, costfun_quadrant_B,
