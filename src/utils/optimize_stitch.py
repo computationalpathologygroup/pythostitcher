@@ -3,6 +3,7 @@ import time
 import matplotlib.pyplot as plt
 import numpy as np
 import pickle
+import copy
 
 from .get_resname import get_resname
 from .auto_rotate import auto_rotate
@@ -18,13 +19,19 @@ from .genetic_algorithm import genetic_algorithm
 from .get_filename import get_filename
 from .map_tform_low_res import map_tform_low_res
 from .verify_overlap import verify_non_overlap
+from .recompute_transform import recompute_transform
 from .plot_tools import *
-
 
 
 def optimize_stitch(parameters, plot=False):
     """
-    Function to optimize the stitching between images
+    Function to optimize the stitching between images. This will consist of the following stages.
+    1. Compute the smallest bounding box around the quadrant
+    2. Compute the initial transformation by rotating this quadrant
+    3. Globally align the quadrants and update the initial transformation with this translation factor
+    4. Extract the edges of the quadrant and compute a Theil-Sen line through the dges
+    5. Extract histograms and intensities along the edges of each quadrant.
+    6. Use a genetic algorithm to optimize the initial transformation
     """
 
     # Make tform dir
@@ -57,14 +64,6 @@ def optimize_stitch(parameters, plot=False):
         quadrant_B.load_images()
         quadrant_C.load_images()
         quadrant_D.load_images()
-
-        """
-        # Create spatial reference object (similar to matlab's imref2d)
-        quadrant_A.ref_object = spatial_ref_object(quadrant_A.gray_image)
-        quadrant_B.ref_object = spatial_ref_object(quadrant_B.gray_image)
-        quadrant_C.ref_object = spatial_ref_object(quadrant_C.gray_image)
-        quadrant_D.ref_object = spatial_ref_object(quadrant_D.gray_image)
-        """
 
         # Perform initialization at the lowest resolution
         if parameters['iteration'] == 0:
@@ -162,7 +161,7 @@ def optimize_stitch(parameters, plot=False):
             plot_transformation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters)
 
         # Verify that there are no overlapping segments
-        verify_non_overlap(quadrant_A, quadrant_B, quadrant_C, quadrant_D, tolerance=10)
+        # verify_non_overlap(quadrant_A, quadrant_B, quadrant_C, quadrant_D, tolerance=10)
 
         # Get edges, histograms and intensities
         print(f"- extracting edges from images...")
@@ -199,22 +198,18 @@ def optimize_stitch(parameters, plot=False):
 
         # Optimization with genetic algorithm
         print("- computing reconstruction with genetic algorithm...")
-        solution, solution_fitness = genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D,
-                                                       parameters, initial_tform, plot=True)
+        ga_dict = genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D,
+                                    parameters, initial_tform)
 
+        # Add GA tform to initial tform
+        final_tform = copy.deepcopy(initial_tform)
+        final_tform["UL"][:3] = final_tform["UL"][:3] + ga_dict["best_solution"][0]
+        final_tform["UR"][:3] = final_tform["UR"][:3] + ga_dict["best_solution"][1]
+        final_tform["LL"][:3] = final_tform["LL"][:3] + ga_dict["best_solution"][2]
+        final_tform["LR"][:3] = final_tform["LR"][:3] + ga_dict["best_solution"][3]
 
-        """
-        # Compute total transformation
-        tform = initial_tform
-        tform[3:] = tform[3:] + solution
-
-        # Save results
-        ga_dict = dict()
-        ga_dict["solution"] = solution
-        ga_dict["solution_fitness"] = solution_fitness
-        ga_dict["tform"] = tform
-        np.save(filepath_tform, ga_dict)
-        """
+        # Plot the results of the genetic algorithm
+        plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, final_tform, ga_dict)
 
         # Provide verbose on computation time
         end_time = time.time()
@@ -226,7 +221,7 @@ def optimize_stitch(parameters, plot=False):
 
     else:
         GA_dict = np.load(filepath_tform, allow_pickle=True).item()
-        solution_fitness = GA_dict["solution_fitness"]
+        ga_tform = GA_dict["solution"]
         
         """
 

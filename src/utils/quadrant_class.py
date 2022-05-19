@@ -289,7 +289,6 @@ class Quadrant:
         self.tform_image = warp(self.gray_image, rot_trans_tform.inverse)
         self.rot_mask = warp(self.mask, rot_trans_tform.inverse)
 
-
         # Get cropping parameters
         c, r = np.nonzero(self.tform_image)
         cmin, cmax = np.min(c), np.max(c)

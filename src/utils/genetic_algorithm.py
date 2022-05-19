@@ -11,9 +11,10 @@ from .plot_tools import *
 from .get_resname import get_resname
 from .rotate_cp import rotate_cp, rotate_2dpoints
 from .get_cost_functions import get_cost_functions
+from .recompute_transform import recompute_transform
 
 
-def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, initial_tform, plot):
+def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, initial_tform):
     """
     Function that runs a genetic algorithm using the pygad module.
     """
@@ -31,9 +32,9 @@ def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters
     # Initialize parameters
     tform_combi = [*initial_tform[quadrant_A.quadrant_name][:-1], *initial_tform[quadrant_B.quadrant_name][:-1],
                    *initial_tform[quadrant_C.quadrant_name][:-1], *initial_tform[quadrant_D.quadrant_name][:-1]]
-    # ga_tform = copy.deepcopy(tform_combi)
     num_genes = len(tform_combi)
     ga_tform = np.zeros((num_genes))
+    init_fitness = fitness_func(ga_tform, 0)
 
     # Cap solution ranges to plausible values
     t_range = parameters["translation_ranges"][parameters["iteration"]]
@@ -45,7 +46,7 @@ def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters
 
     # Define values for initial population. These should be relatively close to initial tform
     num_sol = 20
-    num_gen = 1000
+    num_gen = 50
     init_pop = np.zeros((num_sol, num_genes))
     noise_level = parameters["padsizes"][parameters["iteration"]] * 10
 
@@ -67,7 +68,8 @@ def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters
         mutation_probability=0.3,               # probability that a gene mutates
         mutation_type="random",                 # mutation type
         save_best_solutions=True,
-        save_solutions=True
+        save_solutions=True,
+        suppress_warnings=True
     )
 
     # Run and show results
@@ -77,23 +79,24 @@ def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters
     # Retrieve best results and save
     best_solution, solution_fitness, solution_idx = ga_instance.best_solution()
 
+    # The provided solution does not account for translation induced by rotation. The recompute transform
+    # function will update the transformation by including the translation in the tform matrix.
+    solution = recompute_transform(quadrant_A, quadrant_B, quadrant_C, quadrant_D, best_solution)
+
+    # Save the solution results
     savefile = f"{parameters['results_dir']}/" \
                f"{parameters['patient_idx']}/" \
                f"{parameters['slice_idx']}/" \
                f"{get_resname(parameters['resolutions'][parameters['iteration']])}/" \
-               f"tform/ga_results.npy"
+               f"tform/tform_ga.npy"
 
     ga_dict = dict()
-    ga_dict["best_solution"] = best_solution
+    ga_dict["best_solution"] = solution
     ga_dict["solution_fitness"] = solution_fitness
+    ga_dict["initial_fitness"] = init_fitness
     #np.save(savefile, ga_dict)
 
-    # Plot some results
-    plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, best_solution)
-
-    a=1
-
-    return best_solution, solution_fitness
+    return ga_dict
 
 
 def fitness_func(solution, solution_idx):
@@ -107,63 +110,16 @@ def fitness_func(solution, solution_idx):
     costfun_parameters["intensity_cost_weights"] = 1 - costfun_parameters["overunderlap_weights"][costfun_quadrant_A.iteration]
     costfun_parameters["center_of_mass"] = np.mean(costfun_parameters["image_centers"], axis=0)
 
-    # Get transformation per quadrant from genetic algorithm solution
-    ga_tform_A = solution[:3]
-    ga_tform_B = solution[3:6]
-    ga_tform_C = solution[6:9]
-    ga_tform_D = solution[9:]
+    # Recompute transform to account for translation induced by rotation
+    tform_a, tform_b, tform_c, tform_d = recompute_transform(costfun_quadrant_A, costfun_quadrant_B,
+                                                             costfun_quadrant_C, costfun_quadrant_D,
+                                                             solution)
 
-    """
-    # Since a rotation with skimage always brings an additional translation, we need to recalculate the translation
-    # by transforming the upper left bbox corner of each quadrant. This is also performed in the calculation of the initial
-    # alignment.
-    bbox_corners_a = [costfun_quadrant_A.bbox_corner_a, costfun_quadrant_A.bbox_corner_b,
-                      costfun_quadrant_A.bbox_corner_c, costfun_quadrant_A.bbox_corner_d]
-    bbox_corners_b = [costfun_quadrant_B.bbox_corner_a, costfun_quadrant_B.bbox_corner_b,
-                      costfun_quadrant_B.bbox_corner_c, costfun_quadrant_B.bbox_corner_d]
-    bbox_corners_c = [costfun_quadrant_C.bbox_corner_a, costfun_quadrant_C.bbox_corner_b,
-                      costfun_quadrant_C.bbox_corner_c, costfun_quadrant_C.bbox_corner_d]
-    bbox_corners_d = [costfun_quadrant_D.bbox_corner_a, costfun_quadrant_D.bbox_corner_b,
-                      costfun_quadrant_D.bbox_corner_c, costfun_quadrant_D.bbox_corner_d]
-    center_a_pre = np.mean(bbox_corners_a, axis=0)
-    center_b_pre = np.mean(bbox_corners_b, axis=0)
-    center_c_pre = np.mean(bbox_corners_c, axis=0)
-    center_d_pre = np.mean(bbox_corners_d, axis=0)
-
-    rot_tform_a = EuclideanTransform(rotation=-math.radians(ga_tform_A[2]), translation=(0, 0))
-    rot_tform_b = EuclideanTransform(rotation=-math.radians(ga_tform_B[2]), translation=(0, 0))
-    rot_tform_c = EuclideanTransform(rotation=-math.radians(ga_tform_C[2]), translation=(0, 0))
-    rot_tform_d = EuclideanTransform(rotation=-math.radians(ga_tform_D[2]), translation=(0, 0))
-
-    rot_bbox_corners_a = np.squeeze(matrix_transform(bbox_corners_a, rot_tform_a.params))
-    rot_bbox_corners_b = np.squeeze(matrix_transform(bbox_corners_b, rot_tform_b.params))
-    rot_bbox_corners_c = np.squeeze(matrix_transform(bbox_corners_c, rot_tform_c.params))
-    rot_bbox_corners_d = np.squeeze(matrix_transform(bbox_corners_d, rot_tform_d.params))
-
-    center_a_post = np.mean(rot_bbox_corners_a, axis=0)
-    center_b_post = np.mean(rot_bbox_corners_b, axis=0)
-    center_c_post = np.mean(rot_bbox_corners_c, axis=0)
-    center_d_post = np.mean(rot_bbox_corners_d, axis=0)
-
-    trans_a = center_a_pre - center_a_post
-    trans_b = center_b_pre - center_b_post
-    trans_c = center_c_pre - center_c_post
-    trans_d = center_d_pre - center_d_post
-
-    final_trans_a = ga_tform_A[:2] + trans_a
-    final_trans_b = ga_tform_B[:2] + trans_b
-    final_trans_c = ga_tform_C[:2] + trans_c
-    final_trans_d = ga_tform_D[:2] + trans_d
-
-    final_tform_a = EuclideanTransform(rotation=-math.radians(ga_tform_A[2]), translation=final_trans_a)
-    final_tform_b = EuclideanTransform(rotation=-math.radians(ga_tform_B[2]), translation=final_trans_b)
-    final_tform_c = EuclideanTransform(rotation=-math.radians(ga_tform_C[2]), translation=final_trans_c)
-    final_tform_d = EuclideanTransform(rotation=-math.radians(ga_tform_D[2]), translation=final_trans_d)
-    """
-    final_tform_a = EuclideanTransform(rotation=-math.radians(ga_tform_A[2]), translation=ga_tform_A[:2])
-    final_tform_b = EuclideanTransform(rotation=-math.radians(ga_tform_B[2]), translation=ga_tform_B[:2])
-    final_tform_c = EuclideanTransform(rotation=-math.radians(ga_tform_C[2]), translation=ga_tform_C[:2])
-    final_tform_d = EuclideanTransform(rotation=-math.radians(ga_tform_D[2]), translation=ga_tform_D[:2])
+    # Make tform matrices
+    final_tform_a = EuclideanTransform(rotation=-math.radians(tform_a[2]), translation=tform_a[:2])
+    final_tform_b = EuclideanTransform(rotation=-math.radians(tform_b[2]), translation=tform_b[:2])
+    final_tform_c = EuclideanTransform(rotation=-math.radians(tform_c[2]), translation=tform_c[:2])
+    final_tform_d = EuclideanTransform(rotation=-math.radians(tform_d[2]), translation=tform_d[:2])
 
     ## Rotate all edges and lines according to proposed transformation
     # Quadrant A

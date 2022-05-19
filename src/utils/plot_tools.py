@@ -304,71 +304,17 @@ def plot_ga_tform(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     return
 
 
-def plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, best_solution):
+def plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, final_tform, ga_dict):
     """
     Plotting function to plot the transformation of the quadrants which was found by the
     genetic algorithm.
     """
 
     # Extract individual tforms from best solution
-    ga_tform_A = best_solution[:3]
-    ga_tform_B = best_solution[3:6]
-    ga_tform_C = best_solution[6:9]
-    ga_tform_D = best_solution[9:]
-
-    """
-    # Get box corners before GA
-    bbox_corners_a = [quadrant_A.bbox_corner_a, quadrant_A.bbox_corner_b,
-                      quadrant_A.bbox_corner_c, quadrant_A.bbox_corner_d]
-    bbox_corners_b = [quadrant_B.bbox_corner_a, quadrant_B.bbox_corner_b,
-                      quadrant_B.bbox_corner_c, quadrant_B.bbox_corner_d]
-    bbox_corners_c = [quadrant_C.bbox_corner_a, quadrant_C.bbox_corner_b,
-                      quadrant_C.bbox_corner_c, quadrant_C.bbox_corner_d]
-    bbox_corners_d = [quadrant_D.bbox_corner_a, quadrant_D.bbox_corner_b,
-                      quadrant_D.bbox_corner_c, quadrant_D.bbox_corner_d]
-
-    # Compute center of mass of bbox before GA
-    center_a_pre = np.mean(bbox_corners_a, axis=0)
-    center_b_pre = np.mean(bbox_corners_b, axis=0)
-    center_c_pre = np.mean(bbox_corners_c, axis=0)
-    center_d_pre = np.mean(bbox_corners_d, axis=0)
-
-    # Tform the bbox corners with just the rotation.
-    rot_tform_a = EuclideanTransform(rotation=-math.radians(ga_tform_A[2]), translation=(0, 0))
-    rot_tform_b = EuclideanTransform(rotation=-math.radians(ga_tform_B[2]), translation=(0, 0))
-    rot_tform_c = EuclideanTransform(rotation=-math.radians(ga_tform_C[2]), translation=(0, 0))
-    rot_tform_d = EuclideanTransform(rotation=-math.radians(ga_tform_D[2]), translation=(0, 0))
-
-    rot_bbox_corners_a = np.squeeze(matrix_transform(bbox_corners_a, rot_tform_a.params))
-    rot_bbox_corners_b = np.squeeze(matrix_transform(bbox_corners_b, rot_tform_b.params))
-    rot_bbox_corners_c = np.squeeze(matrix_transform(bbox_corners_c, rot_tform_c.params))
-    rot_bbox_corners_d = np.squeeze(matrix_transform(bbox_corners_d, rot_tform_d.params))
-
-    # Compute center of mass from tformed bbox corners
-    center_a_post = np.mean(rot_bbox_corners_a, axis=0)
-    center_b_post = np.mean(rot_bbox_corners_b, axis=0)
-    center_c_post = np.mean(rot_bbox_corners_c, axis=0)
-    center_d_post = np.mean(rot_bbox_corners_d, axis=0)
-
-    # Account for the offset in translation induced by the rotation
-    trans_a = center_a_pre - center_a_post
-    trans_b = center_b_pre - center_b_post
-    trans_c = center_c_pre - center_c_post
-    trans_d = center_d_pre - center_d_post
-
-    # Update the final tform
-    final_trans_a = ga_tform_A[:2] + trans_a
-    final_trans_b = ga_tform_B[:2] + trans_b
-    final_trans_c = ga_tform_C[:2] + trans_c
-    final_trans_d = ga_tform_D[:2] + trans_d
-
-    # Apply final tform to the image
-    A_tform = EuclideanTransform(rotation=-math.radians(ga_tform_A[2]), translation=final_trans_a)
-    B_tform = EuclideanTransform(rotation=-math.radians(ga_tform_B[2]), translation=final_trans_b)
-    C_tform = EuclideanTransform(rotation=-math.radians(ga_tform_C[2]), translation=final_trans_c)
-    D_tform = EuclideanTransform(rotation=-math.radians(ga_tform_D[2]), translation=final_trans_d)
-
-    """
+    ga_tform_A = ga_dict["best_solution"][0]
+    ga_tform_B = ga_dict["best_solution"][1]
+    ga_tform_C = ga_dict["best_solution"][2]
+    ga_tform_D = ga_dict["best_solution"][3]
 
     A_tform = EuclideanTransform(rotation=-math.radians(ga_tform_A[2]), translation=ga_tform_A[:2])
     B_tform = EuclideanTransform(rotation=-math.radians(ga_tform_B[2]), translation=ga_tform_B[:2])
@@ -387,11 +333,11 @@ def plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, best_solution
     # Show result
     plt.figure()
     plt.subplot(121)
-    plt.title("Before GA")
+    plt.title(f"Before GA: fitness={np.round(ga_dict['initial_fitness'], 2)}")
     plt.imshow(combi_before, cmap="gray")
 
     plt.subplot(122)
-    plt.title("After GA")
+    plt.title(f"After GA: fitness={np.round(ga_dict['solution_fitness'], 2)}")
     plt.imshow(combi_after, cmap="gray")
     plt.show()
 
