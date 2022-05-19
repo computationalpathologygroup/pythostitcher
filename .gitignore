@@ -12,6 +12,8 @@ radboud_data/
 results/
 
 # Distribution / packaging
+.idea/
+__pycache__/
 .Python
 build/
 develop-eggs/
