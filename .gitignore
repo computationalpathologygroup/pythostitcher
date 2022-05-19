@@ -10,6 +10,7 @@ __pycache__/
 info.txt
 radboud_data/
 Dockerfile
+results/
 
 # Distribution / packaging
 .Python
