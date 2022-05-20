@@ -1,11 +1,4 @@
-import numpy as np
 import os
-import warnings
-import pickle
-from skimage.transform import resize
-from skimage.io import imread
-
-from .get_resname import get_resname
 
 
 def preprocess(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
@@ -72,25 +65,9 @@ def preprocess(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
         quadrant_C.save_quadrant()
         quadrant_D.save_quadrant()
 
-    # Else just load them from a previous run
+    # Else nothing, images will be loaded in the next step
     else:
-        basepath_load = f"../results/{quadrant_D.patient_idx}/{quadrant_D.slice_idx}/{quadrant_D.res_name}"
+        pass
 
-        # Load quadrant objects
-        with open(f"{basepath_load}/quadrant_{quadrant_A.quadrant_name}", "rb") as loadfile:
-            quadrant_A = pickle.load(loadfile)
-        with open(f"{basepath_load}/quadrant_{quadrant_B.quadrant_name}", "rb") as loadfile:
-            quadrant_B = pickle.load(loadfile)
-        with open(f"{basepath_load}/quadrant_{quadrant_C.quadrant_name}", "rb") as loadfile:
-            quadrant_C = pickle.load(loadfile)
-        with open(f"{basepath_load}/quadrant_{quadrant_D.quadrant_name}", "rb") as loadfile:
-            quadrant_D = pickle.load(loadfile)
-
-        # Load all images separately
-        quadrant_A.load_images()
-        quadrant_B.load_images()
-        quadrant_C.load_images()
-        quadrant_D.load_images()
-
-    return quadrant_A, quadrant_B, quadrant_C, quadrant_D
+    return
 

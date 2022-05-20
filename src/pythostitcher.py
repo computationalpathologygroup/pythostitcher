@@ -1,14 +1,10 @@
-import numpy as np
-import os
-import matplotlib.pyplot as plt
-
 from utils.preprocess import preprocess
 from utils.map_high_res import map_high_res
 from utils.optimize_stitch import optimize_stitch
 from utils.quadrant_class import Quadrant
 
 
-def setup_pythostitcher(parameters):
+def run_pythostitcher(parameters):
     """
     PythoStitcher is an automated and robust program for stitching prostate tissue fragments
     into a whole histological section.
@@ -18,10 +14,11 @@ def setup_pythostitcher(parameters):
     Python implementation by Daan Schouten, 2022
     
     Input arguments
-        * dictionary with parameters
+    * dictionary with parameters
         
     Output
-        * Final reconstructed histological image
+    * Final reconstructed histological image
+
     """
 
     # Start with preprocessing data
@@ -33,17 +30,10 @@ def setup_pythostitcher(parameters):
         parameters["iteration"] = iter
 
         # Initiate all quadrants
-        quadrant_A = Quadrant(quadrant_name = "UL",
-                              kwargs=parameters)
-
-        quadrant_B = Quadrant(quadrant_name="UR",
-                              kwargs=parameters)
-
-        quadrant_C = Quadrant(quadrant_name="LL",
-                              kwargs=parameters)
-
-        quadrant_D = Quadrant(quadrant_name="LR",
-                              kwargs=parameters)
+        quadrant_A = Quadrant(quadrant_name="UL", kwargs=parameters)
+        quadrant_B = Quadrant(quadrant_name="UR", kwargs=parameters)
+        quadrant_C = Quadrant(quadrant_name="LL", kwargs=parameters)
+        quadrant_D = Quadrant(quadrant_name="LR", kwargs=parameters)
 
         # Preprocess all images
         preprocess(quadrant_A, quadrant_B, quadrant_C, quadrant_D)
@@ -55,7 +45,7 @@ def setup_pythostitcher(parameters):
 
         parameters["iteration"] = iter
         print(f"\nOptimizing stitch at resolution {parameters['resolutions'][iter]}")
-        solution_fitness = optimize_stitch(parameters, plot=True)
+        optimize_stitch(parameters, plot=True)
 
     res_num = 3
     imA_t, imB_t, imC_t, imD_t, tform_objects, tform_edges = map_high_res(

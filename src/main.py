@@ -1,11 +1,10 @@
 import glob
 import re
 
-from pythostitcher import setup_pythostitcher
+from pythostitcher import run_pythostitcher
 
 
-
-def run_pythostitcher():
+def setup_pythostitcher():
     """
     Main function to run PythoStitcher. Currently input parameters have to be specified manually in this file,
     but this could be replaced by argparse in a later version.
@@ -56,43 +55,43 @@ def run_pythostitcher():
     # Pack up all variables in a dictionary
     parameters = dict()
     parameters["filenames"] = filename_dict
-    parameters["flipquadrants"] = flip_quadrant
+    parameters["flipquadrants"] = flip_quadrant             # currently not in use
     parameters["data_dir"] = data_dir
     parameters["results_dir"] = results_dir
     parameters["patient_idx"] = patient_idx
-    parameters["slice_idx"] = "test"
+    parameters["slice_idx"] = "test"                        # only relevant with multiple slices per patient
 
     # General input parameters
-    parameters["debug"] = False
-    parameters["ishpc"] = False
-    parameters["display_opts"] = "EdgesAndLines"
-    parameters["rev_name"] = "r1"
-    parameters["resolutions"] = [0.05, 0.10, 0.25, 1.0]
-    parameters["padsizes"] = [int(200*r) for r in parameters["resolutions"]]
+    parameters["debug"] = False                             # currently not in use
+    parameters["ishpc"] = False                             # currently not in use
+    parameters["display_opts"] = "EdgesAndLines"            # currently not in use
+    parameters["rev_name"] = "r1"                           # currently not in use
+    parameters["resolutions"] = [0.05, 0.10, 0.25, 1.0]     # very important, can be tweaked
+    parameters["pad_fraction"] = 0.7                        # required for not cutting corners
 
     # Parameters related to the cost function
     parameters["overunderlap_weights"] = [0.01, 0.01, 0.011, 0.01]
-    parameters["cost_range"] = [0, 2]
-    parameters["overhang_penalty"] = parameters["cost_range"][-1]
-    # parameters["cost_functions"] = ["raw_intensities", "raw_intensities", "simple_hists", "simple_hists"]
-    parameters["cost_functions"] = ["simple_hists", "simple_hists", "simple_hists", "simple_hists"]
+    parameters["cost_range"] = [0, 2]                                       # currently not in use
+    parameters["overhang_penalty"] = parameters["cost_range"][-1]           # currently not in use
+    parameters["cost_functions"] = ["simple_hists", "simple_hists",
+                                    "simple_hists", "simple_hists"]
     parameters["nbins"] = 16
     # parameters["hist_sizes"] = [[1, 1], [1, 1], [21, 11], [81, 41]]
-    parameters["hist_sizes"] = [[5, 3], [11, 5], [21, 11], [81, 41]]
+    parameters["hist_sizes"] = [[5, 3], [11, 5], [21, 11], [81, 41]]        # can be tweaked
     parameters["fraction_edge_length"] = 0.5
     parameters["outer_point_weight"] = 0.6
 
     # Optimization parameters
     parameters["translation_ranges"] = [1000*r for r in parameters["resolutions"]]
+    parameters["angle_range"] = 15
     #parameters["sampling_deltas"] = [1, 1, 5, 10]
     parameters["sampling_deltas"] = [1, 2, 5, 10]
-    parameters["angle_range"] = 15
 
     # Start pythostitcher program
-    setup_pythostitcher(parameters)
+    run_pythostitcher(parameters)
 
     return
 
 
 if __name__ == "__main__":
-    run_pythostitcher()
+    setup_pythostitcher()

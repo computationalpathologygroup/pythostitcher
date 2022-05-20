@@ -6,7 +6,6 @@ import copy
 
 from skimage.transform import EuclideanTransform, matrix_transform
 
-from .compute_global_cost import compute_global_cost
 from .plot_tools import *
 from .get_resname import get_resname
 from .rotate_cp import rotate_cp, rotate_2dpoints
@@ -48,30 +47,34 @@ def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters
     num_sol = 20
     num_gen = 50
     init_pop = np.zeros((num_sol, num_genes))
-    noise_level = parameters["padsizes"][parameters["iteration"]] * 10
 
     # Generate initial population based on noise
     for i in range(num_sol):
         np.random.seed(i)
-        noise = np.random.randint(low=-noise_level, high=noise_level, size=num_genes)/100
-        init_pop[i, :] = ga_tform + noise
+        translation_noise = np.random.randint(low=-t_range, high=t_range, size=num_genes-4)/10
+        angle_noise = np.random.randint(low=-a_range, high=a_range, size=4)/a_range
+        total_noise = [*translation_noise[:2], angle_noise[0], *translation_noise[2:4], angle_noise[1],
+                       *translation_noise[4:6], angle_noise[2], *translation_noise[6:], angle_noise[3]]
+        init_pop[i, :] = ga_tform + total_noise
 
-    # Optimization can consist of many more variables. For now only change these.
-    # num_generations, eval_function, num_genes and upper/lower bounds are taken from AutoStitcher.
-    # The other parameters are chosen randomly.
+    # Pygad has a wide variety of parameters for the optimization. Parents with a (M) were copied from the Matlab
+    # implementation. Other parameters are chosen empirically.
     ga_instance = pygad.GA(
         num_generations = num_gen,              # num generations to optimize
+        keep_parents=int(0.05*num_sol),         # (M) num of parents that proceed to next generation unaltered
         num_parents_mating = 5,                 # num solutions to keep per generation
+        parent_selection_type="sus",            # (M)
         fitness_func = fitness_func,            # optimization function
         initial_population = init_pop,          # values for first-gen genes
-        gene_space = param_range,               # parameter search range
+        gene_space = param_range,               # (M) parameter search range
         mutation_probability=0.3,               # probability that a gene mutates
         mutation_type="random",                 # mutation type
         random_mutation_min_val=-5,             # max value
         random_mutation_max_val=5,
+        crossover_type="scattered",             # (M) gene selection
         save_best_solutions=True,
-        save_solutions=True,
-        suppress_warnings=True
+        suppress_warnings=True,
+        stop_criteria=None                      # this could later be set to stop after loss plateaus
     )
 
     # Run and show results
@@ -96,7 +99,6 @@ def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters
     ga_dict["best_solution"] = solution
     ga_dict["solution_fitness"] = solution_fitness
     ga_dict["initial_fitness"] = init_fitness
-    #np.save(savefile, ga_dict)
 
     return ga_dict
 
@@ -111,9 +113,7 @@ def fitness_func(solution, solution_idx):
     # General cost function costfun_parameters
     costfun_parameters["intensity_cost_weights"] = 1 - costfun_parameters["overunderlap_weights"][costfun_quadrant_A.iteration]
     costfun_parameters["center_of_mass"] = np.mean(costfun_parameters["image_centers"], axis=0)
-
-    # Set translation range to [-5, 5] and angle range to [-1, 1]
-    solution[[2, 5, 8, 11]] /= 5
+    eps = 1e-5
 
     # Recompute transform to account for translation induced by rotation
     tform_a, tform_b, tform_c, tform_d = recompute_transform(costfun_quadrant_A, costfun_quadrant_B,
@@ -179,6 +179,7 @@ def fitness_func(solution, solution_idx):
                             [costfun_quadrant_C.v_edge_theilsen_tform, costfun_quadrant_D.v_edge_theilsen_tform],
                             [costfun_quadrant_D.v_edge_theilsen_tform, costfun_quadrant_C.v_edge_theilsen_tform]]
 
+    """
     intensities = [[costfun_quadrant_A.intensities_h, costfun_quadrant_C.intensities_h],
                    [costfun_quadrant_B.intensities_h, costfun_quadrant_D.intensities_h],
                    [costfun_quadrant_C.intensities_h, costfun_quadrant_A.intensities_h],
@@ -196,28 +197,28 @@ def fitness_func(solution, solution_idx):
                   [costfun_quadrant_B.hists_v, costfun_quadrant_A.hists_v],
                   [costfun_quadrant_C.hists_v, costfun_quadrant_D.hists_v],
                   [costfun_quadrant_D.hists_v, costfun_quadrant_C.hists_v]]
+    """
 
     # Preallocate dict for saving results
     cost_result_dict = dict()
     cost_result_dict["intensity_costs"] = []
-    cost_result_dict["edge_sample_idx"] = []
     cost_result_dict["overunderlap_costs"] = []
-    cost_result_dict["overhang_idxs"] = []
 
     dict_intensity_costs = {}
+
+    histograms = np.zeros((8, 2))
+    intensities = np.zeros((8, 2))
 
     # Histogram-based cost function
     if costfun_parameters["cost_functions"][costfun_quadrant_A.iteration] == "simple_hists":
 
         for i in range(8):
-            intensity_costs, edge_sample_idx, overunderlap_costs, overhang_idxs = get_cost_functions(
+            intensity_costs, overunderlap_costs = get_cost_functions(
                 edges_tform[i][0], edges_tform[i][1], edges_theilsen_tform[i][0], edges_theilsen_tform[i][1],
                 histograms[i][0], histograms[i][1], whichQuadrants[i], costfun_parameters, direction = orientations[i])
 
-            cost_result_dict["intensity_costs"].append(intensity_costs)
-            cost_result_dict["overunderlap_costs"].append(overunderlap_costs)
-            cost_result_dict["overhang_idxs"].append(overhang_idxs)
-            cost_result_dict["edge_sample_idx"].append(edge_sample_idx)
+            #cost_result_dict["intensity_costs"].append(intensity_costs + eps)
+            cost_result_dict["overunderlap_costs"].append(overunderlap_costs + eps)
 
             # Not sure why this variable is needed
             # intensityCosts[i][overhangIdxs[i]] = overhangPenalty
@@ -226,14 +227,12 @@ def fitness_func(solution, solution_idx):
     elif costfun_parameters["cost_functions"][costfun_quadrant_A.iteration] == "raw_intensities":
 
         for i in range(8):
-            intensity_costs, edge_sample_idx, overunderlap_costs, overhang_idxs = get_cost_functions(
+            intensity_costs, overunderlap_costs = get_cost_functions(
                 edges_tform[i][0], edges_tform[i][1], edges_theilsen_tform[i][0], edges_theilsen_tform[i][1],
                 intensities[i][0], intensities[i][1], whichQuadrants[i], costfun_parameters, direction = orientations[i])
 
-            cost_result_dict["intensity_costs"].append(intensity_costs)
-            cost_result_dict["overunderlap_costs"].append(overunderlap_costs)
-            cost_result_dict["overhang_idxs"].append(overhang_idxs)
-            cost_result_dict["edge_sample_idx"].append(edge_sample_idx)
+            cost_result_dict["intensity_costs"].append(intensity_costs + eps)
+            cost_result_dict["overunderlap_costs"].append(overunderlap_costs + eps)
 
             # Not sure why this variable is needed
             # intensityCosts[i][overhangIdxs[i]] = overhangPenalty
@@ -243,14 +242,16 @@ def fitness_func(solution, solution_idx):
 
     # Compute mean and overall costs
     totalOverlapAndUnderlapCost = np.mean(cost_result_dict["overunderlap_costs"])
-    totalIntensityCost = np.mean(cost_result_dict["intensity_costs"])
+    #totalIntensityCost = np.mean(cost_result_dict["intensity_costs"])
 
+    """
     cost = costfun_parameters["intensity_cost_weights"] * totalIntensityCost + \
            costfun_parameters["overunderlap_weights"][costfun_quadrant_A.iteration] * totalOverlapAndUnderlapCost
 
     allCosts = dict()
     allCosts["name"] = ["1A", "1B", "1C", "1D", "2A", "2B", "2C", "2D"]
-    allCosts["intensityCost"] = totalOverlapAndUnderlapCost
-    allCosts["overlapAndUnderlapCost"] = totalIntensityCost
+    allCosts["intensityCost"] = totalIntensityCost
+    allCosts["overlapAndUnderlapCost"] = totalOverlapAndUnderlapCost
+    """
 
     return 1/totalOverlapAndUnderlapCost

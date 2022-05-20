@@ -10,7 +10,6 @@ from skimage.transform import resize, rotate, warp, EuclideanTransform, matrix_t
 from skimage.measure import label, regionprops
 from skimage.color import rgb2gray
 from matplotlib import pyplot as plt
-from matplotlib.patches import Rectangle
 from sklearn.linear_model import TheilSenRegressor
 
 from .get_resname import get_resname
@@ -33,12 +32,11 @@ class Quadrant:
         self.resolutions = kwargs["resolutions"]
         self.nbins = kwargs["nbins"]
         self.hist_sizes = kwargs["hist_sizes"]
-        self.padsizes = kwargs["padsizes"]
         self.datadir = kwargs["data_dir"]
         self.maskdir = self.datadir.replace("images", "masks")
         self.res = self.resolutions[self.iteration]
         self.res_name = get_resname(self.res)
-        self.pad = self.padsizes[self.iteration]
+        self.pad_fraction = kwargs["pad_fraction"]
         self.impath = os.path.join(self.datadir, self.file_name)
 
         return
@@ -49,14 +47,27 @@ class Quadrant:
         but can probably be any format as long as it is supported by skimage.
         """
 
-        # Load image
-        self.original_image = imread(self.impath + ".tif")
+        # Image extension can be .tif or .tiff depending on how it was preprocessed
+        extensions = [".tif", ".tiff"]
 
-        # If for some reason the image has a fourth alpha channel, discard this
-        if np.shape(self.original_image)[-1] == 4:
-            self.original_image = self.original_image[:, :, :-1]
+        # Try different extensions
+        for ext in extensions:
 
-        return
+            impath = self.impath + ext
+
+            if os.path.isfile(impath):
+                self.original_image = imread(impath)
+
+                # If for some reason the image has a fourth alpha channel, discard this
+                if np.shape(self.original_image)[-1] == 4:
+                    self.original_image = self.original_image[:, :, :-1]
+
+                return
+
+            else:
+                pass
+
+        raise ValueError(f"No images found for {self.impath}")
 
     def preprocess_gray_image(self):
         """
@@ -97,13 +108,11 @@ class Quadrant:
 
             mask_path = base_path + ext
 
-            if not os.path.isfile(mask_path):
-                continue
-            else:
+            if os.path.isfile(mask_path):
                 self.mask = imread(mask_path)
 
-                # Check if mask is RGB format
-                if len(np.shape(self.mask))>2:
+                # Check if mask is RGB(a) format
+                if len(np.shape(self.mask)) > 2:
                     self.mask = self.mask[:, :, 0]
 
                 # Resize mask to match images
@@ -112,9 +121,12 @@ class Quadrant:
 
                 return
 
+            else:
+                pass
+
         # Raise error if mask is not found
-        raise ValueError("No mask found")
-        return
+        raise ValueError(f"No mask found for {base_path}")
+
 
     def apply_masks(self):
         """
@@ -134,10 +146,11 @@ class Quadrant:
         self.colour_image = self.colour_image[cmin:cmax, rmin:rmax]
         self.gray_image = self.gray_image[cmin:cmax, rmin:rmax]
         self.mask = self.mask[cmin:cmax, rmin:rmax]
+        self.initial_pad = int(np.max(self.target_size)*self.pad_fraction)
 
-        self.colour_image = np.pad(self.colour_image, [[self.pad, self.pad], [self.pad, self.pad], [0, 0]])
-        self.gray_image = np.pad(self.gray_image, [[self.pad, self.pad], [self.pad, self.pad]])
-        self.mask = np.pad(self.mask, [[self.pad, self.pad], [self.pad, self.pad]])
+        self.colour_image = np.pad(self.colour_image, [[self.initial_pad, self.initial_pad], [self.initial_pad, self.initial_pad], [0, 0]])
+        self.gray_image = np.pad(self.gray_image, [[self.initial_pad, self.initial_pad], [self.initial_pad, self.initial_pad]])
+        self.mask = np.pad(self.mask, [[self.initial_pad, self.initial_pad], [self.initial_pad, self.initial_pad]])
 
         return
 
@@ -260,7 +273,7 @@ class Quadrant:
         """
 
         # Epsilon value may be necessary to ensure no overlap between images.
-        eps = 0
+        eps = 1
 
         # Preprocess the rotation angle
         self.angle = self.bbox[2]
@@ -269,27 +282,18 @@ class Quadrant:
         elif self.angle < -45:
             self.angle = 90 + self.angle
 
-        # Pad image to prepare for rotating
-        self.gray_image = np.pad(self.gray_image, [[self.pad, self.pad], [self.pad, self.pad]])
-
-
-        ### Obtain translation offset due to rotation
-        if self.quadrant_name == "UL":
-            box_corner = copy.deepcopy(self.bbox_corner_c)
-        elif self.quadrant_name == "UR":
-            box_corner = copy.deepcopy(self.bbox_corner_b)
-        elif self.quadrant_name == "LL":
-            box_corner = copy.deepcopy(self.bbox_corner_d)
-        elif self.quadrant_name == "LR":
-            box_corner = copy.deepcopy(self.bbox_corner_a)
-
-        # Adjust translation based on center of bounding box
+        # Obtain translation offset due to rotation. This can be computed through the difference in center of mass
+        # of the bounding box before and after the rotation.
+        com_pre = np.mean(self.bbox_corners, axis=0)
         rot_angle = -math.radians(self.angle)
         rot_tform = EuclideanTransform(rotation=rot_angle, translation=(0, 0))
-        rot_coords = matrix_transform(box_corner, rot_tform.params)
-        self.rot_trans_x = np.round(-rot_coords[0][0]) + 1
-        self.rot_trans_y = np.round(-rot_coords[0][1]) + 1
-        
+        bbox_corners_post = matrix_transform(self.bbox_corners, rot_tform.params)
+        com_post = np.mean(bbox_corners_post, axis=0)
+        shift = com_pre - com_post
+
+        self.rot_trans_x = np.round(shift[0]) + eps
+        self.rot_trans_y = np.round(shift[1]) + eps
+
         # Rotate the image
         rot_trans_tform = EuclideanTransform(rotation=rot_angle,
                                              translation=(self.rot_trans_x, self.rot_trans_y))
@@ -297,36 +301,37 @@ class Quadrant:
         self.rot_mask = warp(self.mask, rot_trans_tform.inverse)
 
         # Get cropping parameters
-        c, r = np.nonzero(self.tform_image)
+        r, c = np.nonzero(self.tform_image)
         cmin, cmax = np.min(c), np.max(c)
         rmin, rmax = np.min(r), np.max(r)
 
         # Apply cropping parameters
-        self.tform_image = self.tform_image[cmin:cmax, rmin:rmax]
-        self.rot_mask = self.rot_mask[cmin:cmax, rmin:rmax]
+        self.tform_image = self.tform_image[rmin:rmax, cmin:cmax]
+        self.rot_mask = self.rot_mask[rmin:rmax, cmin:cmax]
 
         # Save cropping parameters as part of the transformation
         self.crop_trans_x = -cmin
         self.crop_trans_y = -rmin
 
+        self.small_pad = int(self.initial_pad * 0.5)
+
         # Apply padding and save padding parameters for the transformation
         if self.quadrant_name == "UL":
-            self.tform_image = np.pad(self.tform_image, [[self.pad, 0], [self.pad, 0]])
-            self.pad_trans_x = self.pad
-            self.pad_trans_y = self.pad
+            self.tform_image = np.pad(self.tform_image, [[self.small_pad, 0], [self.small_pad, 0]])
+            self.pad_trans_x = self.small_pad
+            self.pad_trans_y = self.small_pad
         elif self.quadrant_name == "UR":
-            self.tform_image = np.pad(self.tform_image, [[self.pad, 0], [0, self.pad]])
+            self.tform_image = np.pad(self.tform_image, [[self.small_pad, 0], [0, self.small_pad]])
             self.pad_trans_x = 0
-            self.pad_trans_y = self.pad
+            self.pad_trans_y = self.small_pad
         elif self.quadrant_name == "LL":
-            self.tform_image = np.pad(self.tform_image, [[0, self.pad], [self.pad, 0]])
-            self.pad_trans_x = self.pad
+            self.tform_image = np.pad(self.tform_image, [[0, self.small_pad], [self.small_pad, 0]])
+            self.pad_trans_x = self.small_pad
             self.pad_trans_y = 0
         elif self.quadrant_name == "LR":
-            self.tform_image = np.pad(self.tform_image, [[0, self.pad], [0, self.pad]])
+            self.tform_image = np.pad(self.tform_image, [[0, self.small_pad], [0, self.small_pad]])
             self.pad_trans_x = 0
             self.pad_trans_y = 0
-
 
         return
 
@@ -372,13 +377,13 @@ class Quadrant:
         """
 
         # Epsilon value is necessary to ensure no overlap between images.
-        eps = 0
+        eps = 1
 
         if self.quadrant_name == "UL":
 
             # Quadrant UL should not be translated horizontally but image has to be expanded horizontally.
             trans_x = 0
-            fake_x = np.shape(quadrant.tform_image)[1] + eps
+            expand_x = np.shape(quadrant.tform_image)[1] + eps
 
             # Perform vertical translation depending on size of neighbouring quadrant.
             if np.shape(self.tform_image)[0] < np.shape(quadrant.tform_image)[0]:
@@ -387,7 +392,7 @@ class Quadrant:
                 trans_y = 0
 
             # Get output shape. This should be larger than original image due to translation
-            out_shape = (np.shape(self.tform_image)[0] + trans_y, np.shape(self.tform_image)[1] + fake_x)
+            out_shape = (np.shape(self.tform_image)[0] + trans_y, np.shape(self.tform_image)[1] + expand_x)
 
         elif self.quadrant_name == "UR":
 
@@ -407,17 +412,17 @@ class Quadrant:
 
             # Quadrant LL should not be translated horizontally/vertically but image has to be expanded horizontally.
             trans_x = 0
-            fake_x = np.shape(quadrant.tform_image)[1] + eps
+            expand_x = np.shape(quadrant.tform_image)[1] + eps
             trans_y = 0
 
             # Perform vertical translation depending on size of neighbouring quadrant.
             if np.shape(self.tform_image)[0] < np.shape(quadrant.tform_image)[0]:
-                fake_y = np.shape(quadrant.tform_image)[0] - np.shape(self.tform_image)[0]
+                expand_y = np.shape(quadrant.tform_image)[0] - np.shape(self.tform_image)[0]
             else:
-                fake_y = 0
+                expand_y = 0
 
             # Get output shape. This should be larger than original image due to translation
-            out_shape = (np.shape(self.tform_image)[0] + fake_y, np.shape(self.tform_image)[1] + fake_x)
+            out_shape = (np.shape(self.tform_image)[0] + expand_y, np.shape(self.tform_image)[1] + expand_x)
 
         elif self.quadrant_name == "LR":
 
@@ -427,12 +432,12 @@ class Quadrant:
 
             # Perform vertical translation depending on size of neighbouring quadrant.
             if np.shape(self.tform_image)[0] < np.shape(quadrant.tform_image)[0]:
-                fake_y = np.shape(quadrant.tform_image)[0] - np.shape(self.tform_image)[0]
+                expand_y = np.shape(quadrant.tform_image)[0] - np.shape(self.tform_image)[0]
             else:
-                fake_y = 0
+                expand_y = 0
 
             # Get output shape. This should be larger than original image due to translation
-            out_shape = (np.shape(self.tform_image)[0] + fake_y, np.shape(self.tform_image)[1] + trans_x)
+            out_shape = (np.shape(self.tform_image)[0] + expand_y, np.shape(self.tform_image)[1] + trans_x)
 
         # Obtain transformation
         tform = EuclideanTransform(rotation=0, translation=(trans_x, trans_y))
@@ -453,13 +458,13 @@ class Quadrant:
         """
 
         # Epsilon value may be necessary to ensure no overlap between images.
-        eps = 0
+        eps = 1
 
         if self.quadrant_name in ["UL", "UR"]:
 
             # Quadrants UL/UR should not be translated vertically but have to be expanded vertically
             trans_y = 0
-            fake_y = np.shape(quadrant.tform_image_local)[0] + eps
+            expand_y = np.shape(quadrant.tform_image_local)[0] + eps
 
             # Perform horizontal translation depending on size of the fused LL/LR piece.
             if np.shape(self.tform_image_local)[1] < np.shape(quadrant.tform_image_local)[1]:
@@ -468,7 +473,7 @@ class Quadrant:
                 trans_x = 0
 
             # Get output shape. This should be larger than original image due to translation
-            out_shape = (np.shape(self.tform_image_local)[0] + fake_y, np.shape(self.tform_image_local)[1] + trans_x)
+            out_shape = (np.shape(self.tform_image_local)[0] + expand_y, np.shape(self.tform_image_local)[1] + trans_x)
 
         elif self.quadrant_name in ["LL", "LR"]:
 

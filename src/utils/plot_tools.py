@@ -10,28 +10,15 @@ def plot_rotation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     Custom function to plot the result of the automatic rotation
     """
 
-    # Pad the image for pretty plotting
-    pad = int(np.round(0.25 * np.shape(quadrant_A.mask)[0]))
-
-    # Get x/y values of bbox
-    A_corners_x = [c[0]+pad for c in quadrant_A.bbox_corners]
-    A_corners_y = [c[1]+pad for c in quadrant_A.bbox_corners]
-    B_corners_x = [c[0]+pad for c in quadrant_B.bbox_corners]
-    B_corners_y = [c[1]+pad for c in quadrant_B.bbox_corners]
-    C_corners_x = [c[0]+pad for c in quadrant_C.bbox_corners]
-    C_corners_y = [c[1]+pad for c in quadrant_C.bbox_corners]
-    D_corners_x = [c[0]+pad for c in quadrant_D.bbox_corners]
-    D_corners_y = [c[1]+pad for c in quadrant_D.bbox_corners]
-
-    # Add first value again to close the box
-    A_corners_x.append(A_corners_x[0])
-    A_corners_y.append(A_corners_y[0])
-    B_corners_x.append(B_corners_x[0])
-    B_corners_y.append(B_corners_y[0])
-    C_corners_x.append(C_corners_x[0])
-    C_corners_y.append(C_corners_y[0])
-    D_corners_x.append(D_corners_x[0])
-    D_corners_y.append(D_corners_y[0])
+    # Get x/y values of bounding box around quadrant
+    A_corners_x = [c[0] for c in quadrant_A.bbox_corners] + [quadrant_A.bbox_corners[0][0]]
+    A_corners_y = [c[1] for c in quadrant_A.bbox_corners] + [quadrant_A.bbox_corners[0][1]]
+    B_corners_x = [c[0] for c in quadrant_B.bbox_corners] + [quadrant_B.bbox_corners[0][0]]
+    B_corners_y = [c[1] for c in quadrant_B.bbox_corners] + [quadrant_B.bbox_corners[0][1]]
+    C_corners_x = [c[0] for c in quadrant_C.bbox_corners] + [quadrant_C.bbox_corners[0][0]]
+    C_corners_y = [c[1] for c in quadrant_C.bbox_corners] + [quadrant_C.bbox_corners[0][1]]
+    D_corners_x = [c[0] for c in quadrant_D.bbox_corners] + [quadrant_D.bbox_corners[0][0]]
+    D_corners_y = [c[1] for c in quadrant_D.bbox_corners] + [quadrant_D.bbox_corners[0][1]]
 
     ## Plot quadrant A
     plt.figure(figsize=(6, 14))
@@ -39,49 +26,49 @@ def plot_rotation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     plt.subplot(421)
     plt.axis("off")
     plt.title(quadrant_A.quadrant_name)
-    plt.imshow(np.pad(quadrant_A.mask, [pad, pad]), cmap="gray")
-    plt.scatter(quadrant_A.mask_corner_a[0] + pad, quadrant_A.mask_corner_a[1] + pad, facecolor="r", s=100)
+    plt.imshow(quadrant_A.mask, cmap="gray")
+    plt.scatter(quadrant_A.mask_corner_a[0], quadrant_A.mask_corner_a[1], facecolor="r", s=100)
     plt.plot(A_corners_x, A_corners_y, linewidth=4, c="r")
     plt.subplot(422)
     plt.axis("off")
     plt.title(quadrant_A.quadrant_name)
-    plt.imshow(np.pad(quadrant_A.rot_mask, [pad, pad]), cmap="gray")
+    plt.imshow(np.pad(quadrant_A.rot_mask, [quadrant_A.initial_pad, quadrant_A.initial_pad]), cmap="gray")
 
     ## Plot quadrant B
     plt.subplot(423)
     plt.axis("off")
     plt.title(quadrant_B.quadrant_name)
-    plt.imshow(np.pad(quadrant_B.mask, [pad, pad]), cmap="gray")
-    plt.scatter(quadrant_B.mask_corner_a[0] + pad, quadrant_B.mask_corner_a[1] + pad, facecolor="r", s=100)
+    plt.imshow(quadrant_B.mask, cmap="gray")
+    plt.scatter(quadrant_B.mask_corner_a[0], quadrant_B.mask_corner_a[1], facecolor="r", s=100)
     plt.plot(B_corners_x, B_corners_y, linewidth=4, c="r")
     plt.subplot(424)
     plt.axis("off")
     plt.title(quadrant_B.quadrant_name)
-    plt.imshow(np.pad(quadrant_B.rot_mask, [pad, pad]), cmap="gray")
+    plt.imshow(np.pad(quadrant_B.rot_mask, [quadrant_B.initial_pad, quadrant_B.initial_pad]), cmap="gray")
 
     ## Plot quadrant C
     plt.subplot(425)
     plt.axis("off")
     plt.title(quadrant_C.quadrant_name)
-    plt.imshow(np.pad(quadrant_C.mask, [pad, pad]), cmap="gray")
-    plt.scatter(quadrant_C.mask_corner_a[0] + pad, quadrant_C.mask_corner_a[1] + pad, facecolor="r", s=100)
+    plt.imshow(quadrant_C.mask, cmap="gray")
+    plt.scatter(quadrant_C.mask_corner_a[0], quadrant_C.mask_corner_a[1], facecolor="r", s=100)
     plt.plot(C_corners_x, C_corners_y, linewidth=4, c="r")
     plt.subplot(426)
     plt.axis("off")
     plt.title(quadrant_C.quadrant_name)
-    plt.imshow(np.pad(quadrant_C.rot_mask, [pad, pad]), cmap="gray")
+    plt.imshow(np.pad(quadrant_C.rot_mask, [quadrant_C.initial_pad, quadrant_C.initial_pad]), cmap="gray")
 
     ## Plot quadrant D
     plt.subplot(427)
     plt.axis("off")
     plt.title(quadrant_D.quadrant_name)
-    plt.imshow(np.pad(quadrant_D.mask, [pad, pad]), cmap="gray")
-    plt.scatter(quadrant_D.mask_corner_a[0] + pad, quadrant_D.mask_corner_a[1] + pad, facecolor="r", s=100)
+    plt.imshow(quadrant_D.mask, cmap="gray")
+    plt.scatter(quadrant_D.mask_corner_a[0], quadrant_D.mask_corner_a[1], facecolor="r", s=100)
     plt.plot(D_corners_x, D_corners_y, linewidth=4, c="r")
     plt.subplot(428)
     plt.axis("off")
     plt.title(quadrant_D.quadrant_name)
-    plt.imshow(np.pad(quadrant_D.rot_mask, [pad, pad]), cmap="gray")
+    plt.imshow(np.pad(quadrant_D.rot_mask, [quadrant_D.initial_pad, quadrant_D.initial_pad]), cmap="gray")
     plt.tight_layout()
     plt.show()
 
@@ -310,21 +297,23 @@ def plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, final_tform, 
     genetic algorithm.
     """
 
-    # Extract individual tforms from best solution
-    ga_tform_A = ga_dict["best_solution"][0]
-    ga_tform_B = ga_dict["best_solution"][1]
-    ga_tform_C = ga_dict["best_solution"][2]
-    ga_tform_D = ga_dict["best_solution"][3]
+    # Extract individual tforms from final_tform
+    ga_tform_A = final_tform[quadrant_A.quadrant_name]
+    ga_tform_B = final_tform[quadrant_B.quadrant_name]
+    ga_tform_C = final_tform[quadrant_C.quadrant_name]
+    ga_tform_D = final_tform[quadrant_D.quadrant_name]
 
+    # Make transform object
     A_tform = EuclideanTransform(rotation=-math.radians(ga_tform_A[2]), translation=ga_tform_A[:2])
     B_tform = EuclideanTransform(rotation=-math.radians(ga_tform_B[2]), translation=ga_tform_B[:2])
     C_tform = EuclideanTransform(rotation=-math.radians(ga_tform_C[2]), translation=ga_tform_C[:2])
     D_tform = EuclideanTransform(rotation=-math.radians(ga_tform_D[2]), translation=ga_tform_D[:2])
 
-    quadrant_A.ga_tform_image = warp(quadrant_A.tform_image, A_tform.inverse)
-    quadrant_B.ga_tform_image = warp(quadrant_B.tform_image, B_tform.inverse)
-    quadrant_C.ga_tform_image = warp(quadrant_C.tform_image, C_tform.inverse)
-    quadrant_D.ga_tform_image = warp(quadrant_D.tform_image, D_tform.inverse)
+    # Apply transformation
+    quadrant_A.ga_tform_image = warp(quadrant_A.gray_image, A_tform.inverse, output_shape=ga_tform_A[3])
+    quadrant_B.ga_tform_image = warp(quadrant_B.gray_image, B_tform.inverse, output_shape=ga_tform_B[3])
+    quadrant_C.ga_tform_image = warp(quadrant_C.gray_image, C_tform.inverse, output_shape=ga_tform_C[3])
+    quadrant_D.ga_tform_image = warp(quadrant_D.gray_image, D_tform.inverse, output_shape=ga_tform_D[3])
 
     # Stitch all images together
     combi_before = quadrant_A.tform_image + quadrant_B.tform_image + quadrant_C.tform_image + quadrant_D.tform_image
@@ -333,11 +322,11 @@ def plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, final_tform, 
     # Show result
     plt.figure()
     plt.subplot(121)
-    plt.title(f"Before GA: fitness={np.round(ga_dict['initial_fitness'], 2)}")
+    plt.title(f"Before GA: fitness={np.round(ga_dict['initial_fitness'], 3)}")
     plt.imshow(combi_before, cmap="gray")
 
     plt.subplot(122)
-    plt.title(f"After GA: fitness={np.round(ga_dict['solution_fitness'], 2)}")
+    plt.title(f"After GA: fitness={np.round(ga_dict['solution_fitness'], 3)}")
     plt.imshow(combi_after, cmap="gray")
     plt.show()
 

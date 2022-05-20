@@ -6,17 +6,7 @@ import pickle
 import copy
 
 from .get_resname import get_resname
-from .auto_rotate import auto_rotate
-from .crop_img import crop_img
-from .get_tformed_images import get_tformed_images
-from .stitch_imfuse import stitch_imfuse
-from .get_edges import get_edges
-from .packup import packup_edges, packup_images
-from .spatial_ref_object import spatial_ref_object
-from .get_theilsen_lines import get_theilsen_lines
-from .get_histograms_and_intensities import get_histograms_and_intensities
 from .genetic_algorithm import genetic_algorithm
-from .get_filename import get_filename
 from .map_tform_low_res import map_tform_low_res
 from .verify_overlap import verify_non_overlap
 from .recompute_transform import recompute_transform
@@ -98,45 +88,22 @@ def optimize_stitch(parameters, plot=False):
             quadrant_C.get_tformed_images_global(quadrant_A)
             quadrant_D.get_tformed_images_global(quadrant_A)
 
-            # Save transformation for all quadrants.
-            tform = dict()
-            tform[str(quadrant_A.quadrant_name)] = [quadrant_A.rot_trans_x, quadrant_A.rot_trans_y,
-                                                    quadrant_A.crop_trans_x, quadrant_A.crop_trans_y,
-                                                    quadrant_A.pad_trans_x, quadrant_A.pad_trans_y,
-                                                    quadrant_A.trans_x, quadrant_A.trans_y,
-                                                    quadrant_A.angle, quadrant_A.outshape]
-            tform[str(quadrant_B.quadrant_name)] = [quadrant_B.rot_trans_x, quadrant_B.rot_trans_y,
-                                                    quadrant_B.crop_trans_x, quadrant_B.crop_trans_y,
-                                                    quadrant_B.pad_trans_x, quadrant_B.pad_trans_y,
-                                                    quadrant_B.trans_x, quadrant_B.trans_y,
-                                                    quadrant_B.angle, quadrant_B.outshape]
-            tform[str(quadrant_C.quadrant_name)] = [quadrant_C.rot_trans_x, quadrant_C.rot_trans_y,
-                                                    quadrant_C.crop_trans_x, quadrant_C.crop_trans_y,
-                                                    quadrant_C.pad_trans_x, quadrant_C.pad_trans_y,
-                                                    quadrant_C.trans_x, quadrant_C.trans_y,
-                                                    quadrant_C.angle, quadrant_C.outshape]
-            tform[str(quadrant_D.quadrant_name)] = [quadrant_D.rot_trans_x, quadrant_D.rot_trans_y,
-                                                    quadrant_D.crop_trans_x, quadrant_D.crop_trans_y,
-                                                    quadrant_D.pad_trans_x, quadrant_D.pad_trans_y,
-                                                    quadrant_D.trans_x, quadrant_D.trans_y,
-                                                    quadrant_D.angle, quadrant_D.outshape]
-
-            np.save(f"{dirpath_tform}/tform.npy", tform)
-
             # Get final tform params for plotting later on
             initial_tform = dict()
             initial_tform[str(quadrant_A.quadrant_name)] = [quadrant_A.rot_trans_x+quadrant_A.crop_trans_x+quadrant_A.pad_trans_x+quadrant_A.trans_x,
-                                                          quadrant_A.rot_trans_y+quadrant_A.crop_trans_y+quadrant_A.pad_trans_y+quadrant_A.trans_y,
-                                                          quadrant_A.angle, quadrant_A.outshape]
+                                                            quadrant_A.rot_trans_y+quadrant_A.crop_trans_y+quadrant_A.pad_trans_y+quadrant_A.trans_y,
+                                                            quadrant_A.angle, quadrant_A.outshape]
             initial_tform[str(quadrant_B.quadrant_name)] = [quadrant_B.rot_trans_x+quadrant_B.crop_trans_x+quadrant_B.pad_trans_x+quadrant_B.trans_x,
-                                                          quadrant_B.rot_trans_y+quadrant_B.crop_trans_y+quadrant_B.pad_trans_y+quadrant_B.trans_y,
-                                                          quadrant_B.angle, quadrant_B.outshape]
+                                                            quadrant_B.rot_trans_y+quadrant_B.crop_trans_y+quadrant_B.pad_trans_y+quadrant_B.trans_y,
+                                                            quadrant_B.angle, quadrant_B.outshape]
             initial_tform[str(quadrant_C.quadrant_name)] = [quadrant_C.rot_trans_x+quadrant_C.crop_trans_x+quadrant_C.pad_trans_x+quadrant_C.trans_x,
-                                                          quadrant_C.rot_trans_y+quadrant_C.crop_trans_y+quadrant_C.pad_trans_y+quadrant_C.trans_y,
-                                                          quadrant_C.angle, quadrant_C.outshape]
+                                                            quadrant_C.rot_trans_y+quadrant_C.crop_trans_y+quadrant_C.pad_trans_y+quadrant_C.trans_y,
+                                                            quadrant_C.angle, quadrant_C.outshape]
             initial_tform[str(quadrant_D.quadrant_name)] = [quadrant_D.rot_trans_x+quadrant_D.crop_trans_x+quadrant_D.pad_trans_x+quadrant_D.trans_x,
-                                                          quadrant_D.rot_trans_y+quadrant_D.crop_trans_y+quadrant_D.pad_trans_y+quadrant_D.trans_y,
-                                                          quadrant_D.angle, quadrant_D.outshape]
+                                                            quadrant_D.rot_trans_y+quadrant_D.crop_trans_y+quadrant_D.pad_trans_y+quadrant_D.trans_y,
+                                                            quadrant_D.angle, quadrant_D.outshape]
+
+            np.save(f"{dirpath_tform}/tform.npy", initial_tform)
 
         # If initial transformation already exists, load and upsample it.
         elif parameters['iteration'] > 0:
@@ -147,14 +114,7 @@ def optimize_stitch(parameters, plot=False):
         quadrant_B.get_tformed_images(initial_tform)
         quadrant_C.get_tformed_images(initial_tform)
         quadrant_D.get_tformed_images(initial_tform)
-        parameters["image_centers"] = [quadrant_A.image_center, quadrant_B.image_center,
-                                       quadrant_C.image_center, quadrant_D.image_center]
-
-        # Plot tformed bbox cornerpoints
-        """
-        if plot and parameters['iteration']==0:
-            plot_rotated_bbox(quadrant_A, quadrant_B, quadrant_C, quadrant_D)
-        """
+        parameters["image_centers"] = [quadrant_A.image_center, quadrant_B.image_center, quadrant_C.image_center, quadrant_D.image_center]
 
         # Plot transformation result
         if plot:
@@ -182,6 +142,7 @@ def optimize_stitch(parameters, plot=False):
             plot_theilsen_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters)
 
         # Compute histograms along edge
+        """
         quadrant_A.get_histograms()
         quadrant_B.get_histograms()
         quadrant_C.get_histograms()
@@ -192,9 +153,7 @@ def optimize_stitch(parameters, plot=False):
         quadrant_B.get_intensities()
         quadrant_C.get_intensities()
         quadrant_D.get_intensities()
-
-        #plot_tformed_lines(quadrant_A, quadrant_B, quadrant_C, quadrant_D)
-
+        """
 
         # Optimization with genetic algorithm
         print("- computing reconstruction with genetic algorithm...")
@@ -207,6 +166,7 @@ def optimize_stitch(parameters, plot=False):
         final_tform["UR"][:3] = final_tform["UR"][:3] + ga_dict["best_solution"][1]
         final_tform["LL"][:3] = final_tform["LL"][:3] + ga_dict["best_solution"][2]
         final_tform["LR"][:3] = final_tform["LR"][:3] + ga_dict["best_solution"][3]
+        np.save(filepath_tform, final_tform)
 
         # Plot the results of the genetic algorithm
         plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, final_tform, ga_dict)
@@ -217,12 +177,7 @@ def optimize_stitch(parameters, plot=False):
         sec = np.round(end_time-start_time, 1)
         print(f"> time to optimize patient {parameters['patient_idx']} at resolution {current_res}: {sec} seconds")
 
-        """
-
     else:
-        GA_dict = np.load(filepath_tform, allow_pickle=True).item()
-        ga_tform = GA_dict["solution"]
-        
-        """
+        print("- already optimized this resolution!")
 
-    return None
+    return

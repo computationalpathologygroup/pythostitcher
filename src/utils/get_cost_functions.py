@@ -40,6 +40,8 @@ def get_cost_functions(edge_tform_a, edge_tform_b, edge_tform_theilsen_a, edge_t
         if edge1_top2bottom ^ edge2_top2bottom:
             edge2_rc_world = edge2_rc_world[::-1]
 
+    """
+
     if quadrant in ["topBottom", "bottomTop"]:
 
         # Get search range
@@ -227,6 +229,8 @@ def get_cost_functions(edge_tform_a, edge_tform_b, edge_tform_theilsen_a, edge_t
     else:
         intensityCosts = np.nan
 
+    """
+
     ### Determine which point is inner point and which is outer
     line1_pt1 = edge_tform_theilsen_a[0, :]
     line1_pt2 = edge_tform_theilsen_a[-1, :]
@@ -260,6 +264,8 @@ def get_cost_functions(edge_tform_a, edge_tform_b, edge_tform_theilsen_a, edge_t
     innerPointNorm = np.linalg.norm(line1_innerPt - line2_innerPt)**2
     outerPointNorm = np.linalg.norm(line1_outerPt - line2_outerPt)**2
     overlapAndUnderlapCosts = innerPointWeight * innerPointNorm + parameters["outer_point_weight"] * outerPointNorm
+
+    intensityCosts = 0
 
     """
 
@@ -309,4 +315,4 @@ def get_cost_functions(edge_tform_a, edge_tform_b, edge_tform_theilsen_a, edge_t
 
     """
 
-    return intensityCosts, edge1_rc_sampleIdxs, overlapAndUnderlapCosts, overhangIdxs
+    return intensityCosts, overlapAndUnderlapCosts
