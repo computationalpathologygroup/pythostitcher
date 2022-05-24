@@ -1,8 +1,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import math
-from matplotlib.patches import Rectangle
+import imageio
+import os
+import glob
+
 from skimage.transform import EuclideanTransform, matrix_transform, warp
+
+from .recombine_quadrants import recombine_quadrants
+from .recompute_transform import recompute_transform
+from .get_resname import get_resname
 
 
 def plot_rotation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
@@ -80,13 +87,17 @@ def plot_transformation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, p
     Custom function to plot the result of the initial transformation to align the pieces
     """
 
-    combined = quadrant_A.tform_image + quadrant_B.tform_image + \
-               quadrant_C.tform_image + quadrant_D.tform_image
+    result = recombine_quadrants(quadrant_A.colour_image_temp, quadrant_B.colour_image_temp,
+                                 quadrant_C.colour_image_temp, quadrant_D.colour_image_temp)
+
+    imsavedir = f"{parameters['results_dir']}/{parameters['patient_idx']}/images/initial_result.png"
 
     plt.figure()
     current_res = parameters['resolutions'][parameters['iteration']]
     plt.title(f"Initial alignment at resolution {current_res}")
-    plt.imshow(combined, cmap="gray")
+    plt.imshow(result, cmap="gray")
+    if parameters["iteration"] == 0:
+        plt.savefig(imsavedir)
     plt.show()
 
 
@@ -291,7 +302,7 @@ def plot_ga_tform(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     return
 
 
-def plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, final_tform, ga_dict):
+def plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, final_tform, ga_dict):
     """
     Plotting function to plot the transformation of the quadrants which was found by the
     genetic algorithm.
@@ -310,27 +321,103 @@ def plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, final_tform, 
     D_tform = EuclideanTransform(rotation=-math.radians(ga_tform_D[2]), translation=ga_tform_D[:2])
 
     # Apply transformation
-    quadrant_A.ga_tform_image = warp(quadrant_A.gray_image, A_tform.inverse, output_shape=ga_tform_A[3])
-    quadrant_B.ga_tform_image = warp(quadrant_B.gray_image, B_tform.inverse, output_shape=ga_tform_B[3])
-    quadrant_C.ga_tform_image = warp(quadrant_C.gray_image, C_tform.inverse, output_shape=ga_tform_C[3])
-    quadrant_D.ga_tform_image = warp(quadrant_D.gray_image, D_tform.inverse, output_shape=ga_tform_D[3])
+    quadrant_A.ga_tform_image = warp(quadrant_A.colour_image, A_tform.inverse, output_shape=ga_tform_A[3])
+    quadrant_B.ga_tform_image = warp(quadrant_B.colour_image, B_tform.inverse, output_shape=ga_tform_B[3])
+    quadrant_C.ga_tform_image = warp(quadrant_C.colour_image, C_tform.inverse, output_shape=ga_tform_C[3])
+    quadrant_D.ga_tform_image = warp(quadrant_D.colour_image, D_tform.inverse, output_shape=ga_tform_D[3])
 
     # Stitch all images together
-    combi_before = quadrant_A.tform_image + quadrant_B.tform_image + quadrant_C.tform_image + quadrant_D.tform_image
-    combi_after = quadrant_A.ga_tform_image + quadrant_B.ga_tform_image + quadrant_C.ga_tform_image + quadrant_D.ga_tform_image
+    result = recombine_quadrants(quadrant_A.ga_tform_image, quadrant_B.ga_tform_image,
+                                 quadrant_C.ga_tform_image, quadrant_D.ga_tform_image)
+
+    res = parameters["resolutions"][parameters["iteration"]]
+    imsavedir = f"{parameters['results_dir']}/{parameters['patient_idx']}/images/ga_result_{res}.png"
 
     # Show result
     plt.figure()
-    plt.subplot(121)
-    plt.title(f"Before GA: fitness={np.round(ga_dict['initial_fitness'], 3)}")
-    plt.imshow(combi_before, cmap="gray")
-
-    plt.subplot(122)
-    plt.title(f"After GA: fitness={np.round(ga_dict['solution_fitness'], 3)}")
-    plt.imshow(combi_after, cmap="gray")
+    plt.title(f"After GA at res {res}: fitness={np.round(ga_dict['solution_fitness'], 3)}")
+    plt.imshow(result, cmap="gray")
+    plt.savefig(imsavedir)
     plt.show()
 
     return
 
 
+def make_tform_gif(parameters):
+    """
+    Custom function to make a gif of all the tformed results after the GA as a visual check of the result
+    """
+
+
+    """
+    for sol, gen, fit in zip(solutions, generations, fitness):
+        tform_A, tform_B, tform_C, tform_D = recompute_transform(quadrant_A, quadrant_B, quadrant_C, quadrant_D, sol)
+
+        # Make transform object
+        tform_A_object = EuclideanTransform(rotation=-math.radians(tform_A[2]), translation=tform_A[:2])
+        tform_B_object = EuclideanTransform(rotation=-math.radians(tform_B[2]), translation=tform_B[:2])
+        tform_C_object = EuclideanTransform(rotation=-math.radians(tform_C[2]), translation=tform_C[:2])
+        tform_D_object = EuclideanTransform(rotation=-math.radians(tform_D[2]), translation=tform_D[:2])
+
+        # Apply transformation
+        ga_tform_image_A = warp(quadrant_A.tform_image, tform_A_object.inverse)
+        ga_tform_image_B = warp(quadrant_B.tform_image, tform_B_object.inverse)
+        ga_tform_image_C = warp(quadrant_C.tform_image, tform_C_object.inverse)
+        ga_tform_image_D = warp(quadrant_D.tform_image, tform_D_object.inverse)
+
+        result = recombine_quadrants(ga_tform_image_A, ga_tform_image_B, ga_tform_image_C, ga_tform_image_D)
+
+        plt.figure()
+        plt.title(f"Generation {gen}: fitness {fit}")
+        plt.imshow(result, cmap="gray")
+        plt.axis("off")
+        if make_gif:
+            plt.savefig(f"{imsavedir}/gen_{str(gen).zfill(4)}.png")
+        plt.show()
+    """
+
+    # Make gif of the transformation
+    imsavedir = f"{parameters['results_dir']}/{parameters['patient_idx']}/images"
+    gifsavedir = f"{parameters['results_dir']}/{parameters['patient_idx']}/tform_progression.gif"
+
+    all_images = glob.glob(imsavedir+"/*")
+    all_images = sorted(all_images, key=lambda t: os.stat(t).st_mtime)
+
+    images = []
+    for name in all_images:
+        image = imageio.imread(name)
+        images.append(image)
+
+    imageio.mimsave(gifsavedir, images, duration=0.5)
+
+    return
+
+
+def plot_ga_multires(parameters):
+    """
+    Custom function to plot how the fitness improves at multiple resolutions.
+
+    NOTE: The fitness depends on the cost function being used and may not scale correctly with the resolutions. This
+    may result in a decreasing fitness for higher resolutions while the visual fitness increases. Example: absolute
+    distance between the endpoints of the edges increases for higher resolutions leading to a lower fitness when
+    this is the only factor in the cost function.
+    """
+
+    fitness = parameters["GA_fitness"]
+    xticks_loc = list(np.arange(0, 5))
+    xticks_label = ["Initial"] + parameters["resolutions"]
+
+    # Only plot when the GA fitness has been tracked properly.
+    if len(xticks_loc) == len(xticks_label):
+        plt.figure()
+        plt.title("Fitness progression at multiple resolutions")
+        plt.plot(xticks_loc, fitness)
+        plt.xlabel("Resolution")
+        plt.xticks(xticks_loc, xticks_label)
+        plt.ylabel("Fitness")
+        plt.show()
+    else:
+
+
+    return
 

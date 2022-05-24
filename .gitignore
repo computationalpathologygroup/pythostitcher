@@ -10,6 +10,7 @@ __pycache__/
 info.txt
 radboud_data/
 results/
+Dockerfile
 
 # Distribution / packaging
 .idea/

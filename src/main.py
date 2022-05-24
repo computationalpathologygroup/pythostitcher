@@ -15,8 +15,8 @@ def setup_pythostitcher():
     patient_idx = "P" + str(patient_idx).zfill(6)
 
     # SPECIFY DIRECTORIES WHERE INPUT CAN BE FOUND
-    data_dir = (f"../radboud_data/{patient_idx}/images")
-    results_dir = ("../results")
+    data_dir = f"../radboud_data/{patient_idx}/images"
+    results_dir = "../results"
 
     # Automatically get all quadrant filenames
     all_files = glob.glob(f"{data_dir}/*")
@@ -86,6 +86,7 @@ def setup_pythostitcher():
     parameters["angle_range"] = 15
     #parameters["sampling_deltas"] = [1, 1, 5, 10]
     parameters["sampling_deltas"] = [1, 2, 5, 10]
+    parameters["GA_fitness"] = []
 
     # Start pythostitcher program
     run_pythostitcher(parameters)

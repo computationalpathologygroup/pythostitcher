@@ -1,6 +1,5 @@
 import pygad
 import numpy as np
-import os
 import math
 import copy
 
@@ -8,7 +7,6 @@ from skimage.transform import EuclideanTransform, matrix_transform
 
 from .plot_tools import *
 from .get_resname import get_resname
-from .rotate_cp import rotate_cp, rotate_2dpoints
 from .get_cost_functions import get_cost_functions
 from .recompute_transform import recompute_transform
 
@@ -45,7 +43,7 @@ def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters
 
     # Define values for initial population. These should be relatively close to initial tform
     num_sol = 20
-    num_gen = 50
+    num_gen = 100
     init_pop = np.zeros((num_sol, num_genes))
 
     # Generate initial population based on noise
@@ -67,7 +65,7 @@ def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters
         fitness_func = fitness_func,            # optimization function
         initial_population = init_pop,          # values for first-gen genes
         gene_space = param_range,               # (M) parameter search range
-        mutation_probability=0.3,               # probability that a gene mutates
+        mutation_probability=0.2,               # probability that a gene mutates
         mutation_type="random",                 # mutation type
         random_mutation_min_val=-5,             # max value
         random_mutation_max_val=5,
@@ -95,10 +93,22 @@ def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters
                f"{get_resname(parameters['resolutions'][parameters['iteration']])}/" \
                f"tform/tform_ga.npy"
 
+    if parameters["iteration"] == 0:
+        parameters["GA_fitness"].append(init_fitness)
+
+    parameters["GA_fitness"].append(solution_fitness)
+
     ga_dict = dict()
     ga_dict["best_solution"] = solution
     ga_dict["solution_fitness"] = solution_fitness
     ga_dict["initial_fitness"] = init_fitness
+
+    """
+    # Set some params for making a gif
+    generations = np.arange(0, len(ga_instance.best_solutions), 50)
+    solutions = ga_instance.best_solutions[generations]
+    fitness = [np.round(fitness_func(sol, 0), 3) for sol in solutions]
+    """
 
     return ga_dict
 
@@ -231,8 +241,8 @@ def fitness_func(solution, solution_idx):
                 edges_tform[i][0], edges_tform[i][1], edges_theilsen_tform[i][0], edges_theilsen_tform[i][1],
                 intensities[i][0], intensities[i][1], whichQuadrants[i], costfun_parameters, direction = orientations[i])
 
-            cost_result_dict["intensity_costs"].append(intensity_costs + eps)
-            cost_result_dict["overunderlap_costs"].append(overunderlap_costs + eps)
+            cost_result_dict["intensity_costs"].append(intensity_costs)
+            cost_result_dict["overunderlap_costs"].append(overunderlap_costs)
 
             # Not sure why this variable is needed
             # intensityCosts[i][overhangIdxs[i]] = overhangPenalty

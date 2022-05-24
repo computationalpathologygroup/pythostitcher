@@ -6,14 +6,12 @@ import math
 import copy
 
 from skimage.io import imread, imsave
-from skimage.transform import resize, rotate, warp, EuclideanTransform, matrix_transform
+from skimage.transform import resize, warp, EuclideanTransform, matrix_transform
 from skimage.measure import label, regionprops
 from skimage.color import rgb2gray
-from matplotlib import pyplot as plt
 from sklearn.linear_model import TheilSenRegressor
 
 from .get_resname import get_resname
-from .spatial_ref_object import spatial_ref_object
 
 
 class Quadrant:
@@ -348,6 +346,7 @@ class Quadrant:
         tform = EuclideanTransform(rotation=rad_angle, translation=(trans_x, trans_y))
 
         # Apply tform. Using the inverse is skimage convention
+        self.colour_image_temp = warp(self.colour_image, tform.inverse, output_shape=out_shape)
         self.tform_image = warp(self.gray_image, tform.inverse, output_shape=out_shape)
         self.mask = warp(self.mask, tform.inverse, output_shape=out_shape)
         self.mask = (self.mask > 0.5) * 1
@@ -528,7 +527,7 @@ class Quadrant:
 
         return edge_AB, edge_AD
 
-    def get_edges(self, plot=True):
+    def get_edges(self):
         """
         Custom method to retrieve edges from a certain fragment.
         Uses the get_bbox_corners and compute_edges methods.
@@ -560,21 +559,6 @@ class Quadrant:
         self.h_edge = h_edge
         self.v_edge = v_edge
 
-        if plot:
-            h_edge_x = [e[0] for e in h_edge]
-            h_edge_y = [e[1] for e in h_edge]
-
-            v_edge_x = [e[0] for e in v_edge]
-            v_edge_y = [e[1] for e in v_edge]
-
-            plt.figure()
-            plt.title(f"Identified edges for quadrant {self.quadrant_name}")
-            plt.imshow(self.tform_image, cmap="gray")
-            plt.scatter(v_edge_x, v_edge_y, s=50, facecolor="g")
-            plt.scatter(h_edge_x, h_edge_y, s=50, facecolor="b")
-            plt.legend(["v edge", "h edge"])
-            plt.show()
-
         return
 
     def edge_to_world_coordinates(self, direction):
@@ -598,7 +582,7 @@ class Quadrant:
 
         return
 
-    def fit_theilsen_lines(self, plot=True):
+    def fit_theilsen_lines(self):
         """
         Custom method to fit a Theil Sen estimator to an edge.
 
@@ -658,21 +642,6 @@ class Quadrant:
         y_line = [x[0].item(), x[-1].item()]
         self.v_edge_theilsen_endpoints = np.array([[x, y] for x, y in zip(x_line, y_line)], dtype=object)
         self.v_edge_theilsen_coords = np.array([[x, y] for x, y in zip(y_pred, np.squeeze(x_edge))], dtype=object)    # swap due to previous swap
-
-        # Plot resulting Theil-Sen line on image
-        if plot:
-            ver_x = [e[0] for e in self.v_edge_theilsen_endpoints]
-            ver_y = [e[1] for e in self.v_edge_theilsen_endpoints]
-            hor_x = [e[0] for e in self.h_edge_theilsen_endpoints]
-            hor_y = [e[1] for e in self.h_edge_theilsen_endpoints]
-
-            plt.figure()
-            plt.title(f"Fitted theilsen lines for quadrant {self.quadrant_name}")
-            plt.imshow(self.tform_image, cmap="gray")
-            plt.plot(ver_x, ver_y, linewidth=6, color="g")
-            plt.plot(hor_x, hor_y, linewidth=6, color="b")
-            plt.legend(["v edge", "h edge"])
-            plt.show()
 
         return
 

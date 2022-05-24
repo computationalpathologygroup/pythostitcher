@@ -1,7 +1,6 @@
 import os
-import time
-import matplotlib.pyplot as plt
 import numpy as np
+import time
 import pickle
 import copy
 
@@ -9,7 +8,6 @@ from .get_resname import get_resname
 from .genetic_algorithm import genetic_algorithm
 from .map_tform_low_res import map_tform_low_res
 from .verify_overlap import verify_non_overlap
-from .recompute_transform import recompute_transform
 from .plot_tools import *
 
 
@@ -27,9 +25,11 @@ def optimize_stitch(parameters, plot=False):
     # Make tform dir
     dirpath_tform = f"../results/{parameters['patient_idx']}/{parameters['slice_idx']}/{get_resname(parameters['resolutions'][parameters['iteration']])}/tform/"
     dirpath_quadrants = f"../results/{parameters['patient_idx']}/{parameters['slice_idx']}/{get_resname(parameters['resolutions'][parameters['iteration']])}/quadrant"
+    dirpath_images = f"../results/{parameters['patient_idx']}/images"
 
-    if not os.path.exists(dirpath_tform):
-        os.mkdir(dirpath_tform)
+    for path in [dirpath_tform, dirpath_images]:
+        if not os.path.exists(path):
+            os.mkdir(path)
 
     # Check if optimized tform already exists
     filepath_tform = f"{dirpath_tform}tform_ga.npy"
@@ -125,17 +125,17 @@ def optimize_stitch(parameters, plot=False):
 
         # Get edges, histograms and intensities
         print(f"- extracting edges from images...")
-        quadrant_A.get_edges(plot=False)
-        quadrant_B.get_edges(plot=False)
-        quadrant_C.get_edges(plot=False)
-        quadrant_D.get_edges(plot=False)
+        quadrant_A.get_edges()
+        quadrant_B.get_edges()
+        quadrant_C.get_edges()
+        quadrant_D.get_edges()
 
         # Compute Theil Sen lines for edge matching
         print("- computing Theil-Sen estimation of edge...")
-        quadrant_A.fit_theilsen_lines(plot=False)
-        quadrant_B.fit_theilsen_lines(plot=False)
-        quadrant_C.fit_theilsen_lines(plot=False)
-        quadrant_D.fit_theilsen_lines(plot=False)
+        quadrant_A.fit_theilsen_lines()
+        quadrant_B.fit_theilsen_lines()
+        quadrant_C.fit_theilsen_lines()
+        quadrant_D.fit_theilsen_lines()
 
         # Plot all acquired Theil-Sen lines
         if plot:
@@ -169,7 +169,7 @@ def optimize_stitch(parameters, plot=False):
         np.save(filepath_tform, final_tform)
 
         # Plot the results of the genetic algorithm
-        plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, final_tform, ga_dict)
+        plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, final_tform, ga_dict)
 
         # Provide verbose on computation time
         end_time = time.time()
@@ -179,5 +179,14 @@ def optimize_stitch(parameters, plot=False):
 
     else:
         print("- already optimized this resolution!")
+
+    # At final resolution provide some extra visualizations
+    if parameters["iteration"] == 3:
+
+        # Make a gif of the tform result
+        make_tform_gif(parameters)
+
+        # Plot the final result of the GA
+        plot_ga_multires(parameters)
 
     return

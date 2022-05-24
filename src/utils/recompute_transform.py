@@ -7,9 +7,10 @@ def recompute_transform(quadrant_A, quadrant_B, quadrant_C, quadrant_D, tform):
     """
     Custom function to recompute a transformation matrix.
 
-    Since a rotation with skimage always brings an additional translation, we need to recalculate the translation
-    by transforming the upper left bbox corner of each quadrant. This is also performed in the calculation of the
-    initial alignment.
+    The rotation function by skimage rotates the image around the point (0, 0), thereby inducing an additional
+    translation component in the rotation. To counteract this translation, we compute the center point of the
+    bbox before and after rotation. This essentially results in a rotation of the image around its center,
+    thereby negating the additional translation component. This is also performed in the initial alignment step.
     """
 
     # Get transformation per quadrant from genetic algorithm tform

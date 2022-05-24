@@ -1,6 +1,4 @@
 import numpy as np
-from matplotlib import pyplot as plt
-from .world_to_intrinsic import world_to_intrinsic
 
 
 def get_cost_functions(edge_tform_a, edge_tform_b, edge_tform_theilsen_a, edge_tform_theilsen_b,
@@ -266,53 +264,5 @@ def get_cost_functions(edge_tform_a, edge_tform_b, edge_tform_theilsen_a, edge_t
     overlapAndUnderlapCosts = innerPointWeight * innerPointNorm + parameters["outer_point_weight"] * outerPointNorm
 
     intensityCosts = 0
-
-    """
-
-    if debug:
-        ACBD = varargin[0]
-        rACBD = varargin[1]
-
-        line1_xy_ACBDi = np.zeros((1, 2))
-        line2_xy_ACBDi = np.zeros((1, 2))
-        line1_xy_ACBDi[:, 0], line1_xy_ACBDi[:, 1] = world_to_intrinsic(rACBD, edge_tform_theilsen_a[:, 0], edge_tform_theilsen_a[:, 1])
-        line2_xy_ACBDi[:, 0], line2_xy_ACBDi[:, 1] = world_to_intrinsic(rACBD, edge_tform_theilsen_b[:, 0], edge_tform_theilsen_b[:, 2])
-
-        plt.figure()
-        plt.imshow(ACBD)
-        plt.title('ACBD, with sampled patch locations plotted')
-        plt.plot(line1_xy_ACBDi[:, 0], line1_xy_ACBDi[:, 1])
-        plt.plot(line2_xy_ACBDi[:, 0], line2_xy_ACBDi[:, 1])
-
-    if debug:
-        ACBD = varargin[1]
-        rACBD = varargin[2]
-
-        #### PREALLOCATING MIGHT BE WRONG HERE, CHECK LATER
-        edge1_rc_ACBDi = np.zeros((1, 2))
-        edge2_rc_ACBDi = np.zeros((1, 2))
-
-        edge1_rc_ACBDi[:, 1], edge1_rc_ACBDi[:, 0] = world_to_intrinsic(rACBD, edge1_rc_world[:, 1], edge1_rc_world[:, 0])
-        edge2_rc_ACBDi[:, 1], edge2_rc_ACBDi[:, 0] = world_to_intrinsic(rACBD, edge2_rc_world[:, 1], edge2_rc_world[:, 0])
-
-        edge1_rc_ACBDi_sampled = np.zeros((len(edge1_rc_sampleIdxs), 2))
-        edge1_rc_ACBDi_sampled[notNanIdxs_edge1, :] = edge1_rc_ACBDi[edge1_rc_sampleIdxs[notNanIdxs_edge1], :]
-        edge1_rc_ACBDi_sampled[nanIdxs_edge1, :] = np.nan
-
-        edge2_rc_ACBDi_sampled = np.zeros((len(edge2_rc_sampleIdxs), 2))
-        edge2_rc_ACBDi_sampled[notNanIdxs_edge2, :] = edge2_rc_ACBDi[edge2_rc_sampleIdxs[notNanIdxs_edge2], :]
-        edge2_rc_ACBDi_sampled[nanIdxs_edge2, :] = np.nan
-
-        plt.figure()
-        plt.imshow(ACBD, cmap="gray")
-        plt.title('ACBD, with sampled patch locations plotted')
-
-        ## colors = jet(length(edge1_rc_sampleIdxs))
-
-        for i in range(len(edge1_rc_sampleIdxs)):
-            plt.plot(edge1_rc_ACBDi_sampled[i, 1], edge1_rc_ACBDi_sampled[i, 0])
-            plt.plot(edge2_rc_ACBDi_sampled[i, 1], edge2_rc_ACBDi_sampled[i, 0])
-
-    """
 
     return intensityCosts, overlapAndUnderlapCosts

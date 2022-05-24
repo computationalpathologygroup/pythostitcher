@@ -24,10 +24,10 @@ def run_pythostitcher(parameters):
     # Start with preprocessing data
     print("\nPreprocessing data on multiple resolutions...")
 
-    for iter in range(len(parameters["resolutions"])):
+    for i in range(len(parameters["resolutions"])):
 
         # Set current iteration
-        parameters["iteration"] = iter
+        parameters["iteration"] = i
 
         # Initiate all quadrants
         quadrant_A = Quadrant(quadrant_name="UL", kwargs=parameters)
@@ -41,13 +41,13 @@ def run_pythostitcher(parameters):
     print("Finished!")
 
     # Optimize stitch for multiple resolutions
-    for iter in range(len(parameters["resolutions"])):
+    for i in range(len(parameters["resolutions"])):
 
-        parameters["iteration"] = iter
-        print(f"\nOptimizing stitch at resolution {parameters['resolutions'][iter]}")
+        parameters["iteration"] = i
+        print(f"\nOptimizing stitch at resolution {parameters['resolutions'][i]}")
         optimize_stitch(parameters, plot=True)
 
-    res_num = 3
+    ##### Last code to be implemented
     imA_t, imB_t, imC_t, imD_t, tform_objects, tform_edges = map_high_res(
         data_dir, results_dir, cases, res_num, versions,
         rev_name, padsizes, resolutions[res_num], "AutoStitch")
