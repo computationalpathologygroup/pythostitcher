@@ -13,9 +13,10 @@ results/
 Dockerfile
 *.docx
 *.xlsx
+*/.idea/*
 
 # Distribution / packaging
-.idea/
+
 __pycache__/
 .Python
 build/
