@@ -11,6 +11,8 @@ info.txt
 radboud_data/
 results/
 Dockerfile
+*.docx
+*.xlsx
 
 # Distribution / packaging
 .idea/

@@ -7,7 +7,6 @@ import copy
 from .get_resname import get_resname
 from .genetic_algorithm import genetic_algorithm
 from .map_tform_low_res import map_tform_low_res
-from .verify_overlap import verify_non_overlap
 from .plot_tools import *
 
 
@@ -120,9 +119,6 @@ def optimize_stitch(parameters, plot=False):
         if plot:
             plot_transformation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters)
 
-        # Verify that there are no overlapping segments
-        # verify_non_overlap(quadrant_A, quadrant_B, quadrant_C, quadrant_D, tolerance=10)
-
         # Get edges, histograms and intensities
         print(f"- extracting edges from images...")
         quadrant_A.get_edges()
@@ -186,7 +182,9 @@ def optimize_stitch(parameters, plot=False):
         # Make a gif of the tform result
         make_tform_gif(parameters)
 
-        # Plot the final result of the GA
+        # Plot the fitness trajectory over the multiple resolutions
         plot_ga_multires(parameters)
+
+
 
     return

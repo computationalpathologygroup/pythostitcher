@@ -4,12 +4,12 @@ import math
 import imageio
 import os
 import glob
+import warnings
 
 from skimage.transform import EuclideanTransform, matrix_transform, warp
 
 from .recombine_quadrants import recombine_quadrants
 from .recompute_transform import recompute_transform
-from .get_resname import get_resname
 
 
 def plot_rotation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
@@ -92,13 +92,13 @@ def plot_transformation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, p
 
     imsavedir = f"{parameters['results_dir']}/{parameters['patient_idx']}/images/initial_result.png"
 
-    plt.figure()
+    fig = plt.figure()
     current_res = parameters['resolutions'][parameters['iteration']]
     plt.title(f"Initial alignment at resolution {current_res}")
     plt.imshow(result, cmap="gray")
     if parameters["iteration"] == 0:
         plt.savefig(imsavedir)
-    plt.show()
+    plt.close(fig)
 
 
 def plot_theilsen_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters):
@@ -107,20 +107,49 @@ def plot_theilsen_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, paramet
     """
 
     # Combine all images
-    combi_image = quadrant_A.tform_image + quadrant_B.tform_image + quadrant_C.tform_image + quadrant_D.tform_image
+    combi_image = recombine_quadrants(quadrant_A.colour_image_temp, quadrant_B.colour_image_temp,
+                                      quadrant_C.colour_image_temp, quadrant_D.colour_image_temp)
+    ratio =  parameters["resolutions"][parameters["iteration"]]/parameters["resolutions"][0]
+    ms = np.sqrt(2500*np.sqrt(ratio))
 
-    # Plot theilsen lines
+    # Plot theilsen lines with marked endpoints
     plt.figure()
-    plt.title(f"Fitted theilsen lines at resolution {parameters['resolutions'][parameters['iteration']]}")
+    plt.title(f"Alignment at resolution {parameters['resolutions'][parameters['iteration']]} \n before genetic algorithm")
     plt.imshow(combi_image, cmap="gray")
-    plt.plot(quadrant_A.v_edge_theilsen_endpoints[:, 0], quadrant_A.v_edge_theilsen_endpoints[:, 1], linewidth=3, color="g")
-    plt.plot(quadrant_A.h_edge_theilsen_endpoints[:, 0], quadrant_A.h_edge_theilsen_endpoints[:, 1], linewidth=3, color="b")
-    plt.plot(quadrant_B.v_edge_theilsen_endpoints[:, 0], quadrant_B.v_edge_theilsen_endpoints[:, 1], linewidth=3, color="g")
-    plt.plot(quadrant_B.h_edge_theilsen_endpoints[:, 0], quadrant_B.h_edge_theilsen_endpoints[:, 1], linewidth=3, color="b")
-    plt.plot(quadrant_C.v_edge_theilsen_endpoints[:, 0], quadrant_C.v_edge_theilsen_endpoints[:, 1], linewidth=3, color="g")
-    plt.plot(quadrant_C.h_edge_theilsen_endpoints[:, 0], quadrant_C.h_edge_theilsen_endpoints[:, 1], linewidth=3, color="b")
-    plt.plot(quadrant_D.v_edge_theilsen_endpoints[:, 0], quadrant_D.v_edge_theilsen_endpoints[:, 1], linewidth=3, color="g")
-    plt.plot(quadrant_D.h_edge_theilsen_endpoints[:, 0], quadrant_D.h_edge_theilsen_endpoints[:, 1], linewidth=3, color="b")
+    plt.plot(quadrant_A.v_edge_theilsen_endpoints[:, 0], quadrant_A.v_edge_theilsen_endpoints[:, 1],
+             linewidth=2, color="g")
+    plt.plot(quadrant_A.h_edge_theilsen_endpoints[:, 0], quadrant_A.h_edge_theilsen_endpoints[:, 1],
+             linewidth=2, color="b")
+    plt.plot(quadrant_B.v_edge_theilsen_endpoints[:, 0], quadrant_B.v_edge_theilsen_endpoints[:, 1],
+             linewidth=2, color="g")
+    plt.plot(quadrant_B.h_edge_theilsen_endpoints[:, 0], quadrant_B.h_edge_theilsen_endpoints[:, 1],
+             linewidth=2, color="b")
+    plt.plot(quadrant_C.v_edge_theilsen_endpoints[:, 0], quadrant_C.v_edge_theilsen_endpoints[:, 1],
+             linewidth=2, color="g")
+    plt.plot(quadrant_C.h_edge_theilsen_endpoints[:, 0], quadrant_C.h_edge_theilsen_endpoints[:, 1],
+             linewidth=2, color="b")
+    plt.plot(quadrant_D.v_edge_theilsen_endpoints[:, 0], quadrant_D.v_edge_theilsen_endpoints[:, 1],
+             linewidth=2, color="g")
+    plt.plot(quadrant_D.h_edge_theilsen_endpoints[:, 0], quadrant_D.h_edge_theilsen_endpoints[:, 1],
+             linewidth=2, color="b")
+
+    plt.scatter(quadrant_A.v_edge_theilsen_endpoints[:, 0], quadrant_A.v_edge_theilsen_endpoints[:, 1],
+                marker='*', s=ms, color="g")
+    plt.scatter(quadrant_A.h_edge_theilsen_endpoints[:, 0], quadrant_A.h_edge_theilsen_endpoints[:, 1],
+                marker='+', s=ms, color="b")
+    plt.scatter(quadrant_B.v_edge_theilsen_endpoints[:, 0], quadrant_B.v_edge_theilsen_endpoints[:, 1],
+                marker='*', s=ms, color="g")
+    plt.scatter(quadrant_B.h_edge_theilsen_endpoints[:, 0], quadrant_B.h_edge_theilsen_endpoints[:, 1],
+                marker='+', s=ms, color="b")
+    plt.scatter(quadrant_C.v_edge_theilsen_endpoints[:, 0], quadrant_C.v_edge_theilsen_endpoints[:, 1],
+                marker='*', s=ms, color="g")
+    plt.scatter(quadrant_C.h_edge_theilsen_endpoints[:, 0], quadrant_C.h_edge_theilsen_endpoints[:, 1],
+                marker='+', s=ms, color="b")
+    plt.scatter(quadrant_D.v_edge_theilsen_endpoints[:, 0], quadrant_D.v_edge_theilsen_endpoints[:, 1],
+                marker='*', s=ms, color="g")
+    plt.scatter(quadrant_D.h_edge_theilsen_endpoints[:, 0], quadrant_D.h_edge_theilsen_endpoints[:, 1],
+                marker='+', s=ms, color="b")
+
     plt.legend(["v edge", "h edge"])
     plt.show()
 
@@ -128,6 +157,9 @@ def plot_theilsen_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, paramet
 
 
 def plot_rotated_bbox(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
+    """
+    Custom function to plot the bounding box points after the box has been rotated to become horizontal
+    """
 
     scat_x = [quadrant_A.bbox_corner_a[0], quadrant_A.bbox_corner_b[0], quadrant_A.bbox_corner_c[0], quadrant_A.bbox_corner_d[0]]
     scat_y = [quadrant_A.bbox_corner_a[1], quadrant_A.bbox_corner_b[1], quadrant_A.bbox_corner_c[1], quadrant_A.bbox_corner_d[1]]
@@ -335,7 +367,7 @@ def plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, f
 
     # Show result
     plt.figure()
-    plt.title(f"After GA at res {res}: fitness={np.round(ga_dict['solution_fitness'], 3)}")
+    plt.title(f"Alignment at resolution {res}\n after genetic algorithm (fitness={np.round(ga_dict['solution_fitness'], 3)})")
     plt.imshow(result, cmap="gray")
     plt.savefig(imsavedir)
     plt.show()
@@ -408,7 +440,7 @@ def plot_ga_multires(parameters):
     xticks_label = ["Initial"] + parameters["resolutions"]
 
     # Only plot when the GA fitness has been tracked properly.
-    if len(xticks_loc) == len(xticks_label):
+    if len(fitness) == len(xticks_label):
         plt.figure()
         plt.title("Fitness progression at multiple resolutions")
         plt.plot(xticks_loc, fitness)
@@ -417,7 +449,8 @@ def plot_ga_multires(parameters):
         plt.ylabel("Fitness")
         plt.show()
     else:
-
+        warnings.warn("Could not plot fitness progression for multiple resolutions, "
+                      "try running the genetic algorithm from scratch by deleting previously acquired tform files")
 
     return
 

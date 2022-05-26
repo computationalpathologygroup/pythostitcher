@@ -2,7 +2,13 @@ import numpy as np
 
 
 def get_cost_functions(edge_tform_a, edge_tform_b, edge_tform_theilsen_a, edge_tform_theilsen_b,
-                       histograms_a, histograms_b, quadrant, parameters, direction):
+                       histograms_a, histograms_b, quadrant, parameters, direction, quadrant_shape):
+    """
+    Custom function to compute the cost of a solution in the genetic algorithm.
+    """
+
+    # Compute scaling factor to account for increased distances
+    scaling = parameters["cost_function_scaling"][parameters["iteration"]]
 
     # Make sure coordinates are integers and remove first and last edge point
     edge1_rc_world = np.round(edge_tform_a).astype("int")
@@ -229,7 +235,7 @@ def get_cost_functions(edge_tform_a, edge_tform_b, edge_tform_theilsen_a, edge_t
 
     """
 
-    ### Determine which point is inner point and which is outer
+    ########################## COST: DISTANCE BETWEEN EDGE POINTS ###########################################
     line1_pt1 = edge_tform_theilsen_a[0, :]
     line1_pt2 = edge_tform_theilsen_a[-1, :]
     line1_pts = [line1_pt1, line1_pt2]
@@ -251,18 +257,19 @@ def get_cost_functions(edge_tform_a, edge_tform_b, edge_tform_theilsen_a, edge_t
     innerPtIdx_line2 = np.argmin(line2_distsFromCoM)
     outerPtIdx_line2 = 1 if innerPtIdx_line2==0 else 0
 
-    # Get the inner and outer points
-    line1_innerPt = line1_pts[innerPtIdx_line1]
-    line1_outerPt = line1_pts[outerPtIdx_line1]
-    line2_innerPt = line2_pts[innerPtIdx_line2]
-    line2_outerPt = line2_pts[outerPtIdx_line2]
+    # Get the inner and outer points. We divide this by the scaling to account for the increased distance due
+    # to the higher resolutions.
+    line1_innerPt = line1_pts[innerPtIdx_line1] / scaling
+    line1_outerPt = line1_pts[outerPtIdx_line1] / scaling
+    line2_innerPt = line2_pts[innerPtIdx_line2] / scaling
+    line2_outerPt = line2_pts[outerPtIdx_line2] / scaling
 
-    # Compute overlapAndUnderlapCost as sum of distances between extrema
-    innerPointWeight = 1 - parameters["outer_point_weight"]
-    innerPointNorm = np.linalg.norm(line1_innerPt - line2_innerPt)**2
-    outerPointNorm = np.linalg.norm(line1_outerPt - line2_outerPt)**2
-    overlapAndUnderlapCosts = innerPointWeight * innerPointNorm + parameters["outer_point_weight"] * outerPointNorm
+    # Compute edge_distance_costs as sum of distances
+    inner_point_weight = 1 - parameters["outer_point_weight"]
+    inner_point_norm = np.linalg.norm(line1_innerPt - line2_innerPt)**2
+    outer_point_norm = np.linalg.norm(line1_outerPt - line2_outerPt)**2
+    edge_distance_costs = inner_point_weight * inner_point_norm + parameters["outer_point_weight"] * outer_point_norm
 
     intensityCosts = 0
 
-    return intensityCosts, overlapAndUnderlapCosts
+    return intensityCosts, edge_distance_costs

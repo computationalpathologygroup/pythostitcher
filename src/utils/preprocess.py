@@ -1,7 +1,7 @@
 import os
 
 
-def preprocess(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
+def preprocess(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters):
     """
     Function to load and preprocess all the quadrant images.
 
@@ -64,6 +64,8 @@ def preprocess(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
         quadrant_B.save_quadrant()
         quadrant_C.save_quadrant()
         quadrant_D.save_quadrant()
+
+        print(f"- preprocessing resolution {parameters['resolutions'][parameters['iteration']]}")
 
     # Else nothing, images will be loaded in the next step
     else:
