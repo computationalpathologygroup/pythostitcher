@@ -100,6 +100,8 @@ def plot_transformation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, p
         plt.savefig(imsavedir)
     plt.close(fig)
 
+    return
+
 
 def plot_theilsen_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters):
     """
@@ -161,6 +163,7 @@ def plot_rotated_bbox(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     Custom function to plot the bounding box points after the box has been rotated to become horizontal
     """
 
+    # X and y coordinates of the bounding box
     scat_x = [quadrant_A.bbox_corner_a[0], quadrant_A.bbox_corner_b[0], quadrant_A.bbox_corner_c[0], quadrant_A.bbox_corner_d[0]]
     scat_y = [quadrant_A.bbox_corner_a[1], quadrant_A.bbox_corner_b[1], quadrant_A.bbox_corner_c[1], quadrant_A.bbox_corner_d[1]]
 
@@ -170,6 +173,7 @@ def plot_rotated_bbox(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     plt.scatter(scat_x, scat_y, s=25, c="r")
     plt.show()
 
+    # X and y coordinates of the bounding box
     scat_x = [quadrant_B.bbox_corner_a[0], quadrant_B.bbox_corner_b[0], quadrant_B.bbox_corner_c[0], quadrant_B.bbox_corner_d[0]]
     scat_y = [quadrant_B.bbox_corner_a[1], quadrant_B.bbox_corner_b[1], quadrant_B.bbox_corner_c[1], quadrant_B.bbox_corner_d[1]]
 
@@ -179,6 +183,7 @@ def plot_rotated_bbox(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     plt.scatter(scat_x, scat_y, s=25, c="r")
     plt.show()
 
+    # X and y coordinates of the bounding box
     scat_x = [quadrant_C.bbox_corner_a[0], quadrant_C.bbox_corner_b[0], quadrant_C.bbox_corner_c[0], quadrant_C.bbox_corner_d[0]]
     scat_y = [quadrant_C.bbox_corner_a[1], quadrant_C.bbox_corner_b[1], quadrant_C.bbox_corner_c[1], quadrant_C.bbox_corner_d[1]]
 
@@ -188,6 +193,7 @@ def plot_rotated_bbox(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     plt.scatter(scat_x, scat_y, s=25, c="r")
     plt.show()
 
+    # X and y coordinates of the bounding box
     scat_x = [quadrant_D.bbox_corner_a[0], quadrant_D.bbox_corner_b[0], quadrant_D.bbox_corner_c[0], quadrant_D.bbox_corner_d[0]]
     scat_y = [quadrant_D.bbox_corner_a[1], quadrant_D.bbox_corner_b[1], quadrant_D.bbox_corner_c[1], quadrant_D.bbox_corner_d[1]]
 
@@ -425,6 +431,38 @@ def make_tform_gif(parameters):
     return
 
 
+def plot_sampled_patches(total_im, patch_indices_x, patch_indices_y, ts_lines):
+    """
+    Custom function to visualize the patches which are extracted in the histogram cost function.
+    """
+
+    ts_line_colours = ["b", "g"]*4
+
+    plt.figure()
+    plt.title(f"Sampled patches on TheilSen lines")
+    plt.imshow(total_im, cmap="gray")
+    for x, y in zip(patch_indices_x.values(), patch_indices_y.values()):
+        plt.plot(x, y, linewidth=0.5, c="r")
+    for ts, c in zip(ts_lines, ts_line_colours):
+        plt.plot(ts[:, 0], ts[:, 1], linewidth=2, c=c)
+    plt.show()
+
+    return
+
+
+def plot_overlap_cost(im, relative_overlap):
+    """
+    Custom function to plot the overlap between the quadrants
+    """
+
+    plt.figure()
+    plt.title(f"Visualization of overlapping quadrants {np.round(relative_overlap*100, 1)}%")
+    plt.imshow(im, cmap="gray")
+    plt.show()
+
+    return
+
+
 def plot_ga_multires(parameters):
     """
     Custom function to plot how the fitness improves at multiple resolutions.
@@ -453,4 +491,3 @@ def plot_ga_multires(parameters):
                       "try running the genetic algorithm from scratch by deleting previously acquired tform files")
 
     return
-

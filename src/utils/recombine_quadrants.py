@@ -4,25 +4,34 @@ import itertools
 
 def recombine_quadrants(im_A, im_B, im_C, im_D):
     """
-    Custom function to recombine all transformed quadrants in one image
+    Custom function to recombine all transformed quadrants in one image. Images are recombined by computing areas
+    of overlap and equally weighing the intensity values at these areas.
 
     Input:
-    - tformed image for all quadrants
+    - Transformed image for all quadrants
 
     Output:
-    - single recombined image of all quadrants
+    - Single recombined image of all quadrants
     """
 
     # Initialize some parameters
     quadrants = "ABCD"
     image_dict = dict()
     image_dict["A"], image_dict["B"], image_dict["C"], image_dict["D"] = im_A, im_B, im_C, im_D
-    mask_A, mask_B, mask_C, mask_D = im_A[:, :, 0]>0, im_B[:, :, 0]>0, im_C[:, :, 0]>0, im_D[:, :, 0]>0
+    all_combo = []
+    final_im = np.zeros((im_A.shape))
+
+    # Obtain masks
+    if len(np.squeeze(im_A.shape))==2:
+        mask_A, mask_B, mask_C, mask_D = im_A>0, im_B>0, im_C>0, im_D>0
+    elif len(np.squeeze(im_A.shape))==3:
+        mask_A, mask_B, mask_C, mask_D = im_A[:, :, 0]>0, im_B[:, :, 0]>0, im_C[:, :, 0]>0, im_D[:, :, 0]>0
+    else:
+        assert ValueError(f"Expected input image to be either 2D/3D, received {len(np.squeeze(im_A.shape))}D")
+
     mask_dict = dict()
     mask_dict["A"], mask_dict["B"], mask_dict["C"], mask_dict["D"] = mask_A, mask_B, mask_C, mask_D
     merged_mask_dict = dict()
-    all_combo = []
-    final_im = np.zeros((im_A.shape))
 
     # Find all possible quadrant combinations
     for i in range(1, len(quadrants)+1):
@@ -54,6 +63,9 @@ def recombine_quadrants(im_A, im_B, im_C, im_D):
         temp = np.array([(1/num_quadrants) * image_dict[str(ele)] for ele in combo])
         temp = np.mean(temp, axis=0)
 
-        final_im[r, c, :] = temp[r, c, :]
+        if len(np.squeeze(final_im.shape))==2:
+            final_im[r, c] = temp[r, c]
+        elif len(np.squeeze(final_im.shape))==3:
+            final_im[r, c, :] = temp[r, c, :]
 
     return final_im

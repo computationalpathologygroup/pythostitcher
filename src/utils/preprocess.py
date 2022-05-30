@@ -6,10 +6,11 @@ def preprocess(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters):
     Function to load and preprocess all the quadrant images.
 
     Input:
-        - Quadrant class with basic info
+    - Quadrant class with basic info
+    - Dict with parameters
 
     Output:
-        - Quadrant class with all loaded images
+    - Quadrant class with all loaded images
     """
 
     # Make directories for later saving
@@ -67,7 +68,7 @@ def preprocess(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters):
 
         print(f"- preprocessing resolution {parameters['resolutions'][parameters['iteration']]}")
 
-    # Else nothing, images will be loaded in the next step
+    # Else nothing, images will be loaded in the next step in the optimize stitch function
     else:
         pass
 

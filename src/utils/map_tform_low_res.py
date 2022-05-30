@@ -7,6 +7,12 @@ from .get_resname import get_resname
 def map_tform_low_res(parameters):
     """
     Custom function to upsample the previously acquired tform matrix.
+
+    Input:
+    - Dict with parameters
+
+    Output:
+    - Upsampled transformation matrix
     """
 
     # Calculate ratio between current resolution and previous resolution

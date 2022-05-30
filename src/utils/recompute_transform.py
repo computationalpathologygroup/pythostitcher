@@ -45,7 +45,7 @@ def recompute_transform(quadrant_A, quadrant_B, quadrant_C, quadrant_D, tform):
     rot_bbox_corners_c = np.squeeze(matrix_transform(bbox_corners_c, rot_tform_c.params))
     rot_bbox_corners_d = np.squeeze(matrix_transform(bbox_corners_d, rot_tform_d.params))
 
-    # # Compute the new center of mass of the bbox
+    # Compute the new center of mass of the bbox
     center_a_post = np.mean(rot_bbox_corners_a, axis=0)
     center_b_post = np.mean(rot_bbox_corners_b, axis=0)
     center_c_post = np.mean(rot_bbox_corners_c, axis=0)
@@ -58,9 +58,9 @@ def recompute_transform(quadrant_A, quadrant_B, quadrant_C, quadrant_D, tform):
     trans_d = center_d_pre - center_d_post
 
     # Include this translation in the original transformation
-    final_tform_a = ga_tform_A + [*trans_a, 0]
-    final_tform_b = ga_tform_B + [*trans_b, 0]
-    final_tform_c = ga_tform_C + [*trans_c, 0]
-    final_tform_d = ga_tform_D + [*trans_d, 0]
+    final_tform_a = (ga_tform_A + [*trans_a, 0]).astype(int)
+    final_tform_b = (ga_tform_B + [*trans_b, 0]).astype(int)
+    final_tform_c = (ga_tform_C + [*trans_c, 0]).astype(int)
+    final_tform_d = (ga_tform_D + [*trans_d, 0]).astype(int)
 
     return final_tform_a, final_tform_b, final_tform_c, final_tform_d

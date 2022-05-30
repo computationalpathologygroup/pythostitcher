@@ -12,19 +12,34 @@ from .plot_tools import *
 
 def optimize_stitch(parameters, plot=False):
     """
-    Function to optimize the stitching between images. This will consist of the following stages.
+    Function to optimize the stitching between images. This will consist of the following steps.
     1. Compute the smallest bounding box around the quadrant
     2. Compute the initial transformation by rotating this quadrant
     3. Globally align the quadrants and update the initial transformation with this translation factor
-    4. Extract the edges of the quadrant and compute a Theil-Sen line through the dges
-    5. Extract histograms and intensities along the edges of each quadrant.
-    6. Use a genetic algorithm to optimize the initial transformation
+    4. Extract the edges of the quadrant and compute a Theil-Sen line through the edges
+    5. Use a genetic algorithm to optimize the initial transformation
+
+    Input:
+    - Dictionary with parameters
+
+    Output:
+    - Final stitched image
     """
 
-    # Make tform dir
-    dirpath_tform = f"../results/{parameters['patient_idx']}/{parameters['slice_idx']}/{get_resname(parameters['resolutions'][parameters['iteration']])}/tform/"
-    dirpath_quadrants = f"../results/{parameters['patient_idx']}/{parameters['slice_idx']}/{get_resname(parameters['resolutions'][parameters['iteration']])}/quadrant"
-    dirpath_images = f"../results/{parameters['patient_idx']}/images"
+    # Make some directories for saving results
+    dirpath_tform = f"../results/" \
+                    f"{parameters['patient_idx']}/" \
+                    f"{parameters['slice_idx']}/" \
+                    f"{get_resname(parameters['resolutions'][parameters['iteration']])}/" \
+                    f"tform/"
+    dirpath_images = f"../results/" \
+                     f"{parameters['patient_idx']}/" \
+                     f"images"
+    dirpath_quadrants = f"../results/" \
+                        f"{parameters['patient_idx']}/" \
+                        f"{parameters['slice_idx']}/" \
+                        f"{get_resname(parameters['resolutions'][parameters['iteration']])}/" \
+                        f"quadrant"
 
     for path in [dirpath_tform, dirpath_images]:
         if not os.path.exists(path):
@@ -119,14 +134,14 @@ def optimize_stitch(parameters, plot=False):
         if plot:
             plot_transformation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters)
 
-        # Get edges, histograms and intensities
+        # Get edges from quadrants
         print(f"- extracting edges from images...")
         quadrant_A.get_edges()
         quadrant_B.get_edges()
         quadrant_C.get_edges()
         quadrant_D.get_edges()
 
-        # Compute Theil Sen lines for edge matching
+        # Compute Theil Sen lines through edges
         print("- computing Theil-Sen estimation of edge...")
         quadrant_A.fit_theilsen_lines()
         quadrant_B.fit_theilsen_lines()
@@ -136,20 +151,6 @@ def optimize_stitch(parameters, plot=False):
         # Plot all acquired Theil-Sen lines
         if plot:
             plot_theilsen_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters)
-
-        # Compute histograms along edge
-        """
-        quadrant_A.get_histograms()
-        quadrant_B.get_histograms()
-        quadrant_C.get_histograms()
-        quadrant_D.get_histograms()
-
-        # Compute intensities along edge
-        quadrant_A.get_intensities()
-        quadrant_B.get_intensities()
-        quadrant_C.get_intensities()
-        quadrant_D.get_intensities()
-        """
 
         # Optimization with genetic algorithm
         print("- computing reconstruction with genetic algorithm...")
@@ -184,7 +185,5 @@ def optimize_stitch(parameters, plot=False):
 
         # Plot the fitness trajectory over the multiple resolutions
         plot_ga_multires(parameters)
-
-
 
     return

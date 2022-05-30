@@ -1,40 +1,45 @@
 import pygad
 import numpy as np
-import math
 import copy
-
-from skimage.transform import EuclideanTransform, matrix_transform, warp
 
 from .plot_tools import *
 from .get_resname import get_resname
-from .get_cost_functions import get_cost_functions
+from .get_cost_functions import *
 from .recompute_transform import recompute_transform
 
 
 def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, initial_tform):
     """
     Function that runs a genetic algorithm using the pygad module.
+
+    Input:
+    - all quadrants
+    - dict with parameters
+    - initial transformation matrix
+
+    Output:
+    - dict with optimized transformation matrix and the fitness of that matrix
     """
 
-    # Make some variables global for fitness func
-    global glob_quadrant_A, glob_quadrant_B, glob_quadrant_C, glob_quadrant_D
-    global glob_parameters, glob_initialtform
+    # Make some variables global for access by fitness function. The fitness function is built to not accept any
+    # other input parameters than the solution and solution index, hence using global is necessary.
+    global glob_quadrant_A, glob_quadrant_B, glob_quadrant_C, glob_quadrant_D, glob_parameters
     glob_quadrant_A = copy.deepcopy(quadrant_A)
     glob_quadrant_B = copy.deepcopy(quadrant_B)
     glob_quadrant_C = copy.deepcopy(quadrant_C)
     glob_quadrant_D = copy.deepcopy(quadrant_D)
     glob_parameters = copy.deepcopy(parameters)
-    glob_initialtform = copy.deepcopy(initial_tform)
 
     # Initialize parameters
     tform_combi = [*initial_tform[quadrant_A.quadrant_name][:-1], *initial_tform[quadrant_B.quadrant_name][:-1],
                    *initial_tform[quadrant_C.quadrant_name][:-1], *initial_tform[quadrant_D.quadrant_name][:-1]]
     num_genes = len(tform_combi)
     ga_tform = np.zeros((num_genes))
+    glob_parameters["distance_scaling_required"] = True
     init_fitness = fitness_func(ga_tform, 0)
     num_sol = 20
     num_gen = 100
-    keep_parents = 5
+    keep_parents = 3
 
     # Cap solution ranges to plausible values
     t_range = parameters["translation_ranges"][parameters["iteration"]]
@@ -42,7 +47,7 @@ def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters
     angles = [False, False, True]*4
     lb = [int(x - a_range) if is_angle else int(x - t_range) for x, is_angle in zip(ga_tform, angles)]
     ub = [int(x + a_range) if is_angle else int(x + t_range) for x, is_angle in zip(ga_tform, angles)]
-    param_range = [[l, u] for l, u in zip(lb, ub)]
+    param_range = [np.arange(l, u) for l, u in zip(lb, ub)]
 
     # Generate initial population based on noise
     init_pop = np.zeros((num_sol, num_genes))
@@ -57,25 +62,24 @@ def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters
     # Pygad has a wide variety of parameters for the optimization. Parents with a (M) were copied from the Matlab
     # implementation. Other parameters are chosen empirically.
     ga_instance = pygad.GA(
-        num_generations = num_gen,              # num generations to optimize
-        fitness_func=fitness_func,              # optimization function
-        initial_population=init_pop,            # values for first-gen genes
-        gene_space=param_range,                 # (M) parameter search range
-        keep_parents = keep_parents,            # (M) num of parents that proceed to next generation unaltered
-        num_parents_mating = 10,                # num parents that produce offspring
-        parent_selection_type="rank",           # function to select parents for offspring
-        crossover_type="scattered",             # (M) gene selection
-        crossover_probability=0.5,              # probability that a parent is chosen for crossover
-        mutation_type="random",                 # mutation type
-        mutation_probability=0.2,               # probability that a gene mutates
-        random_mutation_min_val=-3,             # lower bound and upper bound for a value that
-        random_mutation_max_val=3,              #   is added to the gene
-        gene_type = [float, 1],
-        save_best_solutions=True,
-        suppress_warnings=True,
-        stop_criteria=None                      # this could later be set to stop after loss plateaus
+        num_generations = num_gen,                  # num generations to optimize
+        fitness_func=fitness_func,                  # optimization function
+        initial_population=init_pop,                # values for first-gen genes
+        gene_space=param_range,                     # parameter search range
+        keep_parents = keep_parents,                # num of parents that proceed to next generation unaltered
+        num_parents_mating = 6,                     # num parents that produce offspring
+        parent_selection_type="rank",               # function to select parents for offspring
+        crossover_type="scattered",                 # (M) gene selection
+        crossover_probability=0.5,                  # probability that a parent is chosen for crossover
+        mutation_type="random",                     # mutation type
+        mutation_probability=0.25,                  # probability that a gene mutates
+        #on_generation=plot_best_sol_per_gen,        # plot the result after every X (currently 10) generations
+        save_best_solutions=True,                   # must be True in order to use the callback above
+        suppress_warnings=True,                     # suppress annoying and irrelevant warnings
+        stop_criteria=None                          # this could later be set to stop after loss plateaus
     )
 
+    # Run genetic algorithm
     ga_instance.run()
     ga_instance.plot_fitness()
 
@@ -110,8 +114,10 @@ def fitness_func(solution, solution_idx):
     """
     Custom function to compute the cost related to the genetic algorithm. The genetic algorithm will provide
     a solution for the transformation matrix which can be used to compute the cost. A better transformation
-    matrix should be associated with a lower cost. Cost should always be in the range [0, 2].
+    matrix should be associated with a lower cost and thus a higher fitness.
     """
+
+    global glob_quadrant_A, glob_quadrant_B, glob_quadrant_C, glob_quadrant_D, glob_parameters
 
     # General cost function glob_parameters
     glob_parameters["intensity_cost_weights"] = 1 - glob_parameters["overunderlap_weights"][glob_quadrant_A.iteration]
@@ -123,159 +129,88 @@ def fitness_func(solution, solution_idx):
                                                              glob_quadrant_C, glob_quadrant_D,
                                                              solution)
 
-    # Make tform matrices
-    final_tform_a = EuclideanTransform(rotation=-math.radians(tform_a[2]), translation=tform_a[:2])
-    final_tform_b = EuclideanTransform(rotation=-math.radians(tform_b[2]), translation=tform_b[:2])
-    final_tform_c = EuclideanTransform(rotation=-math.radians(tform_c[2]), translation=tform_c[:2])
-    final_tform_d = EuclideanTransform(rotation=-math.radians(tform_d[2]), translation=tform_d[:2])
-
-    ## Rotate all edges and lines according to proposed transformation
-    # Quadrant A
-    glob_quadrant_A.h_edge_tform = matrix_transform(glob_quadrant_A.h_edge, final_tform_a.params)
-    glob_quadrant_A.v_edge_tform = matrix_transform(glob_quadrant_A.v_edge, final_tform_a.params)
-    glob_quadrant_A.h_edge_theilsen_tform = matrix_transform(glob_quadrant_A.h_edge_theilsen_coords, final_tform_a.params)
-    glob_quadrant_A.v_edge_theilsen_tform = matrix_transform(glob_quadrant_A.v_edge_theilsen_coords, final_tform_a.params)
-    glob_quadrant_A.h_edge_theilsen_tform = matrix_transform(glob_quadrant_A.h_edge_theilsen_endpoints, final_tform_a.params)
-    glob_quadrant_A.v_edge_theilsen_tform = matrix_transform(glob_quadrant_A.v_edge_theilsen_coords, final_tform_a.params)
-
-    # Quadrant B
-    # edge1B_tform = EuclideanTransform(rotation=-math.radians(ga_tform_B[2]), translation=(ga_tform_B[0], ga_tform_B[1]))
-    glob_quadrant_B.h_edge_tform = matrix_transform(glob_quadrant_B.h_edge, final_tform_b.params)
-    glob_quadrant_B.v_edge_tform = matrix_transform(glob_quadrant_B.v_edge, final_tform_b.params)
-    glob_quadrant_B.h_edge_theilsen_tform = matrix_transform(glob_quadrant_B.h_edge_theilsen_coords, final_tform_b.params)
-    glob_quadrant_B.v_edge_theilsen_tform = matrix_transform(glob_quadrant_B.v_edge_theilsen_coords, final_tform_b.params)
-
-    # Horizontal edge quadrant C
-    # edge1C_tform = EuclideanTransform(rotation=-math.radians(ga_tform_C[2]), translation=(ga_tform_C[0], ga_tform_C[1]))
-    glob_quadrant_C.h_edge_tform = matrix_transform(glob_quadrant_C.h_edge, final_tform_c.params)
-    glob_quadrant_C.v_edge_tform = matrix_transform(glob_quadrant_C.v_edge, final_tform_c.params)
-    glob_quadrant_C.h_edge_theilsen_tform = matrix_transform(glob_quadrant_C.h_edge_theilsen_coords, final_tform_c.params)
-    glob_quadrant_C.v_edge_theilsen_tform = matrix_transform(glob_quadrant_C.v_edge_theilsen_coords, final_tform_c.params)
-
-    # Horizontal edge quadrant C
-    # edge1D_tform = EuclideanTransform(rotation=-math.radians(ga_tform_D[2]), translation=(ga_tform_D[0], ga_tform_D[1]))
-    glob_quadrant_D.h_edge_tform = matrix_transform(glob_quadrant_D.h_edge, final_tform_d.params)
-    glob_quadrant_D.v_edge_tform = matrix_transform(glob_quadrant_D.v_edge, final_tform_d.params)
-    glob_quadrant_D.h_edge_theilsen_tform = matrix_transform(glob_quadrant_D.h_edge_theilsen_coords, final_tform_d.params)
-    glob_quadrant_D.v_edge_theilsen_tform = matrix_transform(glob_quadrant_D.v_edge_theilsen_coords, final_tform_d.params)
-
-    # Get tformed images
-    A_tform_image = warp(glob_quadrant_A.tform_image, final_tform_a.inverse)
-    B_tform_image = warp(glob_quadrant_B.tform_image, final_tform_b.inverse)
-    C_tform_image = warp(glob_quadrant_C.tform_image, final_tform_c.inverse)
-    D_tform_image = warp(glob_quadrant_D.tform_image, final_tform_d.inverse)
-
-    ### COST: OVERLAP BETWEEN QUADRANTS ###
-    # Compute relative overlap in image
-    total_size = np.sum(A_tform_image>0) + np.sum(B_tform_image>0) + np.sum(C_tform_image>0) + np.sum(D_tform_image>0)
-    combined_image = (A_tform_image>0)*1 + (B_tform_image>0)*1 + (C_tform_image>0)*1 + (D_tform_image>0)*1
-    absolute_overlap = np.sum(combined_image>1)
-    relative_overlap = absolute_overlap/total_size
-    overlap_costs = glob_parameters["overlap_weight"] * relative_overlap
-    ###
-
-
-    # Packup some variables to loop over for computing global cost
-    whichQuadrants = ['topBottom', 'topBottom', 'bottomTop', 'bottomTop',
-                      'leftRight', 'rightLeft', 'leftRight', 'rightLeft']
-
-    orientations = ["horizontal", "horizontal", "horizontal", "horizontal",
-                    "vertical", "vertical", "vertical", "vertical"]
-
-    edges_tform = [[glob_quadrant_A.h_edge_tform, glob_quadrant_C.h_edge_tform],
-                   [glob_quadrant_B.h_edge_tform, glob_quadrant_D.h_edge_tform],
-                   [glob_quadrant_C.h_edge_tform, glob_quadrant_A.h_edge_tform],
-                   [glob_quadrant_D.h_edge_tform, glob_quadrant_B.h_edge_tform],
-                   [glob_quadrant_A.v_edge_tform, glob_quadrant_B.v_edge_tform],
-                   [glob_quadrant_B.v_edge_tform, glob_quadrant_A.v_edge_tform],
-                   [glob_quadrant_C.v_edge_tform, glob_quadrant_D.v_edge_tform],
-                   [glob_quadrant_D.v_edge_tform, glob_quadrant_C.v_edge_tform]]
-
-    edges_theilsen_tform = [[glob_quadrant_A.h_edge_theilsen_tform, glob_quadrant_C.h_edge_theilsen_tform],
-                            [glob_quadrant_B.h_edge_theilsen_tform, glob_quadrant_D.h_edge_theilsen_tform],
-                            [glob_quadrant_C.h_edge_theilsen_tform, glob_quadrant_A.h_edge_theilsen_tform],
-                            [glob_quadrant_D.h_edge_theilsen_tform, glob_quadrant_B.h_edge_theilsen_tform],
-                            [glob_quadrant_A.v_edge_theilsen_tform, glob_quadrant_B.v_edge_theilsen_tform],
-                            [glob_quadrant_B.v_edge_theilsen_tform, glob_quadrant_A.v_edge_theilsen_tform],
-                            [glob_quadrant_C.v_edge_theilsen_tform, glob_quadrant_D.v_edge_theilsen_tform],
-                            [glob_quadrant_D.v_edge_theilsen_tform, glob_quadrant_C.v_edge_theilsen_tform]]
+    # Apply tform to several attributes of the quadrant
+    glob_quadrant_A = apply_new_transform(glob_quadrant_A, tform_a)
+    glob_quadrant_B = apply_new_transform(glob_quadrant_B, tform_b)
+    glob_quadrant_C = apply_new_transform(glob_quadrant_C, tform_c)
+    glob_quadrant_D = apply_new_transform(glob_quadrant_D, tform_d)
 
     """
-    intensities = [[glob_quadrant_A.intensities_h, glob_quadrant_C.intensities_h],
-                   [glob_quadrant_B.intensities_h, glob_quadrant_D.intensities_h],
-                   [glob_quadrant_C.intensities_h, glob_quadrant_A.intensities_h],
-                   [glob_quadrant_D.intensities_h, glob_quadrant_B.intensities_h],
-                   [glob_quadrant_A.intensities_v, glob_quadrant_B.intensities_v],
-                   [glob_quadrant_B.intensities_v, glob_quadrant_A.intensities_v],
-                   [glob_quadrant_C.intensities_v, glob_quadrant_D.intensities_v],
-                   [glob_quadrant_D.intensities_v, glob_quadrant_C.intensities_v]]
-
-    histograms = [[glob_quadrant_A.hists_h, glob_quadrant_C.hists_h],
-                  [glob_quadrant_B.hists_h, glob_quadrant_D.hists_h],
-                  [glob_quadrant_C.hists_h, glob_quadrant_A.hists_h],
-                  [glob_quadrant_D.hists_h, glob_quadrant_B.hists_h],
-                  [glob_quadrant_A.hists_v, glob_quadrant_B.hists_v],
-                  [glob_quadrant_B.hists_v, glob_quadrant_A.hists_v],
-                  [glob_quadrant_C.hists_v, glob_quadrant_D.hists_v],
-                  [glob_quadrant_D.hists_v, glob_quadrant_C.hists_v]]
+    histogram_cost = hist_cost_function(glob_quadrant_A, glob_quadrant_B,
+                                            glob_quadrant_C, glob_quadrant_D,
+                                            glob_parameters, plot=False)
+    
+    overlap_cost = overlap_cost_function(glob_quadrant_A, glob_quadrant_B,
+                                        glob_quadrant_C, glob_quadrant_D,
+                                        glob_parameters, plot=False)
     """
 
-    # Preallocate dict for saving results
-    cost_result_dict = dict()
-    cost_result_dict["intensity_costs"] = []
-    cost_result_dict["overunderlap_costs"] = []
-    dict_intensity_costs = {}
+    distance_cost = distance_cost_function(glob_quadrant_A, glob_quadrant_B,
+                                           glob_quadrant_C, glob_quadrant_D,
+                                           glob_parameters)
 
-    histograms = np.zeros((8, 2))
-    intensities = np.zeros((8, 2))
+    #total_cost = histogram_cost + overlap_cost + distance_cost
 
-    ### COST: DISTANCE BETWEEN EDGE POINTS OF THEILSEN LINES ###
-    # Histogram-based cost function
-    if glob_parameters["cost_functions"][glob_quadrant_A.iteration] == "simple_hists":
+    return 1 / (distance_cost)
 
-        for i in range(8):
-            intensity_costs, overunderlap_costs = get_cost_functions(
-                edges_tform[i][0],
-                edges_tform[i][1],
-                edges_theilsen_tform[i][0],
-                edges_theilsen_tform[i][1],
-                histograms[i][0],
-                histograms[i][1],
-                whichQuadrants[i],
-                glob_parameters,
-                direction = orientations[i],
-                quadrant_shape=np.shape(glob_quadrant_A.tform_image)
-            )
 
-            cost_result_dict["intensity_costs"].append(intensity_costs + eps)
-            cost_result_dict["overunderlap_costs"].append(overunderlap_costs + eps)
+def plot_best_sol_per_gen(ga):
+    """
+    Custom function to plot the result of the best solution for each generation.
+    """
+    global glob_quadrant_A, glob_quadrant_B, glob_quadrant_C, glob_quadrant_D
 
-    # Intensity-based cost function
-    elif glob_parameters["cost_functions"][glob_quadrant_A.iteration] == "raw_intensities":
+    # Get best solution and process it
+    solution, fitness, _ = ga.best_solution()
+    gen = ga.generations_completed
 
-        for i in range(8):
-            intensity_costs, overunderlap_costs = get_cost_functions(
-                edges_tform[i][0],
-                edges_tform[i][1],
-                edges_theilsen_tform[i][0],
-                edges_theilsen_tform[i][1],
-                intensities[i][0],
-                intensities[i][1],
-                whichQuadrants[i],
-                glob_parameters,
-                direction = orientations[i],
-                quadrant_shape=np.shape(glob_quadrant_A.tform_image)
-            )
+    # Show solution for every 10 generations
+    if gen % 10 == 0:
+        tform_a, tform_b, tform_c, tform_d = recompute_transform(glob_quadrant_A, glob_quadrant_B,
+                                                                 glob_quadrant_C, glob_quadrant_D,
+                                                                 solution)
 
-            cost_result_dict["intensity_costs"].append(intensity_costs)
-            cost_result_dict["overunderlap_costs"].append(overunderlap_costs)
+        # Apply tform to several attributes of the quadrant
+        glob_quadrant_A = apply_new_transform(glob_quadrant_A, tform_a)
+        glob_quadrant_B = apply_new_transform(glob_quadrant_B, tform_b)
+        glob_quadrant_C = apply_new_transform(glob_quadrant_C, tform_c)
+        glob_quadrant_D = apply_new_transform(glob_quadrant_D, tform_d)
 
-    else:
-        raise ValueError(f"Unexpected cost function, options are: [simpleHists, rawIntensities]")
+        # Get final image
+        total_im = recombine_quadrants(glob_quadrant_A.tform_image_temp, glob_quadrant_B.tform_image_temp,
+                                       glob_quadrant_C.tform_image_temp, glob_quadrant_D.tform_image_temp)
 
-    # Compute mean and overall costs
-    total_overunderlap_costs = np.mean(cost_result_dict["overunderlap_costs"])
-    #total_intensity_costs = np.mean(cost_result_dict["intensity_costs"])
+        # Plotting parameters
+        ratio = glob_parameters["resolutions"][glob_parameters["iteration"]] / glob_parameters["resolutions"][0]
+        ms = np.sqrt(2500 * np.sqrt(ratio))
 
-    return 1/(total_overunderlap_costs+overlap_costs)
+        plt.figure()
+        plt.title(f"Best result at generation {gen}: fitness = {np.round(fitness, 3)}")
+        plt.imshow(total_im, cmap="gray")
+        plt.scatter(glob_quadrant_A.v_edge_theilsen_endpoints_tform[:, 0],
+                    glob_quadrant_A.v_edge_theilsen_endpoints_tform[:, 1],
+                    marker='*', s=ms, color="g")
+        plt.scatter(glob_quadrant_A.h_edge_theilsen_endpoints_tform[:, 0],
+                    glob_quadrant_A.h_edge_theilsen_endpoints_tform[:, 1],
+                    marker='+', s=ms, color="b")
+        plt.scatter(glob_quadrant_B.v_edge_theilsen_endpoints_tform[:, 0],
+                    glob_quadrant_B.v_edge_theilsen_endpoints_tform[:, 1],
+                    marker='*', s=ms, color="g")
+        plt.scatter(glob_quadrant_B.h_edge_theilsen_endpoints_tform[:, 0],
+                    glob_quadrant_B.h_edge_theilsen_endpoints_tform[:, 1],
+                    marker='+', s=ms, color="b")
+        plt.scatter(glob_quadrant_C.v_edge_theilsen_endpoints_tform[:, 0],
+                    glob_quadrant_C.v_edge_theilsen_endpoints_tform[:, 1],
+                    marker='*', s=ms, color="g")
+        plt.scatter(glob_quadrant_C.h_edge_theilsen_endpoints_tform[:, 0],
+                    glob_quadrant_C.h_edge_theilsen_endpoints_tform[:, 1],
+                    marker='+', s=ms, color="b")
+        plt.scatter(glob_quadrant_D.v_edge_theilsen_endpoints_tform[:, 0],
+                    glob_quadrant_D.v_edge_theilsen_endpoints_tform[:, 1],
+                    marker='*', s=ms, color="g")
+        plt.scatter(glob_quadrant_D.h_edge_theilsen_endpoints_tform[:, 0],
+                    glob_quadrant_D.h_edge_theilsen_endpoints_tform[:, 1],
+                    marker='+', s=ms, color="b")
+        plt.show()
 
+    return

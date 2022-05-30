@@ -65,7 +65,6 @@ def setup_pythostitcher():
     parameters["resolutions"] = [0.05, 0.10, 0.25, 1.0]     # very important, can be tweaked
     parameters["pad_fraction"] = 0.7                        # required for not cutting corners
 
-
     # Parameters related to the cost function
     parameters["overunderlap_weights"] = [0.01, 0.01, 0.011, 0.01]
     parameters["cost_range"] = [0, 2]                                       # currently not in use
@@ -74,21 +73,17 @@ def setup_pythostitcher():
                                     "simple_hists", "simple_hists"]
     parameters["cost_function_scaling"] = [res/parameters["resolutions"][0] for res in parameters["resolutions"]]
     parameters["nbins"] = 16
-    # parameters["hist_sizes"] = [[1, 1], [1, 1], [21, 11], [81, 41]]
-    parameters["hist_sizes"] = [[5, 3], [11, 5], [21, 11], [81, 41]]        # can be tweaked
+    parameters["hist_sizes"] = [4, 8, 20, 80]
     parameters["fraction_edge_length"] = 0.5
-    parameters["outer_point_weight"] = 0.6
+    parameters["outer_point_weight"] = 0.5
     parameters["overlap_weight"] = 100
 
     # Optimization parameters
-    parameters["translation_ranges"] = [(1000*r)/(count+1) for count, r in enumerate(parameters["resolutions"])]
-    parameters["angle_range"] = [15, 10, 10, 5]
+    parameters["translation_ranges"] = [200*r for r in parameters["resolutions"]]
+    parameters["angle_range"] = [10, 10, 10, 5]
     #parameters["sampling_deltas"] = [1, 1, 5, 10]
     parameters["sampling_deltas"] = [1, 2, 5, 10]
     parameters["GA_fitness"] = []
-
-    # Plotting parameters
-    parameters["marker_size"] = [50, 75, 100, 125]
 
     # Start pythostitcher program
     run_pythostitcher(parameters)
