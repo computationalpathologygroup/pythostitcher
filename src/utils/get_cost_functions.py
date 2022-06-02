@@ -1,13 +1,18 @@
 import numpy as np
 import math
+import itertools
+import cv2
 
+from shapely.geometry import Polygon
 from skimage.transform import EuclideanTransform, matrix_transform, warp
+from skimage.measure import label
+from skimage.segmentation import find_boundaries
 
 from .plot_tools import plot_sampled_patches, plot_overlap_cost
 from .recombine_quadrants import recombine_quadrants
 
 
-def apply_new_transform(quadrant, tform):
+def apply_new_transform(quadrant, tform, tform_image=False):
     """
     Custom function to apply the newly acquired transformation to several attributes of the quadrant.
 
@@ -26,6 +31,12 @@ def apply_new_transform(quadrant, tform):
     quadrant.h_edge_theilsen_endpoints_tform = matrix_transform(quadrant.h_edge_theilsen_endpoints, tform.params)
     quadrant.v_edge_theilsen_endpoints_tform = matrix_transform(quadrant.v_edge_theilsen_endpoints, tform.params)
 
+    # Apply tform to mask coordinates
+    quadrant.mask_contour_tform = matrix_transform(quadrant.mask_contour, tform.params)
+
+    # Apply tform to image center
+    quadrant.image_center = matrix_transform(quadrant.image_center, tform.params)
+
     # Apply tform to theilsen lines
     #quadrant.h_edge_theilsen_tform = matrix_transform(quadrant.h_edge_theilsen_coords, tform.params)
     #quadrant.v_edge_theilsen_tform = matrix_transform(quadrant.v_edge_theilsen_coords, tform.params)
@@ -34,8 +45,9 @@ def apply_new_transform(quadrant, tform):
     #quadrant.h_edge_tform = matrix_transform(quadrant.h_edge, tform.params)
     #quadrant.v_edge_tform = matrix_transform(quadrant.v_edge, tform.params)
 
-    # Apply tform to image
-    quadrant.tform_image_temp = warp(quadrant.tform_image, tform.inverse)
+    # Apply tform to image when required
+    if tform_image:
+        quadrant.colour_image = warp(quadrant.colour_image, tform.inverse)
 
     return quadrant
 
@@ -62,8 +74,8 @@ def hist_cost_function(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameter
     patch_indices_y = dict()
 
     quadrants = [quadrant_A, quadrant_B, quadrant_C, quadrant_D]
-    total_im = recombine_quadrants(quadrant_A.tform_image_temp, quadrant_B.tform_image_temp,
-                                   quadrant_C.tform_image_temp, quadrant_D.tform_image_temp)
+    total_im = recombine_quadrants(quadrant_A.tform_image, quadrant_B.tform_image,
+                                   quadrant_C.tform_image, quadrant_D.tform_image)
 
     # Loop over all quadrants to compute the cost for the horizontal and vertical edge
     for quadrant in quadrants:
@@ -146,37 +158,40 @@ def hist_cost_function(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameter
     return np.mean(histogram_costs)
 
 
-def overlap_cost_function(quadrant_A,quadrant_B, quadrant_C, quadrant_D, parameters, plot=False):
+def overlap_cost_function(quadrant_A, quadrant_B, quadrant_C, quadrant_D, tforms):
     """
-    Custom function to compute the cost related to the overlap between the quadrants.
+    Custom function to compute the overlap between the quadrants. This is implemented using polygons rather than
+    the transformed images as this is an order of magnitude faster.
 
-    Input:
-    - All quadrants
-    - Dict with parameters
-    - Boolean value whether to plot the result
-
-    Output:
-    - Cost in range [0, 100]
+    Note that the current implementation provides an approximation of the overlap rather than the exact amount as
+    overlap is only calculated for quadrant pairs and not quadrant triplets (i.e. if there is overlap between
+    quadrant ACD this can be counted multiple times due to inclusion in the AC, AD and CD pairs.
     """
 
-    # Compute total size of images for scaling
-    total_size = np.sum(quadrant_A.tform_image_temp>0) + np.sum(quadrant_B.tform_image_temp>0) + \
-                 np.sum(quadrant_C.tform_image_temp>0) + np.sum(quadrant_D.tform_image_temp>0)
+    # Set some initial parameters
+    keys = ["A", "B", "C", "D"]
+    combinations = itertools.combinations(keys, 2)
+    quadrants = [quadrant_A, quadrant_B, quadrant_C, quadrant_D]
+    poly_dict = dict()
+    total_area = 0
+    total_overlap = 0
 
-    # Stack all images in one frame
-    stacked_image = (quadrant_A.tform_image_temp>0)*1 + (quadrant_B.tform_image_temp>0)*1 + \
-                    (quadrant_C.tform_image_temp>0)*1 + (quadrant_D.tform_image_temp>0)*1
+    # Create a polygon from the transformed mask contour and compute its area
+    for quadrant, tform, key in zip(quadrants, tforms, keys):
+        poly_dict[key] = Polygon(quadrant.mask_contour_tform)
+        total_area += poly_dict[key].area
 
-    # Compute absolute and relative area of overlap
-    absolute_overlap = np.sum(stacked_image>1)
-    relative_overlap = absolute_overlap/total_size
+    # Compute overlap between all possible quadrant pairs
+    for combo in combinations:
+        overlap_polygon = poly_dict[combo[0]].intersection(poly_dict[combo[1]])
+        total_overlap += overlap_polygon.area
 
-    # Weight the cost according to a predefined weighting factor
-    cost = parameters["overlap_weight"] * relative_overlap
+    # Compute relative overlap and apply weighting factor
+    relative_overlap = total_overlap/total_area
+    cost = relative_overlap * 10
 
-    # Plot sanity check
-    if (plot and relative_overlap>0):
-        plot_overlap_cost(stacked_image, relative_overlap)
+    # Verify that the overlap doesn't exceed 100%
+    assert relative_overlap < 1, "Overlap cannot be greater than 100%"
 
     return cost
 
@@ -196,15 +211,15 @@ def distance_cost_function(quadrant_A, quadrant_B, quadrant_C, quadrant_D, param
     - Cost normalized by initial distance
     """
 
+    global distance_scaling
+
     # Define pairs to loop over
-    hline_pairs = [[quadrant_A, quadrant_C], [quadrant_B, quadrant_D],
-                   [quadrant_C, quadrant_A], [quadrant_D, quadrant_B]]
+    hline_pairs = [[quadrant_A, quadrant_C], [quadrant_B, quadrant_D]]
+    vline_pairs = [[quadrant_A, quadrant_B], [quadrant_C, quadrant_D]]
 
-    vline_pairs = [[quadrant_A, quadrant_B], [quadrant_B, quadrant_A],
-                   [quadrant_C, quadrant_D], [quadrant_D, quadrant_C]]
     distance_costs = []
-
     scaling = parameters["cost_function_scaling"][parameters["iteration"]]
+
     for quadrant1, quadrant2 in hline_pairs:
 
         # Get the lines from the quadrant
@@ -226,10 +241,10 @@ def distance_cost_function(quadrant_A, quadrant_B, quadrant_C, quadrant_D, param
 
         # Get the inner and outer points. We divide this by the scaling to account for the increased distance due
         # to the higher resolutions.
-        line1_innerPt = hline1_pts[innerPtIdx_line1] / scaling
-        line1_outerPt = hline1_pts[outerPtIdx_line1] / scaling
-        line2_innerPt = hline2_pts[innerPtIdx_line2] / scaling
-        line2_outerPt = hline2_pts[outerPtIdx_line2] / scaling
+        line1_innerPt = hline1_pts[innerPtIdx_line1]
+        line1_outerPt = hline1_pts[outerPtIdx_line1]
+        line2_innerPt = hline2_pts[innerPtIdx_line2]
+        line2_outerPt = hline2_pts[outerPtIdx_line2]
 
         # Compute edge_distance_costs as sum of distances
         inner_point_weight = 1 - parameters["outer_point_weight"]
@@ -259,10 +274,10 @@ def distance_cost_function(quadrant_A, quadrant_B, quadrant_C, quadrant_D, param
 
         # Get the inner and outer points. We divide this by the scaling to account for the increased distance due
         # to the higher resolutions.
-        line1_innerPt = vline1_pts[innerPtIdx_line1] / scaling
-        line1_outerPt = vline1_pts[outerPtIdx_line1] / scaling
-        line2_innerPt = vline2_pts[innerPtIdx_line2] / scaling
-        line2_outerPt = vline2_pts[outerPtIdx_line2] / scaling
+        line1_innerPt = vline1_pts[innerPtIdx_line1]
+        line1_outerPt = vline1_pts[outerPtIdx_line1]
+        line2_innerPt = vline2_pts[innerPtIdx_line2]
+        line2_outerPt = vline2_pts[outerPtIdx_line2]
 
         # Compute edge_distance_costs as sum of distances
         inner_point_weight = 1 - parameters["outer_point_weight"]
@@ -271,10 +286,10 @@ def distance_cost_function(quadrant_A, quadrant_B, quadrant_C, quadrant_D, param
         combined_costs = inner_point_weight * inner_point_norm + parameters["outer_point_weight"] * outer_point_norm
         distance_costs.append(combined_costs)
 
-    if parameters["distance_scaling_required"] == True:
-        parameters["distance_scaling"] = np.mean(distance_costs)
+    if parameters["iteration"] == 0 and parameters["distance_scaling_required"]:
+        distance_scaling = np.mean(distance_costs)
         parameters["distance_scaling_required"] = False
 
-    cost = np.mean(distance_costs)/parameters["distance_scaling"]
+    cost = np.mean(distance_costs)/(distance_scaling*scaling)
 
     return cost

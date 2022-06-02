@@ -17,66 +17,35 @@ def plot_rotation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     Custom function to plot the result of the automatic rotation
     """
 
+    # Get pad values for every image
+    max_shape = np.max([quadrant_A.mask.shape, quadrant_B.mask.shape, quadrant_C.mask.shape, quadrant_D.mask.shape], axis=0)
+    quadrants = [quadrant_A, quadrant_B, quadrant_C, quadrant_D]
+    pad_mask = [((max_shape-q.mask.shape)/2).astype(int) for q in quadrants]
+    pad_rot_mask = [((max_shape-q.rot_mask.shape)/2).astype(int) for q in quadrants]
+
+    # Apply padding
+    padded_mask = [np.pad(q.mask, [[p[0], p[0]], [p[1], p[1]]]) for p, q in zip(pad_mask, quadrants)]
+    padded_rot_mask = [np.pad(q.rot_mask, [[p[0], p[0]], [p[1], p[1]]]) for p, q in zip(pad_rot_mask, quadrants)]
+
     # Get x/y values of bounding box around quadrant
-    A_corners_x = [c[0] for c in quadrant_A.bbox_corners] + [quadrant_A.bbox_corners[0][0]]
-    A_corners_y = [c[1] for c in quadrant_A.bbox_corners] + [quadrant_A.bbox_corners[0][1]]
-    B_corners_x = [c[0] for c in quadrant_B.bbox_corners] + [quadrant_B.bbox_corners[0][0]]
-    B_corners_y = [c[1] for c in quadrant_B.bbox_corners] + [quadrant_B.bbox_corners[0][1]]
-    C_corners_x = [c[0] for c in quadrant_C.bbox_corners] + [quadrant_C.bbox_corners[0][0]]
-    C_corners_y = [c[1] for c in quadrant_C.bbox_corners] + [quadrant_C.bbox_corners[0][1]]
-    D_corners_x = [c[0] for c in quadrant_D.bbox_corners] + [quadrant_D.bbox_corners[0][0]]
-    D_corners_y = [c[1] for c in quadrant_D.bbox_corners] + [quadrant_D.bbox_corners[0][1]]
+    corners_x = [[c[0]+p[1] for c in q.bbox_corners] + [q.bbox_corners[0][0]+p[1]] for p, q in zip(pad_mask, quadrants)]
+    corners_y = [[c[1]+p[0] for c in q.bbox_corners] + [q.bbox_corners[0][1]+p[0]] for p, q in zip(pad_mask, quadrants)]
 
-    ## Plot quadrant A
-    plt.figure(figsize=(6, 14))
+    # Plot rotation result
+    plt.figure(figsize=(6, 12))
     plt.suptitle(f"Quadrants before and after automatic rotation", fontsize=16)
-    plt.subplot(421)
-    plt.axis("off")
-    plt.title(quadrant_A.quadrant_name)
-    plt.imshow(quadrant_A.mask, cmap="gray")
-    plt.scatter(quadrant_A.mask_corner_a[0], quadrant_A.mask_corner_a[1], facecolor="r", s=100)
-    plt.plot(A_corners_x, A_corners_y, linewidth=4, c="r")
-    plt.subplot(422)
-    plt.axis("off")
-    plt.title(quadrant_A.quadrant_name)
-    plt.imshow(np.pad(quadrant_A.rot_mask, [quadrant_A.initial_pad, quadrant_A.initial_pad]), cmap="gray")
 
-    ## Plot quadrant B
-    plt.subplot(423)
-    plt.axis("off")
-    plt.title(quadrant_B.quadrant_name)
-    plt.imshow(quadrant_B.mask, cmap="gray")
-    plt.scatter(quadrant_B.mask_corner_a[0], quadrant_B.mask_corner_a[1], facecolor="r", s=100)
-    plt.plot(B_corners_x, B_corners_y, linewidth=4, c="r")
-    plt.subplot(424)
-    plt.axis("off")
-    plt.title(quadrant_B.quadrant_name)
-    plt.imshow(np.pad(quadrant_B.rot_mask, [quadrant_B.initial_pad, quadrant_B.initial_pad]), cmap="gray")
-
-    ## Plot quadrant C
-    plt.subplot(425)
-    plt.axis("off")
-    plt.title(quadrant_C.quadrant_name)
-    plt.imshow(quadrant_C.mask, cmap="gray")
-    plt.scatter(quadrant_C.mask_corner_a[0], quadrant_C.mask_corner_a[1], facecolor="r", s=100)
-    plt.plot(C_corners_x, C_corners_y, linewidth=4, c="r")
-    plt.subplot(426)
-    plt.axis("off")
-    plt.title(quadrant_C.quadrant_name)
-    plt.imshow(np.pad(quadrant_C.rot_mask, [quadrant_C.initial_pad, quadrant_C.initial_pad]), cmap="gray")
-
-    ## Plot quadrant D
-    plt.subplot(427)
-    plt.axis("off")
-    plt.title(quadrant_D.quadrant_name)
-    plt.imshow(quadrant_D.mask, cmap="gray")
-    plt.scatter(quadrant_D.mask_corner_a[0], quadrant_D.mask_corner_a[1], facecolor="r", s=100)
-    plt.plot(D_corners_x, D_corners_y, linewidth=4, c="r")
-    plt.subplot(428)
-    plt.axis("off")
-    plt.title(quadrant_D.quadrant_name)
-    plt.imshow(np.pad(quadrant_D.rot_mask, [quadrant_D.initial_pad, quadrant_D.initial_pad]), cmap="gray")
-    plt.tight_layout()
+    for c, (pad, p_mask, p_rmask, c_x, c_y, q) in enumerate(zip(pad_mask, padded_mask, padded_rot_mask, corners_x, corners_y, quadrants), 1):
+        plt.subplot(4, 2, (c*2)-1)
+        plt.axis("off")
+        plt.title(q.quadrant_name)
+        plt.imshow(p_mask, cmap="gray")
+        plt.scatter(q.mask_corner_a[0]+pad[1], q.mask_corner_a[1]+pad[0], facecolor="r", s=100)
+        plt.plot(c_x, c_y, linewidth=4, c="r")
+        plt.subplot(4, 2, c*2)
+        plt.axis("off")
+        plt.title(q.quadrant_name)
+        plt.imshow(p_rmask, cmap="gray")
     plt.show()
 
     return
@@ -87,8 +56,8 @@ def plot_transformation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, p
     Custom function to plot the result of the initial transformation to align the pieces
     """
 
-    result = recombine_quadrants(quadrant_A.colour_image_temp, quadrant_B.colour_image_temp,
-                                 quadrant_C.colour_image_temp, quadrant_D.colour_image_temp)
+    result = recombine_quadrants(quadrant_A.colour_image, quadrant_B.colour_image,
+                                 quadrant_C.colour_image, quadrant_D.colour_image)
 
     imsavedir = f"{parameters['results_dir']}/{parameters['patient_idx']}/images/initial_result.png"
 
@@ -109,9 +78,9 @@ def plot_theilsen_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, paramet
     """
 
     # Combine all images
-    combi_image = recombine_quadrants(quadrant_A.colour_image_temp, quadrant_B.colour_image_temp,
-                                      quadrant_C.colour_image_temp, quadrant_D.colour_image_temp)
-    ratio =  parameters["resolutions"][parameters["iteration"]]/parameters["resolutions"][0]
+    combi_image = recombine_quadrants(quadrant_A.colour_image, quadrant_B.colour_image,
+                                      quadrant_C.colour_image, quadrant_D.colour_image)
+    ratio = parameters["resolutions"][parameters["iteration"]]/parameters["resolutions"][0]
     ms = np.sqrt(2500*np.sqrt(ratio))
 
     # Plot theilsen lines with marked endpoints
@@ -340,17 +309,17 @@ def plot_ga_tform(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     return
 
 
-def plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, final_tform, ga_dict):
+def plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, ga_dict):
     """
     Plotting function to plot the transformation of the quadrants which was found by the
     genetic algorithm.
     """
 
     # Extract individual tforms from final_tform
-    ga_tform_A = final_tform[quadrant_A.quadrant_name]
-    ga_tform_B = final_tform[quadrant_B.quadrant_name]
-    ga_tform_C = final_tform[quadrant_C.quadrant_name]
-    ga_tform_D = final_tform[quadrant_D.quadrant_name]
+    ga_tform_A = ga_dict[quadrant_A.quadrant_name]
+    ga_tform_B = ga_dict[quadrant_B.quadrant_name]
+    ga_tform_C = ga_dict[quadrant_C.quadrant_name]
+    ga_tform_D = ga_dict[quadrant_D.quadrant_name]
 
     # Make transform object
     A_tform = EuclideanTransform(rotation=-math.radians(ga_tform_A[2]), translation=ga_tform_A[:2])
@@ -359,21 +328,21 @@ def plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, f
     D_tform = EuclideanTransform(rotation=-math.radians(ga_tform_D[2]), translation=ga_tform_D[:2])
 
     # Apply transformation
-    quadrant_A.ga_tform_image = warp(quadrant_A.colour_image, A_tform.inverse, output_shape=ga_tform_A[3])
-    quadrant_B.ga_tform_image = warp(quadrant_B.colour_image, B_tform.inverse, output_shape=ga_tform_B[3])
-    quadrant_C.ga_tform_image = warp(quadrant_C.colour_image, C_tform.inverse, output_shape=ga_tform_C[3])
-    quadrant_D.ga_tform_image = warp(quadrant_D.colour_image, D_tform.inverse, output_shape=ga_tform_D[3])
+    quadrant_A.ga_tform_image = warp(quadrant_A.colour_image, A_tform.inverse)
+    quadrant_B.ga_tform_image = warp(quadrant_B.colour_image, B_tform.inverse)
+    quadrant_C.ga_tform_image = warp(quadrant_C.colour_image, C_tform.inverse)
+    quadrant_D.ga_tform_image = warp(quadrant_D.colour_image, D_tform.inverse)
 
     # Stitch all images together
     result = recombine_quadrants(quadrant_A.ga_tform_image, quadrant_B.ga_tform_image,
                                  quadrant_C.ga_tform_image, quadrant_D.ga_tform_image)
 
     res = parameters["resolutions"][parameters["iteration"]]
-    imsavedir = f"{parameters['results_dir']}/{parameters['patient_idx']}/images/ga_result_{res}.png"
+    imsavedir = f"{parameters['results_dir']}/{parameters['patient_idx']}/images/ga_result_gen_{res}.png"
 
     # Show result
     plt.figure()
-    plt.title(f"Alignment at resolution {res}\n after genetic algorithm (fitness={np.round(ga_dict['solution_fitness'], 3)})")
+    plt.title(f"Alignment at resolution {res}\n after genetic algorithm (fitness={np.round(ga_dict['fitness'], 2)})")
     plt.imshow(result, cmap="gray")
     plt.savefig(imsavedir)
     plt.show()

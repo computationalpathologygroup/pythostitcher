@@ -3,7 +3,6 @@ import numpy as np
 import pickle
 import cv2
 import math
-import copy
 
 from skimage.io import imread, imsave
 from skimage.transform import resize, warp, EuclideanTransform, matrix_transform
@@ -125,7 +124,6 @@ class Quadrant:
         # Raise error if mask is not found
         raise ValueError(f"No mask found for {base_path}")
 
-
     def apply_masks(self):
         """
         Method to apply the previously obtained tissue mask to the images.
@@ -135,8 +133,7 @@ class Quadrant:
         self.colour_image = self.mask[:, :, np.newaxis] * self.colour_image
         self.gray_image = self.mask * self.gray_image
 
-        # Crop the image and apply a fixed level of padding. This will standardize
-        # further processing steps down the line
+        # Crop the image
         c, r = np.nonzero(self.gray_image)
         cmin, cmax = np.min(c), np.max(c)
         rmin, rmax = np.min(r), np.max(r)
@@ -144,11 +141,30 @@ class Quadrant:
         self.colour_image = self.colour_image[cmin:cmax, rmin:rmax]
         self.gray_image = self.gray_image[cmin:cmax, rmin:rmax]
         self.mask = self.mask[cmin:cmax, rmin:rmax]
-        self.initial_pad = int(np.max(self.target_size)*self.pad_fraction)
 
-        self.colour_image = np.pad(self.colour_image, [[self.initial_pad, self.initial_pad], [self.initial_pad, self.initial_pad], [0, 0]])
-        self.gray_image = np.pad(self.gray_image, [[self.initial_pad, self.initial_pad], [self.initial_pad, self.initial_pad]])
-        self.mask = np.pad(self.mask, [[self.initial_pad, self.initial_pad], [self.initial_pad, self.initial_pad]])
+        # For the lowest resolution we apply a fixed padding rate. For higher resolutions we compute the ideal padding
+        # based on the previous resolution such that the quadrant is located in the same area as the previous image.
+        if self.iteration == 0:
+            self.initial_pad = int(np.max(self.target_size)*self.pad_fraction)
+            self.colour_image = np.pad(self.colour_image, [[self.initial_pad, self.initial_pad], [self.initial_pad, self.initial_pad], [0, 0]])
+            self.gray_image = np.pad(self.gray_image, [[self.initial_pad, self.initial_pad], [self.initial_pad, self.initial_pad]])
+            self.mask = np.pad(self.mask, [[self.initial_pad, self.initial_pad], [self.initial_pad, self.initial_pad]])
+        else:
+            prev_res_image_path = f"../results/" \
+                              f"{self.patient_idx}/" \
+                              f"{self.slice_idx}/" \
+                              f"{get_resname(self.resolutions[self.iteration-1])}/" \
+                              f"quadrant_{self.quadrant_name}_gray.png"
+            prev_res_image = imread(prev_res_image_path)
+            prev_res_image_shape = np.shape(prev_res_image)
+            ratio = self.resolutions[self.iteration]/self.resolutions[self.iteration-1]
+            current_res_image_shape = np.shape(self.gray_image)
+            ideal_current_res_image_shape = [ratio*i for i in prev_res_image_shape]
+            pad = [int((a-b)/2) for a, b in zip(ideal_current_res_image_shape, current_res_image_shape)]
+
+            self.colour_image = np.pad(self.colour_image, [[pad[0], pad[0]], [pad[1], pad[1]], [0, 0]])
+            self.gray_image = np.pad(self.gray_image, [[pad[0], pad[0]], [pad[1], pad[1]]])
+            self.mask = np.pad(self.mask, [[pad[0], pad[0]], [pad[1], pad[1]]])
 
         return
 
@@ -279,6 +295,7 @@ class Quadrant:
             self.angle = -(90 - self.angle)
         elif self.angle < -45:
             self.angle = 90 + self.angle
+        self.angle = np.round(self.angle, 1)
 
         # Obtain translation offset due to rotation. This can be computed through the difference in center of mass
         # of the bounding box before and after the rotation.
@@ -330,42 +347,6 @@ class Quadrant:
             self.tform_image = np.pad(self.tform_image, [[0, self.small_pad], [0, self.small_pad]])
             self.pad_trans_x = 0
             self.pad_trans_y = 0
-
-        return
-
-    def get_tformed_images(self, tform):
-        """
-        Method to apply the transformation to align all grayscale images.
-        """
-
-        # Extract initial transformation values
-        trans_x, trans_y, angle, out_shape = tform[str(self.quadrant_name)]
-        rad_angle = -math.radians(angle)
-
-        # Create transformation object
-        tform = EuclideanTransform(rotation=rad_angle, translation=(trans_x, trans_y))
-
-        # Apply tform. Using the inverse is skimage convention
-        self.colour_image_temp = warp(self.colour_image, tform.inverse, output_shape=out_shape)
-        self.tform_image = warp(self.gray_image, tform.inverse, output_shape=out_shape)
-        self.mask = warp(self.mask, tform.inverse, output_shape=out_shape)
-        self.mask = (self.mask > 0.5) * 1
-
-        # Get image center
-        labeled = label(self.tform_image>0)
-        props = regionprops(labeled)[0]
-        self.image_center = [props["centroid"][1], props["centroid"][0]]
-
-        # Compute tformed bbox corners for first iteration
-        if self.iteration == 0:
-            self.bbox_corner_a = matrix_transform(np.transpose(self.bbox_corner_a[:, np.newaxis]), tform.params)
-            self.bbox_corner_a = np.squeeze(self.bbox_corner_a)
-            self.bbox_corner_b = matrix_transform(np.transpose(self.bbox_corner_b[:, np.newaxis]), tform.params)
-            self.bbox_corner_b = np.squeeze(self.bbox_corner_b)
-            self.bbox_corner_c = matrix_transform(np.transpose(self.bbox_corner_c[:, np.newaxis]), tform.params)
-            self.bbox_corner_c = np.squeeze(self.bbox_corner_c)
-            self.bbox_corner_d = matrix_transform(np.transpose(self.bbox_corner_d[:, np.newaxis]), tform.params)
-            self.bbox_corner_d = np.squeeze(self.bbox_corner_d)
 
         return
 
@@ -503,6 +484,62 @@ class Quadrant:
 
         return
 
+
+    def get_tformed_images(self, initial_tform, ga_tform):
+        """
+        Method to apply the transformation to align all grayscale images.
+        """
+
+        # Extract initial transformation values
+        trans_x, trans_y, angle, out_shape = initial_tform[str(self.quadrant_name)]
+        rad_angle = -math.radians(angle)
+
+        # Create transformation object
+        tform = EuclideanTransform(rotation=rad_angle, translation=(trans_x, trans_y))
+
+        # Apply tform. Using the inverse is skimage convention
+        self.colour_image = warp(self.colour_image, tform.inverse, output_shape=out_shape)
+        self.tform_image = warp(self.gray_image, tform.inverse, output_shape=out_shape)
+        self.mask = warp(self.mask, tform.inverse, output_shape=out_shape)
+        self.mask = ((self.mask > 0.5)*255).astype("uint8")
+        self.mask_contour = cv2.findContours(self.mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        self.mask_contour = np.squeeze(self.mask_contour[0])
+
+        if ga_tform:
+            # Extract initial transformation values
+            trans_x, trans_y, angle, out_shape = ga_tform[str(self.quadrant_name)]
+            rad_angle = -math.radians(angle)
+
+            # Create transformation object
+            tform = EuclideanTransform(rotation=rad_angle, translation=(trans_x, trans_y))
+
+            # Apply tform. Using the inverse is skimage convention
+            self.colour_image = warp(self.colour_image, tform.inverse, output_shape=out_shape)
+            self.tform_image = warp(self.tform_image, tform.inverse, output_shape=out_shape)
+            self.mask = warp(self.mask, tform.inverse, output_shape=out_shape)
+            self.mask = ((self.mask > 0.5) * 255).astype("uint8")
+            self.mask_contour = cv2.findContours(self.mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+            self.mask_contour = np.squeeze(self.mask_contour[0])
+
+        # Get image center. This is required later on for one of the cost functions
+        labeled = label(self.tform_image>0)
+        props = regionprops(labeled)[0]
+        self.image_center = [props["centroid"][1], props["centroid"][0]]
+
+        # Compute tformed bbox corners for first iteration
+        if self.iteration == 0:
+            self.bbox_corner_a = matrix_transform(np.transpose(self.bbox_corner_a[:, np.newaxis]), tform.params)
+            self.bbox_corner_a = np.squeeze(self.bbox_corner_a)
+            self.bbox_corner_b = matrix_transform(np.transpose(self.bbox_corner_b[:, np.newaxis]), tform.params)
+            self.bbox_corner_b = np.squeeze(self.bbox_corner_b)
+            self.bbox_corner_c = matrix_transform(np.transpose(self.bbox_corner_c[:, np.newaxis]), tform.params)
+            self.bbox_corner_c = np.squeeze(self.bbox_corner_c)
+            self.bbox_corner_d = matrix_transform(np.transpose(self.bbox_corner_d[:, np.newaxis]), tform.params)
+            self.bbox_corner_d = np.squeeze(self.bbox_corner_d)
+
+        return
+
+
     def compute_edges(self):
         """
         Method to obtain edge AB and AD which are defined as the points on the mask that go from
@@ -577,11 +614,15 @@ class Quadrant:
         theilsen_v = TheilSenRegressor()
 
         ### In case of horizontal edge use regular X/Y convention
-        # Get X/Y coordinates of edge
+        # Get X/Y coordinates of horizontal edge. For higher resolutions we don't use all edge points as this
+        # can become quite computationally expensive.
+        sample_rate = int(self.resolutions[self.iteration]*20)
         x_edge = np.array([i[0] for i in self.h_edge])
         x_edge = x_edge[:, np.newaxis]
+        x_edge = x_edge[::sample_rate]
         x = x_edge[:, ]
         y_edge = np.array([i[1] for i in self.h_edge])
+        y_edge = y_edge[::sample_rate]
 
         # Fit coordinates
         theilsen_h.fit(x_edge, y_edge)
@@ -604,8 +645,10 @@ class Quadrant:
         # Get X/Y coordinates of edge
         x_edge = np.array([i[1] for i in self.v_edge])
         x_edge = x_edge[:, np.newaxis]
+        x_edge = x_edge[::sample_rate]
         x = x_edge[:, ]
         y_edge = np.array([i[0] for i in self.v_edge])
+        y_edge = y_edge[::sample_rate]
 
         # Fit coordinates
         theilsen_v.fit(x_edge, y_edge)

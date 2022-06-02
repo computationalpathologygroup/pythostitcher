@@ -20,18 +20,10 @@ def recompute_transform(quadrant_A, quadrant_B, quadrant_C, quadrant_D, tform):
     ga_tform_D = tform[9:]
 
     # Compute center of mass of bbox
-    bbox_corners_a = [quadrant_A.bbox_corner_a, quadrant_A.bbox_corner_b,
-                      quadrant_A.bbox_corner_c, quadrant_A.bbox_corner_d]
-    bbox_corners_b = [quadrant_B.bbox_corner_a, quadrant_B.bbox_corner_b,
-                      quadrant_B.bbox_corner_c, quadrant_B.bbox_corner_d]
-    bbox_corners_c = [quadrant_C.bbox_corner_a, quadrant_C.bbox_corner_b,
-                      quadrant_C.bbox_corner_c, quadrant_C.bbox_corner_d]
-    bbox_corners_d = [quadrant_D.bbox_corner_a, quadrant_D.bbox_corner_b,
-                      quadrant_D.bbox_corner_c, quadrant_D.bbox_corner_d]
-    center_a_pre = np.mean(bbox_corners_a, axis=0)
-    center_b_pre = np.mean(bbox_corners_b, axis=0)
-    center_c_pre = np.mean(bbox_corners_c, axis=0)
-    center_d_pre = np.mean(bbox_corners_d, axis=0)
+    center_a_pre = np.mean(quadrant_A.bbox_corners, axis=0)
+    center_b_pre = np.mean(quadrant_B.bbox_corners, axis=0)
+    center_c_pre = np.mean(quadrant_C.bbox_corners, axis=0)
+    center_d_pre = np.mean(quadrant_D.bbox_corners, axis=0)
 
     # Create transformation with only rotation
     rot_tform_a = EuclideanTransform(rotation=-math.radians(ga_tform_A[2]), translation=(0, 0))
@@ -40,10 +32,10 @@ def recompute_transform(quadrant_A, quadrant_B, quadrant_C, quadrant_D, tform):
     rot_tform_d = EuclideanTransform(rotation=-math.radians(ga_tform_D[2]), translation=(0, 0))
 
     # Rotate the bbox corners
-    rot_bbox_corners_a = np.squeeze(matrix_transform(bbox_corners_a, rot_tform_a.params))
-    rot_bbox_corners_b = np.squeeze(matrix_transform(bbox_corners_b, rot_tform_b.params))
-    rot_bbox_corners_c = np.squeeze(matrix_transform(bbox_corners_c, rot_tform_c.params))
-    rot_bbox_corners_d = np.squeeze(matrix_transform(bbox_corners_d, rot_tform_d.params))
+    rot_bbox_corners_a = matrix_transform(quadrant_A.bbox_corners, rot_tform_a.params)
+    rot_bbox_corners_b = matrix_transform(quadrant_B.bbox_corners, rot_tform_b.params)
+    rot_bbox_corners_c = matrix_transform(quadrant_C.bbox_corners, rot_tform_c.params)
+    rot_bbox_corners_d = matrix_transform(quadrant_D.bbox_corners, rot_tform_d.params)
 
     # Compute the new center of mass of the bbox
     center_a_post = np.mean(rot_bbox_corners_a, axis=0)
@@ -52,15 +44,15 @@ def recompute_transform(quadrant_A, quadrant_B, quadrant_C, quadrant_D, tform):
     center_d_post = np.mean(rot_bbox_corners_d, axis=0)
 
     # The additional translation is approximately the difference in the COM location
-    trans_a = center_a_pre - center_a_post
-    trans_b = center_b_pre - center_b_post
-    trans_c = center_c_pre - center_c_post
-    trans_d = center_d_pre - center_d_post
+    trans_a = np.round(center_a_post - center_a_pre)
+    trans_b = np.round(center_b_post - center_b_pre)
+    trans_c = np.round(center_c_post - center_c_pre)
+    trans_d = np.round(center_d_post - center_d_pre)
 
     # Include this translation in the original transformation
-    final_tform_a = (ga_tform_A + [*trans_a, 0]).astype(int)
-    final_tform_b = (ga_tform_B + [*trans_b, 0]).astype(int)
-    final_tform_c = (ga_tform_C + [*trans_c, 0]).astype(int)
-    final_tform_d = (ga_tform_D + [*trans_d, 0]).astype(int)
+    final_tform_a = ga_tform_A - (*trans_a, 0)
+    final_tform_b = ga_tform_B - (*trans_b, 0)
+    final_tform_c = ga_tform_C - (*trans_c, 0)
+    final_tform_d = ga_tform_D - (*trans_d, 0)
 
     return final_tform_a, final_tform_b, final_tform_c, final_tform_d

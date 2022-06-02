@@ -8,9 +8,11 @@ from .get_cost_functions import *
 from .recompute_transform import recompute_transform
 
 
-def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, initial_tform):
+def genetic_algorithm_global(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, initial_tform):
     """
-    Function that runs a genetic algorithm using the pygad module.
+    Function that runs a genetic algorithm using the pygad module. This function will use a global assembly method
+    where the stitching for all quadrants is optimised at once. This is in contrast with the other piecewise
+    method where quadrants are stitched one by one.
 
     Input:
     - all quadrants
@@ -23,7 +25,7 @@ def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters
 
     # Make some variables global for access by fitness function. The fitness function is built to not accept any
     # other input parameters than the solution and solution index, hence using global is necessary.
-    global glob_quadrant_A, glob_quadrant_B, glob_quadrant_C, glob_quadrant_D, glob_parameters
+    global glob_quadrant_A, glob_quadrant_B, glob_quadrant_C, glob_quadrant_D, glob_parameters, num_gen
     glob_quadrant_A = copy.deepcopy(quadrant_A)
     glob_quadrant_B = copy.deepcopy(quadrant_B)
     glob_quadrant_C = copy.deepcopy(quadrant_C)
@@ -47,7 +49,7 @@ def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters
     angles = [False, False, True]*4
     lb = [int(x - a_range) if is_angle else int(x - t_range) for x, is_angle in zip(ga_tform, angles)]
     ub = [int(x + a_range) if is_angle else int(x + t_range) for x, is_angle in zip(ga_tform, angles)]
-    param_range = [np.arange(l, u) for l, u in zip(lb, ub)]
+    param_range = [np.arange(l, u, step=0.1) if a else np.arange(l, u, step=1) for l, u, a in zip(lb, ub, angles)]
 
     # Generate initial population based on noise
     init_pop = np.zeros((num_sol, num_genes))
@@ -73,7 +75,7 @@ def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters
         crossover_probability=0.5,                  # probability that a parent is chosen for crossover
         mutation_type="random",                     # mutation type
         mutation_probability=0.25,                  # probability that a gene mutates
-        #on_generation=plot_best_sol_per_gen,        # plot the result after every X (currently 10) generations
+        on_generation=plot_best_sol_per_gen,        # plot the result after every X (currently 10) generations
         save_best_solutions=True,                   # must be True in order to use the callback above
         suppress_warnings=True,                     # suppress annoying and irrelevant warnings
         stop_criteria=None                          # this could later be set to stop after loss plateaus
@@ -88,26 +90,38 @@ def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters
 
     # The provided solution does not account for translation induced by rotation. The recompute transform
     # function will update the transformation by including the translation in the tform matrix.
-    solution = recompute_transform(quadrant_A, quadrant_B, quadrant_C, quadrant_D, best_solution)
+    tform = recompute_transform(quadrant_A, quadrant_B, quadrant_C, quadrant_D, best_solution)
 
-    # Save the solution results
-    savefile = f"{parameters['results_dir']}/" \
-               f"{parameters['patient_idx']}/" \
-               f"{parameters['slice_idx']}/" \
-               f"{get_resname(parameters['resolutions'][parameters['iteration']])}/" \
-               f"tform/tform_ga.npy"
-
+    # Save some results for later plotting
     if parameters["iteration"] == 0:
         parameters["GA_fitness"].append(init_fitness)
-
     parameters["GA_fitness"].append(solution_fitness)
 
     ga_dict = dict()
-    ga_dict["best_solution"] = solution
-    ga_dict["solution_fitness"] = solution_fitness
-    ga_dict["initial_fitness"] = init_fitness
+    ga_dict["fitness"] = solution_fitness
+    for t, key in zip(tform, parameters["filenames"].keys()):
+        ga_dict[key] = [*t, initial_tform[key][-1]]
+    np.save(parameters["filepath_tform"], ga_dict)
 
     return ga_dict
+
+
+def genetic_algorithm_piecewise(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, initial_tform):
+    """
+    Function that runs a genetic algorithm using the pygad module. This function will use a piecewise assembly method
+    where the stitching is performed per quadrant. This is in contrast with the other global method where quadrants
+    are stitched all at once.
+
+    Input:
+    - all quadrants
+    - dict with parameters
+    - initial transformation matrix
+
+    Output:
+    - dict with optimized transformation matrix and the fitness of that matrix
+    """
+
+    return
 
 
 def fitness_func(solution, solution_idx):
@@ -115,6 +129,9 @@ def fitness_func(solution, solution_idx):
     Custom function to compute the cost related to the genetic algorithm. The genetic algorithm will provide
     a solution for the transformation matrix which can be used to compute the cost. A better transformation
     matrix should be associated with a lower cost and thus a higher fitness.
+
+    Although histogram matching and overlap are currently supported as cost functions, these require warping the
+    image rather than some coordinates and are therefore much more computationally expensive.
     """
 
     global glob_quadrant_A, glob_quadrant_B, glob_quadrant_C, glob_quadrant_D, glob_parameters
@@ -130,10 +147,10 @@ def fitness_func(solution, solution_idx):
                                                              solution)
 
     # Apply tform to several attributes of the quadrant
-    glob_quadrant_A = apply_new_transform(glob_quadrant_A, tform_a)
-    glob_quadrant_B = apply_new_transform(glob_quadrant_B, tform_b)
-    glob_quadrant_C = apply_new_transform(glob_quadrant_C, tform_c)
-    glob_quadrant_D = apply_new_transform(glob_quadrant_D, tform_d)
+    glob_quadrant_A = apply_new_transform(glob_quadrant_A, tform_a, tform_image=False)
+    glob_quadrant_B = apply_new_transform(glob_quadrant_B, tform_b, tform_image=False)
+    glob_quadrant_C = apply_new_transform(glob_quadrant_C, tform_c, tform_image=False)
+    glob_quadrant_D = apply_new_transform(glob_quadrant_D, tform_d, tform_image=False)
 
     """
     histogram_cost = hist_cost_function(glob_quadrant_A, glob_quadrant_B,
@@ -141,8 +158,9 @@ def fitness_func(solution, solution_idx):
                                             glob_parameters, plot=False)
     
     overlap_cost = overlap_cost_function(glob_quadrant_A, glob_quadrant_B,
-                                        glob_quadrant_C, glob_quadrant_D,
-                                        glob_parameters, plot=False)
+                             glob_quadrant_C, glob_quadrant_D,
+                             tforms=[tform_a, tform_b, tform_c, tform_d])
+    
     """
 
     distance_cost = distance_cost_function(glob_quadrant_A, glob_quadrant_B,
@@ -158,34 +176,35 @@ def plot_best_sol_per_gen(ga):
     """
     Custom function to plot the result of the best solution for each generation.
     """
-    global glob_quadrant_A, glob_quadrant_B, glob_quadrant_C, glob_quadrant_D
+    global glob_quadrant_A, glob_quadrant_B, glob_quadrant_C, glob_quadrant_D, num_gen
 
     # Get best solution and process it
     solution, fitness, _ = ga.best_solution()
     gen = ga.generations_completed
 
     # Show solution for every 10 generations
-    if gen % 10 == 0:
+    if gen % 100 == 0:
         tform_a, tform_b, tform_c, tform_d = recompute_transform(glob_quadrant_A, glob_quadrant_B,
                                                                  glob_quadrant_C, glob_quadrant_D,
                                                                  solution)
 
         # Apply tform to several attributes of the quadrant
-        glob_quadrant_A = apply_new_transform(glob_quadrant_A, tform_a)
-        glob_quadrant_B = apply_new_transform(glob_quadrant_B, tform_b)
-        glob_quadrant_C = apply_new_transform(glob_quadrant_C, tform_c)
-        glob_quadrant_D = apply_new_transform(glob_quadrant_D, tform_d)
+        glob_quadrant_A = apply_new_transform(glob_quadrant_A, tform_a, tform_image=True)
+        glob_quadrant_B = apply_new_transform(glob_quadrant_B, tform_b, tform_image=True)
+        glob_quadrant_C = apply_new_transform(glob_quadrant_C, tform_c, tform_image=True)
+        glob_quadrant_D = apply_new_transform(glob_quadrant_D, tform_d, tform_image=True)
 
         # Get final image
-        total_im = recombine_quadrants(glob_quadrant_A.tform_image_temp, glob_quadrant_B.tform_image_temp,
-                                       glob_quadrant_C.tform_image_temp, glob_quadrant_D.tform_image_temp)
+        total_im = recombine_quadrants(glob_quadrant_A.colour_image, glob_quadrant_B.colour_image,
+                                       glob_quadrant_C.colour_image, glob_quadrant_D.colour_image)
 
         # Plotting parameters
         ratio = glob_parameters["resolutions"][glob_parameters["iteration"]] / glob_parameters["resolutions"][0]
         ms = np.sqrt(2500 * np.sqrt(ratio))
 
+        # Make figure
         plt.figure()
-        plt.title(f"Best result at generation {gen}: fitness = {np.round(fitness, 3)}")
+        plt.title(f"Best result at generation {gen}/{num_gen}: fitness = {np.round(fitness, 2)}")
         plt.imshow(total_im, cmap="gray")
         plt.scatter(glob_quadrant_A.v_edge_theilsen_endpoints_tform[:, 0],
                     glob_quadrant_A.v_edge_theilsen_endpoints_tform[:, 1],

@@ -5,12 +5,12 @@ import pickle
 import copy
 
 from .get_resname import get_resname
-from .genetic_algorithm import genetic_algorithm
+from .genetic_algorithm import genetic_algorithm_global, genetic_algorithm_piecewise
 from .map_tform_low_res import map_tform_low_res
 from .plot_tools import *
 
 
-def optimize_stitch(parameters, plot=False):
+def optimize_stitch(parameters, assembly='global', plot=False):
     """
     Function to optimize the stitching between images. This will consist of the following steps.
     1. Compute the smallest bounding box around the quadrant
@@ -21,6 +21,9 @@ def optimize_stitch(parameters, plot=False):
 
     Input:
     - Dictionary with parameters
+    - Assembly method (global | piecewise). This parameter indicates whether the stitching should be performed
+    for all quadrants at once or piecewise quadrant by quadrant.
+    - Boolean value whether to plot outcomes
 
     Output:
     - Final stitched image
@@ -46,8 +49,8 @@ def optimize_stitch(parameters, plot=False):
             os.mkdir(path)
 
     # Check if optimized tform already exists
-    filepath_tform = f"{dirpath_tform}tform_ga.npy"
-    file_exists = os.path.isfile(filepath_tform)
+    parameters["filepath_tform"] = f"{dirpath_tform}tform_ga.npy"
+    file_exists = os.path.isfile(parameters["filepath_tform"])
 
     # Start optimizing stitch
     if not file_exists:
@@ -64,6 +67,7 @@ def optimize_stitch(parameters, plot=False):
             quadrant_D = pickle.load(loadfile)
 
         # Load images
+        print("- loading images...")
         quadrant_A.load_images()
         quadrant_B.load_images()
         quadrant_C.load_images()
@@ -104,31 +108,36 @@ def optimize_stitch(parameters, plot=False):
 
             # Get final tform params for plotting later on
             initial_tform = dict()
-            initial_tform[str(quadrant_A.quadrant_name)] = [quadrant_A.rot_trans_x+quadrant_A.crop_trans_x+quadrant_A.pad_trans_x+quadrant_A.trans_x,
-                                                            quadrant_A.rot_trans_y+quadrant_A.crop_trans_y+quadrant_A.pad_trans_y+quadrant_A.trans_y,
-                                                            quadrant_A.angle, quadrant_A.outshape]
-            initial_tform[str(quadrant_B.quadrant_name)] = [quadrant_B.rot_trans_x+quadrant_B.crop_trans_x+quadrant_B.pad_trans_x+quadrant_B.trans_x,
-                                                            quadrant_B.rot_trans_y+quadrant_B.crop_trans_y+quadrant_B.pad_trans_y+quadrant_B.trans_y,
-                                                            quadrant_B.angle, quadrant_B.outshape]
-            initial_tform[str(quadrant_C.quadrant_name)] = [quadrant_C.rot_trans_x+quadrant_C.crop_trans_x+quadrant_C.pad_trans_x+quadrant_C.trans_x,
-                                                            quadrant_C.rot_trans_y+quadrant_C.crop_trans_y+quadrant_C.pad_trans_y+quadrant_C.trans_y,
-                                                            quadrant_C.angle, quadrant_C.outshape]
-            initial_tform[str(quadrant_D.quadrant_name)] = [quadrant_D.rot_trans_x+quadrant_D.crop_trans_x+quadrant_D.pad_trans_x+quadrant_D.trans_x,
-                                                            quadrant_D.rot_trans_y+quadrant_D.crop_trans_y+quadrant_D.pad_trans_y+quadrant_D.trans_y,
-                                                            quadrant_D.angle, quadrant_D.outshape]
+            A_total_x = quadrant_A.rot_trans_x+quadrant_A.crop_trans_x+quadrant_A.pad_trans_x+quadrant_A.trans_x
+            A_total_y = quadrant_A.rot_trans_y+quadrant_A.crop_trans_y+quadrant_A.pad_trans_y+quadrant_A.trans_y
+            initial_tform[str(quadrant_A.quadrant_name)] = [A_total_x, A_total_y, quadrant_A.angle, quadrant_A.outshape]
 
-            np.save(f"{dirpath_tform}/tform.npy", initial_tform)
+            B_total_x = quadrant_B.rot_trans_x + quadrant_B.crop_trans_x + quadrant_B.pad_trans_x + quadrant_B.trans_x
+            B_total_y = quadrant_B.rot_trans_y + quadrant_B.crop_trans_y + quadrant_B.pad_trans_y + quadrant_B.trans_y
+            initial_tform[str(quadrant_B.quadrant_name)] = [B_total_x, B_total_y,  quadrant_B.angle, quadrant_B.outshape]
+
+            C_total_x = quadrant_C.rot_trans_x + quadrant_C.crop_trans_x + quadrant_C.pad_trans_x + quadrant_C.trans_x
+            C_total_y = quadrant_C.rot_trans_y + quadrant_C.crop_trans_y + quadrant_C.pad_trans_y + quadrant_C.trans_y
+            initial_tform[str(quadrant_C.quadrant_name)] = [C_total_x, C_total_y, quadrant_C.angle, quadrant_C.outshape]
+
+            D_total_x = quadrant_D.rot_trans_x + quadrant_D.crop_trans_x + quadrant_D.pad_trans_x + quadrant_D.trans_x
+            D_total_y = quadrant_D.rot_trans_y + quadrant_D.crop_trans_y + quadrant_D.pad_trans_y + quadrant_D.trans_y
+            initial_tform[str(quadrant_D.quadrant_name)] = [D_total_x, D_total_y, quadrant_D.angle, quadrant_D.outshape]
+
+            np.save(f"{dirpath_tform}/tform_initial.npy", initial_tform)
+            ga_tform = None
 
         # If initial transformation already exists, load and upsample it.
         elif parameters['iteration'] > 0:
-            initial_tform = map_tform_low_res(parameters)
+            initial_tform, ga_tform = map_tform_low_res(parameters)
 
         # Apply transformation to the original images
-        quadrant_A.get_tformed_images(initial_tform)
-        quadrant_B.get_tformed_images(initial_tform)
-        quadrant_C.get_tformed_images(initial_tform)
-        quadrant_D.get_tformed_images(initial_tform)
-        parameters["image_centers"] = [quadrant_A.image_center, quadrant_B.image_center, quadrant_C.image_center, quadrant_D.image_center]
+        quadrant_A.get_tformed_images(initial_tform=initial_tform, ga_tform=ga_tform)
+        quadrant_B.get_tformed_images(initial_tform=initial_tform, ga_tform=ga_tform)
+        quadrant_C.get_tformed_images(initial_tform=initial_tform, ga_tform=ga_tform)
+        quadrant_D.get_tformed_images(initial_tform=initial_tform, ga_tform=ga_tform)
+        parameters["image_centers"] = [quadrant_A.image_center, quadrant_B.image_center,
+                                       quadrant_C.image_center, quadrant_D.image_center]
 
         # Plot transformation result
         if plot:
@@ -154,19 +163,15 @@ def optimize_stitch(parameters, plot=False):
 
         # Optimization with genetic algorithm
         print("- computing reconstruction with genetic algorithm...")
-        ga_dict = genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D,
-                                    parameters, initial_tform)
-
-        # Add GA tform to initial tform
-        final_tform = copy.deepcopy(initial_tform)
-        final_tform["UL"][:3] = final_tform["UL"][:3] + ga_dict["best_solution"][0]
-        final_tform["UR"][:3] = final_tform["UR"][:3] + ga_dict["best_solution"][1]
-        final_tform["LL"][:3] = final_tform["LL"][:3] + ga_dict["best_solution"][2]
-        final_tform["LR"][:3] = final_tform["LR"][:3] + ga_dict["best_solution"][3]
-        np.save(filepath_tform, final_tform)
+        if assembly == "global":
+            ga_dict = genetic_algorithm_global(quadrant_A, quadrant_B, quadrant_C, quadrant_D,
+                                               parameters, initial_tform)
+        elif assembly == "piecewise":
+            ga_dict = genetic_algorithm_piecewise(quadrant_A, quadrant_B, quadrant_C, quadrant_D,
+                                                  parameters, initial_tform)
 
         # Plot the results of the genetic algorithm
-        plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, final_tform, ga_dict)
+        plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, ga_dict)
 
         # Provide verbose on computation time
         end_time = time.time()
