@@ -44,6 +44,6 @@ def run_pythostitcher(parameters):
 
         parameters["iteration"] = i
         print(f"\nOptimizing stitch at resolution {parameters['resolutions'][i]}")
-        optimize_stitch(parameters, assembly='global', plot=True)
+        optimize_stitch(parameters, plot=True)
 
     return

@@ -68,4 +68,6 @@ def recombine_quadrants(im_A, im_B, im_C, im_D):
         elif len(np.squeeze(final_im.shape))==3:
             final_im[r, c, :] = temp[r, c, :]
 
+    final_im = final_im.astype("uint8")
+
     return final_im

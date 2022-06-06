@@ -2,15 +2,13 @@ import os
 import numpy as np
 import pickle
 import cv2
-import math
+import copy
 
-from skimage.io import imread, imsave
-from skimage.transform import resize, warp, EuclideanTransform, matrix_transform
 from skimage.measure import label, regionprops
-from skimage.color import rgb2gray
 from sklearn.linear_model import TheilSenRegressor
 
 from .get_resname import get_resname
+from .transformations import *
 
 
 class Quadrant:
@@ -53,7 +51,8 @@ class Quadrant:
             impath = self.impath + ext
 
             if os.path.isfile(impath):
-                self.original_image = imread(impath)
+                self.original_image = cv2.imread(impath)
+                self.original_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
 
                 # If for some reason the image has a fourth alpha channel, discard this
                 if np.shape(self.original_image)[-1] == 4:
@@ -72,10 +71,10 @@ class Quadrant:
         """
 
         # Convert to grayscale and resize
-        self.gray_image = rgb2gray(self.original_image)
-        self.target_size = [np.round(self.res * np.shape(self.gray_image)[0]),
-                            np.round(self.res * np.shape(self.gray_image)[1])]
-        self.gray_image = resize(self.gray_image, self.target_size)
+        self.gray_image = cv2.cvtColor(self.original_image, cv2.COLOR_RGB2GRAY)
+        self.target_size = (int(np.round(self.res * np.shape(self.gray_image)[1])),
+                            int(np.round(self.res * np.shape(self.gray_image)[0])))
+        self.gray_image = cv2.resize(self.gray_image, self.target_size)
 
         return
 
@@ -86,7 +85,7 @@ class Quadrant:
         """
 
         # Resize to smaller resolution
-        self.colour_image = resize(self.original_image, self.target_size)
+        self.colour_image = cv2.resize(self.original_image, self.target_size)
 
         return
 
@@ -106,14 +105,15 @@ class Quadrant:
             mask_path = base_path + ext
 
             if os.path.isfile(mask_path):
-                self.mask = imread(mask_path)
+                self.mask = cv2.imread(mask_path)
+                self.mask = cv2.cvtColor(self.mask, cv2.COLOR_BGR2RGB)
 
                 # Check if mask is RGB(a) format
                 if len(np.shape(self.mask)) > 2:
                     self.mask = self.mask[:, :, 0]
 
                 # Resize mask to match images
-                self.mask = resize(self.mask, self.target_size)
+                self.mask = cv2.resize(self.mask, self.target_size)
                 self.mask = (self.mask > 0.5) * 1
 
                 return
@@ -155,7 +155,7 @@ class Quadrant:
                               f"{self.slice_idx}/" \
                               f"{get_resname(self.resolutions[self.iteration-1])}/" \
                               f"quadrant_{self.quadrant_name}_gray.png"
-            prev_res_image = imread(prev_res_image_path)
+            prev_res_image = cv2.imread(prev_res_image_path)
             prev_res_image_shape = np.shape(prev_res_image)
             ratio = self.resolutions[self.iteration]/self.resolutions[self.iteration-1]
             current_res_image_shape = np.shape(self.gray_image)
@@ -178,15 +178,15 @@ class Quadrant:
 
         # Save mask, grayscale and colour image. Delete after saving to reduce double saving
         save_maskfile = self.quadrant_savepath + "_mask.png"
-        imsave(save_maskfile, (self.mask*255).astype("uint8"))
+        cv2.imwrite(save_maskfile, (self.mask*255).astype("uint8"))
         del self.mask
 
         save_grayimfile = self.quadrant_savepath + "_gray.png"
-        imsave(save_grayimfile, (self.gray_image*255).astype("uint8"))
+        cv2.imwrite(save_grayimfile, cv2.cvtColor(self.gray_image.astype("uint8"), cv2.COLOR_GRAY2BGR))
         del self.gray_image
 
         save_colourimfile = self.quadrant_savepath + "_colour.png"
-        imsave(save_colourimfile, (self.colour_image*255).astype("uint8"))
+        cv2.imwrite(save_colourimfile, cv2.cvtColor(self.colour_image.astype("uint8"), cv2.COLOR_RGB2BGR))
         del self.colour_image
         del self.original_image
 
@@ -203,12 +203,19 @@ class Quadrant:
 
         # Read all relevant images
         basepath_load = f"../results/{self.patient_idx}/{self.slice_idx}/{self.res_name}"
-        self.mask = (imread(f"{basepath_load}/quadrant_{self.quadrant_name}_mask.png")/255).astype("float32")
+        self.mask = cv2.imread(f"{basepath_load}/quadrant_{self.quadrant_name}_mask.png")
         if len(self.mask.shape) == 3:
-            self.mask = rgb2gray(self.mask)
+            self.mask = cv2.cvtColor(self.mask, cv2.COLOR_BGR2GRAY)
 
-        self.gray_image = (imread(f"{basepath_load}/quadrant_{self.quadrant_name}_gray.png")/255).astype("float32")
-        self.colour_image = (imread(f"{basepath_load}/quadrant_{self.quadrant_name}_colour.png")/255).astype("float32")
+        self.gray_image = cv2.imread(f"{basepath_load}/quadrant_{self.quadrant_name}_gray.png")
+        self.gray_image = cv2.cvtColor(self.gray_image, cv2.COLOR_BGR2GRAY)
+        self.colour_image = cv2.imread(f"{basepath_load}/quadrant_{self.quadrant_name}_colour.png")
+        self.colour_image = cv2.cvtColor(self.colour_image, cv2.COLOR_BGR2RGB)
+
+        # Make a copy of all images
+        self.mask_original = copy.deepcopy(self.mask)
+        self.gray_image_original = copy.deepcopy(self.gray_image)
+        self.colour_image_original = copy.deepcopy(self.colour_image)
 
         return
 
@@ -281,6 +288,84 @@ class Quadrant:
 
         return
 
+
+    def get_bbox_corners_v2(self, image):
+        """
+        Custom method to obtain coordinates of corner A and corner C. Corner A is the
+        corner of the bounding box which represents the center of the prostate. Corner C
+        is the corner of the bounding box which represents the corner furthest away
+        from corner A. Corners are named in clockwise direction.
+
+        Example: upperleft quadrant
+        C  >  D
+        ^     v
+        B  <  A
+
+        """
+
+        # Convert to uint8 for opencv processing
+        image = (image*255).astype(np.uint8)
+
+        # Obtain contour from mask
+        self.cnt2, _ = cv2.findContours(image, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        self.cnt2 = np.squeeze(self.cnt2[0])[::-1]
+
+        # Convert bbox object to corner points. These corner points are always oriented counter clockwise.
+        self.bbox2 = cv2.minAreaRect(self.cnt2)
+        self.bbox_corners2 = cv2.boxPoints(self.bbox2)
+
+        # Get angle of rotation
+        self.angle2 = self.bbox2[2]
+        if self.angle2 > 45:
+            self.angle2 = -(90 - self.angle2)
+        elif self.angle2 < -45:
+            self.angle2 = 90 + self.angle2
+        self.angle2 = np.round(self.angle2, 1)
+
+        # Get list of x-y values of contour
+        x_points = [i[0] for i in self.cnt2]
+        y_points = [i[1] for i in self.cnt2]
+        distances = []
+        mask_corners = []
+        mask_corners_idxs = []
+
+        # Compute smallest distance from each corner point to any point in contour
+        for corner in self.bbox_corners2:
+            dist_x = [np.abs(corner[0] - x_point) for x_point in x_points]
+            dist_y = [np.abs(corner[1] - y_point) for y_point in y_points]
+            dist = [np.sqrt(x ** 2 + y ** 2) for x, y in zip(dist_x, dist_y)]
+            mask_idx = np.argmin(dist)
+            mask_corners.append(self.cnt2[mask_idx])
+            mask_corners_idxs.append(mask_idx)
+            distances.append(np.min(dist))
+
+        # Corner c should always be the furthest away from the mask
+        corner_c_idx = np.argmax(distances)
+        self.bbox_corner_c2 = self.bbox_corners2[corner_c_idx]
+        self.mask_corner_c2 = mask_corners[corner_c_idx]
+        self.mask_corner_c_idx2 = mask_corners_idxs[corner_c_idx]
+
+        # Corner a is the opposite corner and is found 2 indices further
+        corner_idxs = [0, 1, 2, 3] * 2
+        corner_a_idx = corner_idxs[corner_c_idx + 2]
+        self.bbox_corner_a2 = self.bbox_corners2[corner_a_idx]
+        self.mask_corner_a2 = mask_corners[corner_a_idx]
+        self.mask_corner_a_idx2 = mask_corners_idxs[corner_a_idx]
+
+        # Corner b corresponds to the corner 1 index before corner c
+        corner_b_idx = corner_idxs[corner_c_idx - 1]
+        self.bbox_corner_b2 = self.bbox_corners2[corner_b_idx]
+        self.mask_corner_b2 = mask_corners[corner_b_idx]
+        self.mask_corner_b_idx2 = mask_corners_idxs[corner_b_idx]
+
+        # Corner d corresponds to the corner 1 index before corner a
+        corner_d_idx = corner_idxs[corner_a_idx - 1]
+        self.bbox_corner_d2 = self.bbox_corners2[corner_d_idx]
+        self.mask_corner_d2 = mask_corners[corner_d_idx]
+        self.mask_corner_d_idx2 = mask_corners_idxs[corner_d_idx]
+
+        return
+
     def get_initial_transform(self):
         """
         Custom method to get the initial transformation consisting of rotation and cropping.
@@ -297,23 +382,10 @@ class Quadrant:
             self.angle = 90 + self.angle
         self.angle = np.round(self.angle, 1)
 
-        # Obtain translation offset due to rotation. This can be computed through the difference in center of mass
-        # of the bounding box before and after the rotation.
-        com_pre = np.mean(self.bbox_corners, axis=0)
-        rot_angle = -math.radians(self.angle)
-        rot_tform = EuclideanTransform(rotation=rot_angle, translation=(0, 0))
-        bbox_corners_post = matrix_transform(self.bbox_corners, rot_tform.params)
-        com_post = np.mean(bbox_corners_post, axis=0)
-        shift = com_pre - com_post
-
-        self.rot_trans_x = np.round(shift[0]) + eps
-        self.rot_trans_y = np.round(shift[1]) + eps
-
-        # Rotate the image
-        rot_trans_tform = EuclideanTransform(rotation=rot_angle,
-                                             translation=(self.rot_trans_x, self.rot_trans_y))
-        self.tform_image = warp(self.gray_image, rot_trans_tform.inverse)
-        self.rot_mask = warp(self.mask, rot_trans_tform.inverse)
+        # Apply rotation first
+        rot_mat = cv2.getRotationMatrix2D(center=self.image_center_pre, angle=self.angle, scale=1)
+        self.tform_image = cv2.warpAffine(src=self.gray_image, M=rot_mat, dsize=self.gray_image.shape)
+        self.rot_mask = cv2.warpAffine(src=self.mask_original, M=rot_mat, dsize=self.mask_original.shape)
 
         # Get cropping parameters
         r, c = np.nonzero(self.tform_image)
@@ -419,12 +491,16 @@ class Quadrant:
             # Get output shape. This should be larger than original image due to translation
             out_shape = (np.shape(self.tform_image)[0] + expand_y, np.shape(self.tform_image)[1] + trans_x)
 
-        # Obtain transformation
-        tform = EuclideanTransform(rotation=0, translation=(trans_x, trans_y))
-
         # Apply transformation. Output shape is defined such that horizontally aligned quadrants can be
         # added elementwise.
-        self.tform_image_local = warp(self.tform_image, tform.inverse, output_shape=out_shape)
+        self.tform_image_local = warp_image(
+            src=self.tform_image, center=self.image_center_pre, rotation=0,
+            translation=(trans_x, trans_y), output_shape=out_shape
+        )
+        self.image_center_local = warp_2d_points(
+            src=self.image_center_pre, center=self.image_center_pre, rotation=0,
+            translation=(trans_x, trans_y)
+        )
 
         # Save transformation
         self.trans_x = trans_x
@@ -469,12 +545,12 @@ class Quadrant:
             # Get output shape. This should be larger than original image due to translation
             out_shape = (np.shape(self.tform_image_local)[0] + trans_y, np.shape(self.tform_image_local)[1] + trans_x)
 
-        # Obtain transformation
-        tform = EuclideanTransform(rotation=0, translation=(trans_x, trans_y))
-
         # Apply transformation. Output shape is defined such that now all pieces can be
         # added elementwise to perform the reconstruction.
-        self.tform_image_global = warp(self.tform_image_local, tform.inverse, output_shape=out_shape)
+        self.tform_image_global = warp_image(
+            src=self.tform_image_local, center=self.image_center_local, rotation=0,
+            translation=(trans_x, trans_y), output_shape=out_shape
+        )
         self.tform_image = self.tform_image_global
 
         # Save transformation. This ensures that the transformation can be reused for higher resolutions.
@@ -485,57 +561,42 @@ class Quadrant:
         return
 
 
-    def get_tformed_images(self, initial_tform, ga_tform):
+    def get_tformed_images(self, initial_tform):
         """
         Method to apply the transformation to align all grayscale images.
         """
 
         # Extract initial transformation values
-        trans_x, trans_y, angle, out_shape = initial_tform[str(self.quadrant_name)]
-        rad_angle = -math.radians(angle)
+        trans_x, trans_y, angle, center, out_shape = initial_tform
 
-        # Create transformation object
-        tform = EuclideanTransform(rotation=rad_angle, translation=(trans_x, trans_y))
+        # Warp image and mask
+        rot_mat = cv2.getRotationMatrix2D(center=center, angle=angle, scale=1)
+        rot_mat[0, 2] += trans_x
+        rot_mat[1, 2] += trans_y
+        self.colour_image = cv2.warpAffine(src=self.colour_image_original, M=rot_mat, dsize=out_shape[::-1])
+        self.tform_image = cv2.warpAffine(src=self.gray_image_original, M=rot_mat, dsize=out_shape[::-1])
+        self.mask = cv2.warpAffine(src=self.mask_original, M=rot_mat, dsize=out_shape[::-1])
 
-        # Apply tform. Using the inverse is skimage convention
-        self.colour_image = warp(self.colour_image, tform.inverse, output_shape=out_shape)
-        self.tform_image = warp(self.gray_image, tform.inverse, output_shape=out_shape)
-        self.mask = warp(self.mask, tform.inverse, output_shape=out_shape)
-        self.mask = ((self.mask > 0.5)*255).astype("uint8")
+        # Save image center after transformation. This will be needed for the cost function later on.
+        mask_contour = cv2.findContours(self.mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
+        mask_contour = np.squeeze(mask_contour[0])
+        self.image_center_peri = np.mean(mask_contour, axis=0)
+
+        return
+
+
+    def get_image_center(self):
+        """
+        Custom function to compute the center point of the quadrant BEFORE transformation
+        """
+
+        # Get mask contour
+        self.mask = ((self.mask_original > 0.5)*255).astype("uint8")
         self.mask_contour = cv2.findContours(self.mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
         self.mask_contour = np.squeeze(self.mask_contour[0])
 
-        if ga_tform:
-            # Extract initial transformation values
-            trans_x, trans_y, angle, out_shape = ga_tform[str(self.quadrant_name)]
-            rad_angle = -math.radians(angle)
-
-            # Create transformation object
-            tform = EuclideanTransform(rotation=rad_angle, translation=(trans_x, trans_y))
-
-            # Apply tform. Using the inverse is skimage convention
-            self.colour_image = warp(self.colour_image, tform.inverse, output_shape=out_shape)
-            self.tform_image = warp(self.tform_image, tform.inverse, output_shape=out_shape)
-            self.mask = warp(self.mask, tform.inverse, output_shape=out_shape)
-            self.mask = ((self.mask > 0.5) * 255).astype("uint8")
-            self.mask_contour = cv2.findContours(self.mask, cv2.RETR_TREE, cv2.CHAIN_APPROX_NONE)
-            self.mask_contour = np.squeeze(self.mask_contour[0])
-
-        # Get image center. This is required later on for one of the cost functions
-        labeled = label(self.tform_image>0)
-        props = regionprops(labeled)[0]
-        self.image_center = [props["centroid"][1], props["centroid"][0]]
-
-        # Compute tformed bbox corners for first iteration
-        if self.iteration == 0:
-            self.bbox_corner_a = matrix_transform(np.transpose(self.bbox_corner_a[:, np.newaxis]), tform.params)
-            self.bbox_corner_a = np.squeeze(self.bbox_corner_a)
-            self.bbox_corner_b = matrix_transform(np.transpose(self.bbox_corner_b[:, np.newaxis]), tform.params)
-            self.bbox_corner_b = np.squeeze(self.bbox_corner_b)
-            self.bbox_corner_c = matrix_transform(np.transpose(self.bbox_corner_c[:, np.newaxis]), tform.params)
-            self.bbox_corner_c = np.squeeze(self.bbox_corner_c)
-            self.bbox_corner_d = matrix_transform(np.transpose(self.bbox_corner_d[:, np.newaxis]), tform.params)
-            self.bbox_corner_d = np.squeeze(self.bbox_corner_d)
+        # Compute centerpoint
+        self.image_center_pre = tuple(np.round(np.mean(self.mask_contour, axis=0)).astype("int"))
 
         return
 

@@ -65,10 +65,19 @@ def setup_pythostitcher():
     parameters["resolutions"] = [0.05, 0.10, 0.25, 1.0]     # very important, can be tweaked
     parameters["pad_fraction"] = 0.7                        # required for not cutting corners
 
+    # Genetic algorithm parameters
+    parameters["n_solutions"] = 20
+    parameters["n_generations"] = 100
+    parameters["n_parents"] = 3
+    parameters["n_mating"] = 6
+    parameters["p_crossover"] = 0.5
+    parameters["crossover_type"] = "scattered"
+    parameters["p_mutation"] = 0.25
+    parameters["mutation_type"] = "random"
+    parameters["parent_selection"] = "rank"
+
     # Parameters related to the cost function
     parameters["overunderlap_weights"] = [0.01, 0.01, 0.011, 0.01]
-    parameters["cost_range"] = [0, 2]                                       # currently not in use
-    parameters["overhang_penalty"] = parameters["cost_range"][-1]           # currently not in use
     parameters["cost_functions"] = ["simple_hists", "simple_hists",
                                     "simple_hists", "simple_hists"]
     parameters["cost_function_scaling"] = [res/parameters["resolutions"][0] for res in parameters["resolutions"]]

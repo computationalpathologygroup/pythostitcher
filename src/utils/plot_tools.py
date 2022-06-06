@@ -1,15 +1,13 @@
-import numpy as np
-import matplotlib.pyplot as plt
-import math
-import imageio
-import os
 import glob
+import os
 import warnings
+import numpy as np
 
-from skimage.transform import EuclideanTransform, matrix_transform, warp
+import imageio
+import matplotlib.pyplot as plt
 
 from .recombine_quadrants import recombine_quadrants
-from .recompute_transform import recompute_transform
+from .transformations import *
 
 
 def plot_rotation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
@@ -218,11 +216,11 @@ def plot_tformed_theilsen_lines(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
 
     return
 
-
+"""
 def plot_tformed_lines(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
-    """
+    
     Function to warp the Theil-Sen lines
-    """
+    
 
     # Set tform
     rotation = 5
@@ -230,6 +228,7 @@ def plot_tformed_lines(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     tform = EuclideanTransform(rotation=rot_angle, translation=(0, 0))
 
     # Apply tform
+    
     quadrant_A_ts_h = matrix_transform(quadrant_A.h_edge_theilsen, tform.params)
     quadrant_A_ts_v = matrix_transform(quadrant_A.v_edge_theilsen, tform.params)
     quadrant_B_ts_h = matrix_transform(quadrant_B.h_edge_theilsen, tform.params)
@@ -238,11 +237,20 @@ def plot_tformed_lines(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     quadrant_C_ts_v = matrix_transform(quadrant_C.v_edge_theilsen, tform.params)
     quadrant_D_ts_h = matrix_transform(quadrant_D.h_edge_theilsen, tform.params)
     quadrant_D_ts_v = matrix_transform(quadrant_D.v_edge_theilsen, tform.params)
+    
+    quadrant_A_ts_h = warp_2d_points(src=quadrant_A.h_edge_theilsen, rotation=rotation, translation=(0, 0))
+    quadrant_A_ts_v = warp_2d_points(src=quadrant_A.v_edge_theilsen, rotation=rotation, translation=(0, 0))
+    quadrant_B_ts_h = warp_2d_points(src=quadrant_B.h_edge_theilsen, rotation=rotation, translation=(0, 0))
+    quadrant_B_ts_v = warp_2d_points(src=quadrant_B.v_edge_theilsen, rotation=rotation, translation=(0, 0))
+    quadrant_C_ts_h = warp_2d_points(src=quadrant_C.h_edge_theilsen, rotation=rotation, translation=(0, 0))
+    quadrant_C_ts_v = warp_2d_points(src=quadrant_C.v_edge_theilsen, rotation=rotation, translation=(0, 0))
+    quadrant_D_ts_h = warp_2d_points(src=quadrant_D.h_edge_theilsen, rotation=rotation, translation=(0, 0))
+    quadrant_D_ts_v = warp_2d_points(src=quadrant_D.v_edge_theilsen, rotation=rotation, translation=(0, 0))
 
-    quadrant_A_tform = warp(quadrant_A.tform_image, tform.inverse)
-    quadrant_B_tform = warp(quadrant_B.tform_image, tform.inverse)
-    quadrant_C_tform = warp(quadrant_C.tform_image, tform.inverse)
-    quadrant_D_tform = warp(quadrant_D.tform_image, tform.inverse)
+    quadrant_A_tform = warp_image(src=quadrant_A.tform_image, tform.inverse)
+    quadrant_B_tform = warp_image(src=quadrant_B.tform_image, tform.inverse)
+    quadrant_C_tform = warp_image(src=quadrant_C.tform_image, tform.inverse)
+    quadrant_D_tform = warp_image(src=quadrant_D.tform_image, tform.inverse)
 
     combi_pre = quadrant_A.tform_image + quadrant_B.tform_image + quadrant_C.tform_image + quadrant_D.tform_image
     combi_post = quadrant_A_tform + quadrant_B_tform + quadrant_C_tform + quadrant_D_tform
@@ -274,7 +282,7 @@ def plot_tformed_lines(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     plt.show()
 
     return
-
+"""
 
 def plot_ga_tform(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     """
@@ -309,40 +317,39 @@ def plot_ga_tform(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     return
 
 
-def plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, ga_dict):
+def plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, final_tform):
     """
     Plotting function to plot the transformation of the quadrants which was found by the
     genetic algorithm.
     """
 
     # Extract individual tforms from final_tform
-    ga_tform_A = ga_dict[quadrant_A.quadrant_name]
-    ga_tform_B = ga_dict[quadrant_B.quadrant_name]
-    ga_tform_C = ga_dict[quadrant_C.quadrant_name]
-    ga_tform_D = ga_dict[quadrant_D.quadrant_name]
-
-    # Make transform object
-    A_tform = EuclideanTransform(rotation=-math.radians(ga_tform_A[2]), translation=ga_tform_A[:2])
-    B_tform = EuclideanTransform(rotation=-math.radians(ga_tform_B[2]), translation=ga_tform_B[:2])
-    C_tform = EuclideanTransform(rotation=-math.radians(ga_tform_C[2]), translation=ga_tform_C[:2])
-    D_tform = EuclideanTransform(rotation=-math.radians(ga_tform_D[2]), translation=ga_tform_D[:2])
+    ga_tform_A = final_tform[quadrant_A.quadrant_name]
+    ga_tform_B = final_tform[quadrant_B.quadrant_name]
+    ga_tform_C = final_tform[quadrant_C.quadrant_name]
+    ga_tform_D = final_tform[quadrant_D.quadrant_name]
 
     # Apply transformation
-    quadrant_A.ga_tform_image = warp(quadrant_A.colour_image, A_tform.inverse)
-    quadrant_B.ga_tform_image = warp(quadrant_B.colour_image, B_tform.inverse)
-    quadrant_C.ga_tform_image = warp(quadrant_C.colour_image, C_tform.inverse)
-    quadrant_D.ga_tform_image = warp(quadrant_D.colour_image, D_tform.inverse)
+    tforms = [ga_tform_A, ga_tform_B, ga_tform_C, ga_tform_D]
+    quadrants = [quadrant_A, quadrant_B, quadrant_C, quadrant_D]
+    images = []
+    for tform, quadrant in zip(tforms, quadrants):
+        image = warp_image(
+            src=quadrant.colour_image_original, center=tform[3], rotation=tform[2],
+            translation=tform[:2], output_shape = tform[4]
+        )
+        images.append(image)
 
     # Stitch all images together
-    result = recombine_quadrants(quadrant_A.ga_tform_image, quadrant_B.ga_tform_image,
-                                 quadrant_C.ga_tform_image, quadrant_D.ga_tform_image)
+    result = recombine_quadrants(*images)
 
     res = parameters["resolutions"][parameters["iteration"]]
     imsavedir = f"{parameters['results_dir']}/{parameters['patient_idx']}/images/ga_result_gen_{res}.png"
 
     # Show result
     plt.figure()
-    plt.title(f"Alignment at resolution {res}\n after genetic algorithm (fitness={np.round(ga_dict['fitness'], 2)})")
+    plt.title(f"Alignment at resolution {res}\n after genetic algorithm "
+              f"(fitness={np.round(parameters['GA_fitness'][-1], 2)})")
     plt.imshow(result, cmap="gray")
     plt.savefig(imsavedir)
     plt.show()

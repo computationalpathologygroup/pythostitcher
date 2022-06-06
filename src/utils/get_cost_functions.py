@@ -1,18 +1,14 @@
 import numpy as np
-import math
 import itertools
-import cv2
 
 from shapely.geometry import Polygon
-from skimage.transform import EuclideanTransform, matrix_transform, warp
-from skimage.measure import label
-from skimage.segmentation import find_boundaries
 
 from .plot_tools import plot_sampled_patches, plot_overlap_cost
 from .recombine_quadrants import recombine_quadrants
+from .transformations import *
 
 
-def apply_new_transform(quadrant, tform, tform_image=False):
+def apply_new_transform(quadrant, sol_tform, combo_tform, tform_image=False):
     """
     Custom function to apply the newly acquired transformation to several attributes of the quadrant.
 
@@ -24,30 +20,38 @@ def apply_new_transform(quadrant, tform, tform_image=False):
     - Transformed quadrants and lines
     """
 
-    # Compute tform object from tform parameters
-    tform = EuclideanTransform(rotation=-math.radians(tform[2]), translation=tform[:2])
+    # Ensure correct formats
+    center_sol = tuple(np.squeeze(sol_tform[3]))
+    center_combo = tuple(np.squeeze(combo_tform[3]))
 
     # Apply tform to theilsen endpoints
-    quadrant.h_edge_theilsen_endpoints_tform = matrix_transform(quadrant.h_edge_theilsen_endpoints, tform.params)
-    quadrant.v_edge_theilsen_endpoints_tform = matrix_transform(quadrant.v_edge_theilsen_endpoints, tform.params)
+    quadrant.h_edge_theilsen_endpoints_tform = warp_2d_points(
+        src=quadrant.h_edge_theilsen_endpoints, center=center_sol,
+        rotation=sol_tform[2], translation=sol_tform[:2]
+    )
+    quadrant.v_edge_theilsen_endpoints_tform = warp_2d_points(
+        src=quadrant.v_edge_theilsen_endpoints, center=center_sol,
+        rotation=sol_tform[2], translation=sol_tform[:2]
+    )
 
     # Apply tform to mask coordinates
-    quadrant.mask_contour_tform = matrix_transform(quadrant.mask_contour, tform.params)
+    quadrant.mask_contour_tform = warp_2d_points(
+        src=quadrant.mask_contour, center=center_combo,
+        rotation=combo_tform[2], translation=combo_tform[:2]
+    )
 
     # Apply tform to image center
-    quadrant.image_center = matrix_transform(quadrant.image_center, tform.params)
-
-    # Apply tform to theilsen lines
-    #quadrant.h_edge_theilsen_tform = matrix_transform(quadrant.h_edge_theilsen_coords, tform.params)
-    #quadrant.v_edge_theilsen_tform = matrix_transform(quadrant.v_edge_theilsen_coords, tform.params)
-
-    # Apply tform to quadrant edges
-    #quadrant.h_edge_tform = matrix_transform(quadrant.h_edge, tform.params)
-    #quadrant.v_edge_tform = matrix_transform(quadrant.v_edge, tform.params)
+    quadrant.image_center_post = warp_2d_points(
+        src=quadrant.image_center_pre, center=center_combo,
+        rotation=combo_tform[2], translation=combo_tform[:2]
+    )
 
     # Apply tform to image when required
     if tform_image:
-        quadrant.colour_image = warp(quadrant.colour_image, tform.inverse)
+        quadrant.colour_image = warp_image(
+            src=quadrant.colour_image_original, center = center_combo, rotation=combo_tform[2],
+            translation=combo_tform[:2], output_shape=combo_tform[4]
+        )
 
     return quadrant
 
@@ -289,6 +293,9 @@ def distance_cost_function(quadrant_A, quadrant_B, quadrant_C, quadrant_D, param
     if parameters["iteration"] == 0 and parameters["distance_scaling_required"]:
         distance_scaling = np.mean(distance_costs)
         parameters["distance_scaling_required"] = False
+    elif parameters["iteration"] > 0 and parameters["distance_scaling_required"]:
+        distance_scaling = parameters["resolutions"][parameters["iteration"]]/\
+                           parameters["resolutions"][parameters["iteration"]-1]
 
     cost = np.mean(distance_costs)/(distance_scaling*scaling)
 
