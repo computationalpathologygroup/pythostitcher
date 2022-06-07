@@ -1,17 +1,12 @@
 
 def get_resname(res):
+    """
+    Custom function to convert the resolution fraction to a string. This is done to create directories
+    for each resolution.
+    """
 
-    if res == 0.01:
-        resname = 'res001'
-    elif res == 0.05:
-        resname = 'res005'
-    elif res == 0.10:
-        resname = 'res010'
-    elif res == 0.25:
-        resname = 'res025'
-    elif res == 1:
-        resname = 'res100'
-    else:
-        raise ValueError('Undefined resolution, must be 0.01/0.05/0.25/1')
+    assert res<=1, "resolution fraction must be equal to or smaller than the original image"
+
+    resname = "res" + str(int(res*100)).zfill(3)
 
     return resname

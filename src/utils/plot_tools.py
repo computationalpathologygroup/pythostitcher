@@ -31,18 +31,18 @@ def plot_rotation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
 
     # Plot rotation result
     plt.figure(figsize=(6, 12))
-    plt.suptitle(f"Quadrants before and after automatic rotation", fontsize=16)
+    plt.suptitle(f"Quadrants before and after \nautomatic rotation", fontsize=20)
 
     for c, (pad, p_mask, p_rmask, c_x, c_y, q) in enumerate(zip(pad_mask, padded_mask, padded_rot_mask, corners_x, corners_y, quadrants), 1):
         plt.subplot(4, 2, (c*2)-1)
         plt.axis("off")
-        plt.title(q.quadrant_name)
+        plt.title(q.quadrant_name, fontsize=16)
         plt.imshow(p_mask, cmap="gray")
         plt.scatter(q.mask_corner_a[0]+pad[1], q.mask_corner_a[1]+pad[0], facecolor="r", s=100)
         plt.plot(c_x, c_y, linewidth=4, c="r")
         plt.subplot(4, 2, c*2)
         plt.axis("off")
-        plt.title(q.quadrant_name)
+        plt.title(q.quadrant_name, fontsize=16)
         plt.imshow(p_rmask, cmap="gray")
     plt.show()
 

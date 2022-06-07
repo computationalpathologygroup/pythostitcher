@@ -49,9 +49,8 @@ def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters
     p_mutation = parameters["p_mutation"]
     mutation_type = parameters["mutation_type"]
 
-
     # Cap solution ranges to plausible values
-    t_range = parameters["translation_ranges"][parameters["iteration"]]
+    t_range = parameters["translation_range"][parameters["iteration"]] * int(np.mean(quadrant_A.tform_image.shape))
     a_range = parameters["angle_range"][parameters["iteration"]]
     angles = [False, False, True]*4
     lb = [int(x - a_range) if is_angle else int(x - t_range) for x, is_angle in zip(ga_tform, angles)]
@@ -62,7 +61,7 @@ def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters
     init_pop = np.zeros((num_sol, num_genes))
     for i in range(num_sol):
         np.random.seed(i)
-        translation_noise = np.random.randint(low=-t_range/10, high=t_range/10, size=num_genes-4)
+        translation_noise = np.random.randint(low=np.round(-t_range), high=np.round(t_range), size=num_genes-4)
         angle_noise = np.random.randint(low=-a_range/5, high=a_range/5, size=4)
         total_noise = [*translation_noise[:2], angle_noise[0], *translation_noise[2:4], angle_noise[1],
                        *translation_noise[4:6], angle_noise[2], *translation_noise[6:], angle_noise[3]]
@@ -146,7 +145,6 @@ def fitness_func(solution, solution_idx):
     global glob_quadrant_A, glob_quadrant_B, glob_quadrant_C, glob_quadrant_D, glob_parameters
 
     # General cost function glob_parameters
-    glob_parameters["intensity_cost_weights"] = 1 - glob_parameters["overunderlap_weights"][glob_quadrant_A.iteration]
     glob_parameters["center_of_mass"] = np.mean(glob_parameters["image_centers"], axis=0)
     eps = 1e-5
 
