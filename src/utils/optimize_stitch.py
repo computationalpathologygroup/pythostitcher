@@ -1,5 +1,3 @@
-import os
-import numpy as np
 import time
 import pickle
 
@@ -7,23 +5,21 @@ from .get_resname import get_resname
 from .genetic_algorithm import genetic_algorithm
 from .map_tform_low_res import map_tform_low_res
 from .plot_tools import *
-from .recompute_transform import *
 
 
 def optimize_stitch(parameters, plot=False):
     """
-    Function to optimize the stitching between images. This will consist of the following steps.
+    Function to optimize the stitching between quadrants. This will consist of the following steps:
     1. Compute the smallest bounding box around the quadrant
-    2. Compute the initial transformation by rotating this quadrant
-    3. Globally align the quadrants and update the initial transformation with this translation factor
-    4. Extract the edges of the quadrant and compute a Theil-Sen line through the edges
-    5. Use a genetic algorithm to optimize the initial transformation
+    2. Rotate the quadrant as a first step towards alignment
+    3. Globally align the quadrants such that they share the same coordinate system
+    4. Identify cornerpoints in the quadrant and extract relevant edges
+    5. Compute a Theil-Sen line through the edges as a robust approximation of the edge
+    6. Use a genetic algorithm to "stitch" the quadrants together
 
     Input:
     - Dictionary with parameters
-    - Assembly method (global | piecewise). This parameter indicates whether the stitching should be performed
-    for all quadrants at once or piecewise quadrant by quadrant.
-    - Boolean value whether to plot outcomes
+    - Boolean value whether to plot intermediate results
 
     Output:
     - Final stitched image
@@ -35,9 +31,11 @@ def optimize_stitch(parameters, plot=False):
                     f"{parameters['slice_idx']}/" \
                     f"{get_resname(parameters['resolutions'][parameters['iteration']])}/" \
                     f"tform/"
+
     dirpath_images = f"../results/" \
                      f"{parameters['patient_idx']}/" \
                      f"images"
+
     dirpath_quadrants = f"../results/" \
                         f"{parameters['patient_idx']}/" \
                         f"{parameters['slice_idx']}/" \
@@ -54,6 +52,7 @@ def optimize_stitch(parameters, plot=False):
 
     # Start optimizing stitch
     if not file_exists:
+
         start_time = time.time()
 
         # Load previously saved quadrants
@@ -66,123 +65,124 @@ def optimize_stitch(parameters, plot=False):
         with open(f"{dirpath_quadrants}_LR", "rb") as loadfile:
             quadrant_D = pickle.load(loadfile)
 
+        # Save quadrants in list for easier handling of class methods
+        quadrants = [quadrant_A, quadrant_B, quadrant_C, quadrant_D]
+
         # Load images
         print("- loading images...")
-        quadrant_A.load_images()
-        quadrant_B.load_images()
-        quadrant_C.load_images()
-        quadrant_D.load_images()
+        for q in quadrants:
+            q.load_images()
 
         # Get center of the quadrant
-        quadrant_A.get_image_center()
-        quadrant_B.get_image_center()
-        quadrant_C.get_image_center()
-        quadrant_D.get_image_center()
+        for q in quadrants:
+            q.get_image_center()
 
         # Perform initialization at the lowest resolution
         if parameters['iteration'] == 0:
 
             # Get bounding box based on the tissue mask
-            quadrant_A.get_bbox_corners(quadrant_A.mask)
-            quadrant_B.get_bbox_corners(quadrant_B.mask)
-            quadrant_C.get_bbox_corners(quadrant_C.mask)
-            quadrant_D.get_bbox_corners(quadrant_D.mask)
+            for q in quadrants:
+                q.get_bbox_corners(image=q.mask)
 
             # Get the initial transform consisting of rotation and cropping
-            quadrant_A.get_initial_transform()
-            quadrant_B.get_initial_transform()
-            quadrant_C.get_initial_transform()
-            quadrant_D.get_initial_transform()
+            for q in quadrants:
+                q.get_initial_transform()
 
             # Plot the rotation result as a visual check
             if plot:
-                plot_rotation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D)
+                plot_rotation_result(
+                    quadrant_A=quadrant_A,
+                    quadrant_B=quadrant_B,
+                    quadrant_C=quadrant_C,
+                    quadrant_D=quadrant_D
+                )
 
             # Compute local transformation to align horizontal pieces. Input for this method is
             # the horizontal neighbour of this quadrant
-            quadrant_A.get_tformed_images_local(quadrant_B)
-            quadrant_B.get_tformed_images_local(quadrant_A)
-            quadrant_C.get_tformed_images_local(quadrant_D)
-            quadrant_D.get_tformed_images_local(quadrant_C)
+            complementary_quadrants = [quadrant_B, quadrant_A, quadrant_D, quadrant_C]
+            for q1, q2 in zip(quadrants, complementary_quadrants):
+                q1.get_tformed_images_local(quadrant=q2)
 
             # Compute global transformation to align all pieces. Input for this method is one of
             # the vertical neighbours of this quadrant
-            quadrant_A.get_tformed_images_global(quadrant_C)
-            quadrant_B.get_tformed_images_global(quadrant_C)
-            quadrant_C.get_tformed_images_global(quadrant_A)
-            quadrant_D.get_tformed_images_global(quadrant_A)
+            complementary_quadrants = [quadrant_C, quadrant_C, quadrant_A, quadrant_A]
+            for q1, q2 in zip(quadrants, complementary_quadrants):
+                q1.get_tformed_images_global(quadrant=q2)
 
             # Get final tform params for plotting later on
             initial_tform = dict()
-            A_total_x = quadrant_A.crop_trans_x + quadrant_A.pad_trans_x + quadrant_A.trans_x
-            A_total_y = quadrant_A.crop_trans_y + quadrant_A.pad_trans_y + quadrant_A.trans_y
-            initial_tform[quadrant_A.quadrant_name] = [A_total_x, A_total_y, quadrant_A.angle,
-                                                       quadrant_A.image_center_pre, quadrant_A.outshape]
-
-            B_total_x = quadrant_B.crop_trans_x + quadrant_B.pad_trans_x + quadrant_B.trans_x
-            B_total_y = quadrant_B.crop_trans_y + quadrant_B.pad_trans_y + quadrant_B.trans_y
-            initial_tform[quadrant_B.quadrant_name] = [B_total_x, B_total_y,  quadrant_B.angle,
-                                                       quadrant_B.image_center_pre, quadrant_B.outshape]
-
-            C_total_x = quadrant_C.crop_trans_x + quadrant_C.pad_trans_x + quadrant_C.trans_x
-            C_total_y = quadrant_C.crop_trans_y + quadrant_C.pad_trans_y + quadrant_C.trans_y
-            initial_tform[quadrant_C.quadrant_name] = [C_total_x, C_total_y, quadrant_C.angle,
-                                                       quadrant_C.image_center_pre, quadrant_C.outshape]
-
-            D_total_x = quadrant_D.crop_trans_x + quadrant_D.pad_trans_x + quadrant_D.trans_x
-            D_total_y = quadrant_D.crop_trans_y + quadrant_D.pad_trans_y + quadrant_D.trans_y
-            initial_tform[quadrant_D.quadrant_name] = [D_total_x, D_total_y, quadrant_D.angle,
-                                                       quadrant_D.image_center_pre, quadrant_D.outshape]
+            for q in quadrants:
+                total_x = q.crop_trans_x + q.pad_trans_x + q.trans_x
+                total_y = q.crop_trans_y + q.pad_trans_y + q.trans_y
+                initial_tform[q.quadrant_name] = [total_x, total_y, q.angle, q.image_center_pre, q.outshape]
 
             np.save(f"{dirpath_tform}/tform_initial.npy", initial_tform)
 
         # If initial transformation already exists, load and upsample it.
         elif parameters['iteration'] > 0:
             initial_tform = map_tform_low_res(parameters)
-            quadrant_A.image_center_pre = initial_tform[quadrant_A.quadrant_name][3]
-            quadrant_B.image_center_pre = initial_tform[quadrant_B.quadrant_name][3]
-            quadrant_C.image_center_pre = initial_tform[quadrant_C.quadrant_name][3]
-            quadrant_D.image_center_pre = initial_tform[quadrant_D.quadrant_name][3]
 
-         # Apply transformation to the original images
-        quadrant_A.get_tformed_images(initial_tform=initial_tform[quadrant_A.quadrant_name])
-        quadrant_B.get_tformed_images(initial_tform=initial_tform[quadrant_B.quadrant_name])
-        quadrant_C.get_tformed_images(initial_tform=initial_tform[quadrant_C.quadrant_name])
-        quadrant_D.get_tformed_images(initial_tform=initial_tform[quadrant_D.quadrant_name])
+        # Apply transformation to the original images
+        for q in quadrants:
+            q.get_tformed_images(tform=initial_tform[q.quadrant_name])
 
-        parameters["image_centers"] = [quadrant_A.image_center_pre, quadrant_B.image_center_pre,
-                                       quadrant_C.image_center_pre, quadrant_D.image_center_pre]
+        parameters["image_centers"] = [q.image_center_peri for q in quadrants]    # required in cost function later on
 
         # Plot transformation result
+        """
         if plot:
-            plot_transformation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters)
+            plot_transformation_result(
+                quadrant_A=quadrant_A,
+                quadrant_B=quadrant_B,
+                quadrant_C=quadrant_C,
+                quadrant_D=quadrant_D,
+                parameters=parameters
+            )
+        """
 
         # Get edges from quadrants
         print(f"- extracting edges from images...")
-        quadrant_A.get_edges()
-        quadrant_B.get_edges()
-        quadrant_C.get_edges()
-        quadrant_D.get_edges()
+        for q in quadrants:
+            q.get_edges()
 
         # Compute Theil Sen lines through edges
         print("- computing Theil-Sen estimation of edge...")
-        quadrant_A.fit_theilsen_lines()
-        quadrant_B.fit_theilsen_lines()
-        quadrant_C.fit_theilsen_lines()
-        quadrant_D.fit_theilsen_lines()
+        for q in quadrants:
+            q.fit_theilsen_lines()
 
         # Plot all acquired Theil-Sen lines
         if plot:
-            plot_theilsen_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters)
+            plot_theilsen_result(
+                quadrant_A=quadrant_A,
+                quadrant_B=quadrant_B,
+                quadrant_C=quadrant_C,
+                quadrant_D=quadrant_D,
+                parameters=parameters
+            )
 
         # Optimization with genetic algorithm
         print("- computing reconstruction with genetic algorithm...")
         parameters["output_shape"] = quadrant_A.tform_image.shape
-        ga_dict = genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, initial_tform)
+
+        ga_dict = genetic_algorithm(
+            quadrant_A=quadrant_A,
+            quadrant_B=quadrant_B,
+            quadrant_C=quadrant_C,
+            quadrant_D=quadrant_D,
+            parameters=parameters,
+            initial_tform=initial_tform
+        )
         np.save(parameters["filepath_tform"], ga_dict)
 
         # Plot the results of the genetic algorithm
-        plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, ga_dict)
+        plot_ga_result(
+            quadrant_A=quadrant_A,
+            quadrant_B=quadrant_B,
+            quadrant_C=quadrant_C,
+            quadrant_D=quadrant_D,
+            parameters=parameters,
+            final_tform=ga_dict
+        )
 
         # Provide verbose on computation time
         end_time = time.time()
@@ -203,4 +203,3 @@ def optimize_stitch(parameters, plot=False):
         plot_ga_multires(parameters)
 
     return
-

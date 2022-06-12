@@ -40,7 +40,7 @@ def run_pythostitcher():
     * tissue mask of each quadrant (.tif)
 
     Output
-    * Final reconstructed histological image
+    * Final reconstructed image
 
     """
 
@@ -105,11 +105,13 @@ def run_pythostitcher():
     parameters["parent_selection"] = "rank"
 
     # Parameters related to the cost function
-    parameters["cost_function_scaling"] = [res/parameters["resolutions"][0] for res in parameters["resolutions"]]
+    parameters["resolution_scaling"] = [res/parameters["resolutions"][0] for res in parameters["resolutions"]]
     parameters["nbins"] = 16
     parameters["hist_sizes"] = [4, 8, 20, 80]
     parameters["outer_point_weight"] = 0.5
     parameters["overlap_weight"] = 100
+    parameters["distance_scaling_hor_required"] = True
+    parameters["distance_scaling_ver_required"] = True
 
     # Optimization parameters
     parameters["translation_range"] = [0.05,
@@ -133,15 +135,22 @@ def run_pythostitcher():
         quadrant_D = Quadrant(quadrant_name="LR", kwargs=parameters)
 
         # Preprocess all images
-        preprocess(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters)
+        preprocess(quadrant_A = quadrant_A,
+                   quadrant_B = quadrant_B,
+                   quadrant_C = quadrant_C,
+                   quadrant_D = quadrant_D,
+                   parameters = parameters)
 
     print("> Finished!")
 
     # Optimize stitch for multiple resolutions
     for i in range(len(parameters["resolutions"])):
+
+        # Set current iteration
         parameters["iteration"] = i
+
         print(f"\nOptimizing stitch at resolution {parameters['resolutions'][i]}")
-        optimize_stitch(parameters, plot=True)
+        optimize_stitch(parameters=parameters, plot=True)
 
     return
 

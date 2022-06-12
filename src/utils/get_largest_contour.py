@@ -3,10 +3,18 @@ import numpy as np
 
 def get_largest_contour(contours):
     """
-    Custom function to return the largest contour in the cv2 findContours function.
+    Custom function to return the largest contour in the cv2 findContours function. Although the findContours function
+    should only find one contour if the tissue segmentation mask is correct, this function might catch some errors
+    in case of a slightly inaccurate tissue segmentation mask.
+
+    Input:
+        - List of contours from cv2 findContours function
+
+    Output:
+        - Largest contour
     """
 
-    # Preprocess
+    # Ensure 2D contours
     contours = [np.squeeze(c) for c in contours]
 
     # Check whether multiple contours exist
@@ -24,6 +32,6 @@ def get_largest_contour(contours):
 
         return largest_contour
 
-    # In case of only 1 contour do nothing
+    # In case of only one contour return this contour
     else:
         return contours[0]

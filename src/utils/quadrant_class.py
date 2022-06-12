@@ -1,21 +1,20 @@
 import os
-import numpy as np
 import pickle
 import cv2
 import copy
+import numpy as np
 
 from sklearn.linear_model import TheilSenRegressor
 
 from .get_resname import get_resname
 from .get_largest_contour import get_largest_contour
-from .transformations import *
-
+from .transformations import warp_2d_points, warp_image
 
 
 class Quadrant:
     """
-    Class for the individual quadrants. All relevant valuables for a quadrant will be stored here.
-    Some very general helper functions were placed outside the class to retain class clarity/brevity.
+    Class for the individual quadrants. This class mainly consists of methods regarding image processing and holds
+    several attributes that are required for these processing steps.
     """
 
     def __init__(self, quadrant_name, kwargs):
@@ -30,20 +29,20 @@ class Quadrant:
         self.hist_sizes = kwargs["hist_sizes"]
         self.datadir = kwargs["data_dir"]
         self.maskdir = self.datadir.replace("images", "masks")
+        self.impath = os.path.join(self.datadir, self.file_name)
         self.res = self.resolutions[self.iteration]
         self.res_name = get_resname(self.res)
         self.pad_fraction = kwargs["pad_fraction"]
-        self.impath = os.path.join(self.datadir, self.file_name)
 
         return
 
     def read_image(self):
         """
-        Method to read the quadrant image. Input images should preferably be .tiff files,
-        but can probably be any format as long as it is supported by skimage.
+        Method to read the quadrant image. Input images should preferably be .tiff or .tif files,
+        but can probably be any format as long as it is supported by opencv.
         """
 
-        # Image extension can be .tif or .tiff depending on how it was preprocessed
+        # Image extension can be either .tif or .tiff depending on how it was preprocessed
         extensions = [".tif", ".tiff"]
 
         # Try different extensions
@@ -55,14 +54,10 @@ class Quadrant:
                 self.original_image = cv2.imread(impath)
                 self.original_image = cv2.cvtColor(self.original_image, cv2.COLOR_BGR2RGB)
 
-                # If for some reason the image has a fourth alpha channel, discard this
-                if np.shape(self.original_image)[-1] == 4:
-                    self.original_image = self.original_image[:, :, :-1]
-
                 return
 
             else:
-                pass
+                continue
 
         raise ValueError(f"No images found for {self.impath}")
 
@@ -82,7 +77,7 @@ class Quadrant:
     def preprocess_colour_image(self):
         """
         Method to preprocess original image to colour image. This is not actually required for the
-        stitching algorithm but may be used for prettier plotting of the result.
+        stitching algorithm but may be used for plotting of the result.
         """
 
         # Resize to smaller resolution
@@ -93,7 +88,8 @@ class Quadrant:
     def segment_tissue(self):
         """
         Method to obtain tissue segmentation mask at a given resolution level. This just loads
-        the mask that was previously obtained by the background segmentation algorithm.
+        the mask that was previously obtained by the background segmentation algorithm. A later version of
+        Pythostitcher could perhaps integrate this segmentation model.
         """
 
         # Mask extension can be .tif or .tiff depending on how it was preprocessed
@@ -106,12 +102,9 @@ class Quadrant:
             mask_path = base_path + ext
 
             if os.path.isfile(mask_path):
+                # Read mask
                 self.mask = cv2.imread(mask_path)
-                self.mask = cv2.cvtColor(self.mask, cv2.COLOR_BGR2RGB)
-
-                # Check if mask is RGB(a) format
-                if len(np.shape(self.mask)) > 2:
-                    self.mask = self.mask[:, :, 0]
+                self.mask = cv2.cvtColor(self.mask, cv2.COLOR_BGR2GRAY)
 
                 # Resize mask to match images
                 self.mask = cv2.resize(self.mask, self.target_size)
@@ -120,7 +113,7 @@ class Quadrant:
                 return
 
             else:
-                pass
+                continue
 
         # Raise error if mask is not found
         raise ValueError(f"No mask found for {base_path}")
@@ -144,21 +137,29 @@ class Quadrant:
         self.mask = self.mask[cmin:cmax, rmin:rmax]
 
         # For the lowest resolution we apply a fixed padding rate. For higher resolutions we compute the ideal padding
-        # based on the previous resolution such that the quadrant is located in the same area as the previous image.
+        # based on the previous resolution such that the quadrant retains the same image/pad ratio as the previous
+        # image.
         if self.iteration == 0:
             self.initial_pad = int(np.max(self.target_size)*self.pad_fraction)
-            self.colour_image = np.pad(self.colour_image, [[self.initial_pad, self.initial_pad], [self.initial_pad, self.initial_pad], [0, 0]])
-            self.gray_image = np.pad(self.gray_image, [[self.initial_pad, self.initial_pad], [self.initial_pad, self.initial_pad]])
-            self.mask = np.pad(self.mask, [[self.initial_pad, self.initial_pad], [self.initial_pad, self.initial_pad]])
+            self.colour_image = np.pad(self.colour_image,
+                                       [[self.initial_pad, self.initial_pad],
+                                       [self.initial_pad, self.initial_pad],
+                                       [0, 0]])
+            self.gray_image = np.pad(self.gray_image,
+                                     [[self.initial_pad, self.initial_pad],
+                                     [self.initial_pad, self.initial_pad]])
+            self.mask = np.pad(self.mask,
+                               [[self.initial_pad, self.initial_pad],
+                               [self.initial_pad, self.initial_pad]])
         else:
             prev_res_image_path = f"../results/" \
-                              f"{self.patient_idx}/" \
-                              f"{self.slice_idx}/" \
-                              f"{get_resname(self.resolutions[self.iteration-1])}/" \
-                              f"quadrant_{self.quadrant_name}_gray.png"
+                                  f"{self.patient_idx}/" \
+                                  f"{self.slice_idx}/" \
+                                  f"{get_resname(self.resolutions[self.iteration-1])}/" \
+                                  f"quadrant_{self.quadrant_name}_gray.png"
             prev_res_image = cv2.imread(prev_res_image_path)
             prev_res_image_shape = np.shape(prev_res_image)
-            ratio = self.resolutions[self.iteration]/self.resolutions[self.iteration-1]
+            ratio = self.res/self.resolutions[self.iteration-1]
             current_res_image_shape = np.shape(self.gray_image)
             ideal_current_res_image_shape = [ratio*i for i in prev_res_image_shape]
             pad = [int((a-b)/2) for a, b in zip(ideal_current_res_image_shape, current_res_image_shape)]
@@ -171,15 +172,15 @@ class Quadrant:
 
     def save_quadrant(self):
         """
-        Method to save the current quadrant images and the class itself with all details
+        Method to save the current quadrant images and the class itself with all its parameters.
         """
 
         self.quadrant_savepath = f"../results/{self.patient_idx}/{self.slice_idx}/" \
                                  f"{self.res_name}/quadrant_{self.quadrant_name}"
 
-        # Save mask, grayscale and colour image. Delete after saving to reduce double saving
+        # Save mask, grayscale and colour image. Remove these from the class after saving to prevent double saving
         save_maskfile = self.quadrant_savepath + "_mask.png"
-        cv2.imwrite(save_maskfile, (self.mask*255).astype("uint8"))
+        cv2.imwrite(save_maskfile, cv2.cvtColor((self.mask*255).astype("uint8"), cv2.COLOR_GRAY2BGR))
         del self.mask
 
         save_grayimfile = self.quadrant_savepath + "_gray.png"
@@ -202,7 +203,7 @@ class Quadrant:
         Method to load previously preprocessed quadrant images.
         """
 
-        # Read all relevant images
+        # Read all relevant images. Take into account that opencv reads images in BGR rather than RGB.
         basepath_load = f"../results/{self.patient_idx}/{self.slice_idx}/{self.res_name}"
         self.mask = cv2.imread(f"{basepath_load}/quadrant_{self.quadrant_name}_mask.png")
         if len(self.mask.shape) == 3:
@@ -290,14 +291,10 @@ class Quadrant:
 
         return
 
-
     def get_initial_transform(self):
         """
         Custom method to get the initial transformation consisting of rotation and cropping.
         """
-
-        # Epsilon value may be necessary to ensure no overlap between images.
-        eps = 1
 
         # Preprocess the rotation angle
         self.angle = self.bbox[2]
@@ -349,16 +346,16 @@ class Quadrant:
 
     def get_tformed_images_local(self, quadrant):
         """
-        Method to compute the transform necessary to align two horizontal pieces.
-        Quadrants A&B and C&D can be fused after performing this method for all quadrants.
+        Method to compute the transform necessary to align two horizontal pieces. This is basically a horizontal
+        concatenation where both quadrants are padded such that they will have the same shape.
         """
 
-        # Epsilon value is necessary to ensure no overlap between images.
+        # Epsilon value is necessary to ensure no overlap between images due to rounding errors.
         eps = 1
 
         if self.quadrant_name == "UL":
 
-            # Quadrant UL should not be translated horizontally but image has to be expanded horizontally.
+            # Quadrant UL should not be translated horizontally but image has to be padded horizontally.
             trans_x = 0
             expand_x = np.shape(quadrant.tform_image)[1] + eps
 
@@ -387,7 +384,7 @@ class Quadrant:
 
         elif self.quadrant_name == "LL":
 
-            # Quadrant LL should not be translated horizontally/vertically but image has to be expanded horizontally.
+            # Quadrant LL should not be translated horizontally/vertically but image has to be padded horizontally.
             trans_x = 0
             expand_x = np.shape(quadrant.tform_image)[1] + eps
             trans_y = 0
@@ -419,11 +416,16 @@ class Quadrant:
         # Apply transformation. Output shape is defined such that horizontally aligned quadrants can be
         # added elementwise.
         self.tform_image_local = warp_image(
-            src=self.tform_image, center=self.image_center_pre, rotation=0,
-            translation=(trans_x, trans_y), output_shape=out_shape
+            src=self.tform_image,
+            center=self.image_center_pre,
+            rotation=0,
+            translation=(trans_x, trans_y),
+            output_shape=out_shape
         )
         self.image_center_local = warp_2d_points(
-            src=self.image_center_pre, center=self.image_center_pre, rotation=0,
+            src=self.image_center_pre,
+            center=self.image_center_pre,
+            rotation=0,
             translation=(trans_x, trans_y)
         )
 
@@ -435,7 +437,8 @@ class Quadrant:
 
     def get_tformed_images_global(self, quadrant):
         """
-        Method to compute the transform necessary to align all pieces.
+        Method to compute the transform necessary to align all pieces. This is basically a vertical
+        concatenation where all quadrants are padded such that they will have the same shape.
         """
 
         # Epsilon value may be necessary to ensure no overlap between images.
@@ -443,7 +446,7 @@ class Quadrant:
 
         if self.quadrant_name in ["UL", "UR"]:
 
-            # Quadrants UL/UR should not be translated vertically but have to be expanded vertically
+            # Quadrants UL/UR should not be translated vertically but have to be padded vertically
             trans_y = 0
             expand_y = np.shape(quadrant.tform_image_local)[0] + eps
 
@@ -458,7 +461,7 @@ class Quadrant:
 
         elif self.quadrant_name in ["LL", "LR"]:
 
-            # Quadrants LL/LR should be translated and expanded vertically
+            # Quadrants LL/LR should be translated and padded vertically
             trans_y = np.shape(quadrant.tform_image_local)[0] + eps
 
             # Perform horizontal translation depending on size of the fused LL/LR piece.
@@ -473,8 +476,11 @@ class Quadrant:
         # Apply transformation. Output shape is defined such that now all pieces can be
         # added elementwise to perform the reconstruction.
         self.tform_image_global = warp_image(
-            src=self.tform_image_local, center=self.image_center_local, rotation=0,
-            translation=(trans_x, trans_y), output_shape=out_shape
+            src=self.tform_image_local,
+            center=self.image_center_local,
+            rotation=0,
+            translation=(trans_x, trans_y),
+            output_shape=out_shape
         )
         self.tform_image = self.tform_image_global
 
@@ -485,19 +491,20 @@ class Quadrant:
 
         return
 
-
-    def get_tformed_images(self, initial_tform):
+    def get_tformed_images(self, tform):
         """
-        Method to apply the transformation to align all grayscale images.
+        Method to apply the previously acquired transformation to align all images.
         """
 
         # Extract initial transformation values
-        trans_x, trans_y, angle, center, out_shape = initial_tform
+        trans_x, trans_y, angle, center, out_shape = tform
 
-        # Warp image and mask
+        # Get rotation matrix and update it with translation
         rot_mat = cv2.getRotationMatrix2D(center=center, angle=angle, scale=1)
         rot_mat[0, 2] += trans_x
         rot_mat[1, 2] += trans_y
+
+        # Warp images
         self.colour_image = cv2.warpAffine(src=self.colour_image_original, M=rot_mat, dsize=out_shape[::-1])
         self.tform_image = cv2.warpAffine(src=self.gray_image_original, M=rot_mat, dsize=out_shape[::-1])
         self.mask = cv2.warpAffine(src=self.mask_original, M=rot_mat, dsize=out_shape[::-1])
@@ -506,21 +513,18 @@ class Quadrant:
         mask_contour, _ = cv2.findContours(self.mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
         mask_contour = get_largest_contour(mask_contour)
 
-        # Check if multiple contours exist. If so, only take the first (which should be the largest).
-        if len(mask_contour[0]) > 2:
-            mask_contour = np.squeeze(mask_contour[0])
+        # Get centerpoint of the contour
         self.image_center_peri = np.mean(mask_contour, axis=0)
 
         return
 
-
     def get_image_center(self):
         """
-        Custom function to compute the center point of the quadrant BEFORE transformation
+        Custom function to compute the center point of the quadrant BEFORE transformation. This point is essential
+        for defining the final transformation as a single transformation matrix.
         """
 
         # Get mask contour
-        self.mask = ((self.mask_original > 0.5)*255).astype("uint8")
         self.mask_contour, _ = cv2.findContours(self.mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
         self.mask_contour = get_largest_contour(self.mask_contour)
 
@@ -529,11 +533,11 @@ class Quadrant:
 
         return
 
-
     def compute_edges(self):
         """
-        Method to obtain edge AB and AD which are defined as the points on the mask that go from
-        A->B and D->A.
+        Method to obtain edge AB and AD which are defined as the points on the mask that go from A->B and D->A. Recall
+        that corner A is the corner closest to the prostate center and that other quadrants are named in clockwise
+        direction.
         """
 
         # Define edge AB as part of the contour that goes from corner A to corner B
@@ -556,13 +560,12 @@ class Quadrant:
 
     def get_edges(self):
         """
-        Custom method to retrieve edges from a certain fragment.
-        Uses the get_bbox_corners and compute_edges methods.
+        Custom method to specify the horizontal and vertical edge of a quadrant.
         """
 
         # Get list with corners from A -> D. Note that we compute a new contour over the rotated image
         # rather than reusing the old contour.
-        self.get_bbox_corners(self.tform_image)
+        self.get_bbox_corners(image=self.tform_image)
 
         # Get edge AB and AD
         edge_AB, edge_AD = self.compute_edges()
@@ -588,15 +591,11 @@ class Quadrant:
 
         return
 
-
     def fit_theilsen_lines(self):
         """
-        Custom method to fit a Theil Sen estimator to an edge.
-
-        input
-            - list of edge coordinates
-        output:
-            - slope & intercept of line
+        Custom method to fit a Theil Sen estimator to an edge. A Theil-Sen estimator is used since this method is
+        very robust to noise, resulting in a very robust approximation of the edge. The Theil-Sen estimator can however
+        get computationally expensive on higher resolutions, which is alleviated by sampling the edge.
         """
 
         # Initiate theilsen instance, one for vertical and one for horizontal line
@@ -606,7 +605,7 @@ class Quadrant:
         ### In case of horizontal edge use regular X/Y convention
         # Get X/Y coordinates of horizontal edge. For higher resolutions we don't use all edge points as this
         # can become quite computationally expensive.
-        sample_rate = int(np.ceil(self.resolutions[self.iteration]*20))
+        sample_rate = int(np.ceil(self.res*20))
         x_edge = np.array([i[0] for i in self.h_edge])
         x_edge = x_edge[:, np.newaxis]
         x_edge = x_edge[::sample_rate]
@@ -654,6 +653,6 @@ class Quadrant:
         x_line = [x[0].item() * slope + intercept, x[-1].item() * slope + intercept]
         y_line = [x[0].item(), x[-1].item()]
         self.v_edge_theilsen_endpoints = np.array([[x, y] for x, y in zip(x_line, y_line)], dtype=object)
-        self.v_edge_theilsen_coords = np.array([[x, y] for x, y in zip(y_pred, np.squeeze(x_edge))], dtype=object)    # swap due to previous swap
+        self.v_edge_theilsen_coords = np.array([[x, y] for x, y in zip(y_pred, np.squeeze(x_edge))], dtype=object)
 
         return

@@ -7,16 +7,28 @@ import imageio
 import matplotlib.pyplot as plt
 
 from .recombine_quadrants import recombine_quadrants
-from .transformations import *
+from .transformations import warp_image
 
 
 def plot_rotation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     """
-    Custom function to plot the result of the automatic rotation
+    Custom function to plot the result of the automatic rotation of all quadrants.
+
+    Input:
+        - All quadrants
+
+    Output:
+        - Figure displaying the rotation
     """
 
     # Get pad values for every image
-    max_shape = np.max([quadrant_A.mask.shape, quadrant_B.mask.shape, quadrant_C.mask.shape, quadrant_D.mask.shape], axis=0)
+    max_shape = np.max(
+        [quadrant_A.mask.shape,
+         quadrant_B.mask.shape,
+         quadrant_C.mask.shape,
+         quadrant_D.mask.shape],
+         axis=0
+    )
     quadrants = [quadrant_A, quadrant_B, quadrant_C, quadrant_D]
     pad_mask = [((max_shape-q.mask.shape)/2).astype(int) for q in quadrants]
     pad_rot_mask = [((max_shape-q.rot_mask.shape)/2).astype(int) for q in quadrants]
@@ -33,7 +45,8 @@ def plot_rotation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     plt.figure(figsize=(6, 12))
     plt.suptitle(f"Quadrants before and after \nautomatic rotation", fontsize=20)
 
-    for c, (pad, p_mask, p_rmask, c_x, c_y, q) in enumerate(zip(pad_mask, padded_mask, padded_rot_mask, corners_x, corners_y, quadrants), 1):
+    for c, (pad, p_mask, p_rmask, c_x, c_y, q) in enumerate(
+            zip(pad_mask, padded_mask, padded_rot_mask, corners_x, corners_y, quadrants), 1):
         plt.subplot(4, 2, (c*2)-1)
         plt.axis("off")
         plt.title(q.quadrant_name, fontsize=16)
@@ -51,34 +64,57 @@ def plot_rotation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
 
 def plot_transformation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters):
     """
-    Custom function to plot the result of the initial transformation to align the pieces
+    Custom function to plot the result of the initial transformation to globally align the quadrants.
+
+    Input:
+        - All quadrants
+        - Dict with parameters
+
+    Output:
+        - Figure displaying the aligned quadrants
     """
 
-    result = recombine_quadrants(quadrant_A.colour_image, quadrant_B.colour_image,
-                                 quadrant_C.colour_image, quadrant_D.colour_image)
+    # Merge all individual quadrant images into one final image
+    result = recombine_quadrants(
+        im_A=quadrant_A.colour_image,
+        im_B=quadrant_B.colour_image,
+        im_C=quadrant_C.colour_image,
+        im_D=quadrant_D.colour_image
+    )
 
-    imsavedir = f"{parameters['results_dir']}/{parameters['patient_idx']}/images/initial_result.png"
-
-    fig = plt.figure()
     current_res = parameters['resolutions'][parameters['iteration']]
+
+    # Plot figure
+    plt.figure()
     plt.title(f"Initial alignment at resolution {current_res}")
     plt.imshow(result, cmap="gray")
-    if parameters["iteration"] == 0:
-        plt.savefig(imsavedir)
-    plt.close(fig)
+    plt.show()
 
     return
 
 
 def plot_theilsen_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters):
     """
-    Custom function to plot the result of the Theil-Sen line estimator
+    Custom function to plot the result of the Theil-Sen line approximation of the quadants' edges.
+
+    Input:
+        - All quadrants
+        - Dict with parameters
+
+    Output:
+        - Figure displaying the Theil-Sen lines for each quadrant
     """
 
     # Combine all images
-    combi_image = recombine_quadrants(quadrant_A.colour_image, quadrant_B.colour_image,
-                                      quadrant_C.colour_image, quadrant_D.colour_image)
-    ratio = parameters["resolutions"][parameters["iteration"]]/parameters["resolutions"][0]
+    combi_image = recombine_quadrants(
+        im_A=quadrant_A.colour_image,
+        im_B=quadrant_B.colour_image,
+        im_C=quadrant_C.colour_image,
+        im_D=quadrant_D.colour_image
+    )
+
+    # Set some plotting parameters
+    ratio = parameters["resolution_scaling"][parameters["iteration"]]
     ms = np.sqrt(2500*np.sqrt(ratio))
 
     # Plot theilsen lines with marked endpoints
@@ -118,7 +154,6 @@ def plot_theilsen_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, paramet
                 marker='*', s=ms, color="g")
     plt.scatter(quadrant_D.h_edge_theilsen_endpoints[:, 0], quadrant_D.h_edge_theilsen_endpoints[:, 1],
                 marker='+', s=ms, color="b")
-
     plt.legend(["v edge", "h edge"])
     plt.show()
 
@@ -127,12 +162,27 @@ def plot_theilsen_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, paramet
 
 def plot_rotated_bbox(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     """
-    Custom function to plot the bounding box points after the box has been rotated to become horizontal
+    Custom function to plot the bounding box points after the box has been rotated. This basically offers a sanity
+    check to verify that the corner points have been rotated correctly.
+
+    Input:
+        - All quadrants
+
+    Output:
+        - Figure displaying the rotated bounding box points
     """
 
     # X and y coordinates of the bounding box
-    scat_x = [quadrant_A.bbox_corner_a[0], quadrant_A.bbox_corner_b[0], quadrant_A.bbox_corner_c[0], quadrant_A.bbox_corner_d[0]]
-    scat_y = [quadrant_A.bbox_corner_a[1], quadrant_A.bbox_corner_b[1], quadrant_A.bbox_corner_c[1], quadrant_A.bbox_corner_d[1]]
+    scat_x = [
+        quadrant_A.bbox_corner_a[0],
+        quadrant_A.bbox_corner_b[0],
+        quadrant_A.bbox_corner_c[0],
+        quadrant_A.bbox_corner_d[0]
+    ]
+    scat_y = [quadrant_A.bbox_corner_a[1],
+              quadrant_A.bbox_corner_b[1],
+              quadrant_A.bbox_corner_c[1],
+              quadrant_A.bbox_corner_d[1]]
 
     plt.figure()
     plt.title("Quadrant A")
@@ -175,8 +225,14 @@ def plot_rotated_bbox(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
 
 def plot_tformed_edges(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     """
-    Custom function to plot the transformed edges before inputting them into
-    the genetic algorithm
+    Custom function to plot the transformed edges before inputting them into the genetic algorithm. This mainly
+    serves as a sanity check while debugging.
+
+    Input:
+        - All quadrants
+
+    Output:
+        - Figure displaying the transformed edges
     """
 
     plt.figure()
@@ -197,8 +253,14 @@ def plot_tformed_edges(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
 
 def plot_tformed_theilsen_lines(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     """
-    Custom function to plot the transformed Theilsen lines before inputting them into
-    the genetic algorithm
+    Custom function to plot the transformed Theilsen lines before inputting them into the genetic algorithm. This
+    function is analogous to the plot_tformed_edges function and serves as a sanity check during debugging.
+
+    Input:
+        - All quadrants
+
+    Output:
+        - Figure displaying the transformed Theil-Sen lines
     """
 
     plt.figure()
@@ -216,78 +278,17 @@ def plot_tformed_theilsen_lines(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
 
     return
 
-"""
-def plot_tformed_lines(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
-    
-    Function to warp the Theil-Sen lines
-    
-
-    # Set tform
-    rotation = 5
-    rot_angle = -math.radians(rotation)
-    tform = EuclideanTransform(rotation=rot_angle, translation=(0, 0))
-
-    # Apply tform
-    
-    quadrant_A_ts_h = matrix_transform(quadrant_A.h_edge_theilsen, tform.params)
-    quadrant_A_ts_v = matrix_transform(quadrant_A.v_edge_theilsen, tform.params)
-    quadrant_B_ts_h = matrix_transform(quadrant_B.h_edge_theilsen, tform.params)
-    quadrant_B_ts_v = matrix_transform(quadrant_B.v_edge_theilsen, tform.params)
-    quadrant_C_ts_h = matrix_transform(quadrant_C.h_edge_theilsen, tform.params)
-    quadrant_C_ts_v = matrix_transform(quadrant_C.v_edge_theilsen, tform.params)
-    quadrant_D_ts_h = matrix_transform(quadrant_D.h_edge_theilsen, tform.params)
-    quadrant_D_ts_v = matrix_transform(quadrant_D.v_edge_theilsen, tform.params)
-    
-    quadrant_A_ts_h = warp_2d_points(src=quadrant_A.h_edge_theilsen, rotation=rotation, translation=(0, 0))
-    quadrant_A_ts_v = warp_2d_points(src=quadrant_A.v_edge_theilsen, rotation=rotation, translation=(0, 0))
-    quadrant_B_ts_h = warp_2d_points(src=quadrant_B.h_edge_theilsen, rotation=rotation, translation=(0, 0))
-    quadrant_B_ts_v = warp_2d_points(src=quadrant_B.v_edge_theilsen, rotation=rotation, translation=(0, 0))
-    quadrant_C_ts_h = warp_2d_points(src=quadrant_C.h_edge_theilsen, rotation=rotation, translation=(0, 0))
-    quadrant_C_ts_v = warp_2d_points(src=quadrant_C.v_edge_theilsen, rotation=rotation, translation=(0, 0))
-    quadrant_D_ts_h = warp_2d_points(src=quadrant_D.h_edge_theilsen, rotation=rotation, translation=(0, 0))
-    quadrant_D_ts_v = warp_2d_points(src=quadrant_D.v_edge_theilsen, rotation=rotation, translation=(0, 0))
-
-    quadrant_A_tform = warp_image(src=quadrant_A.tform_image, tform.inverse)
-    quadrant_B_tform = warp_image(src=quadrant_B.tform_image, tform.inverse)
-    quadrant_C_tform = warp_image(src=quadrant_C.tform_image, tform.inverse)
-    quadrant_D_tform = warp_image(src=quadrant_D.tform_image, tform.inverse)
-
-    combi_pre = quadrant_A.tform_image + quadrant_B.tform_image + quadrant_C.tform_image + quadrant_D.tform_image
-    combi_post = quadrant_A_tform + quadrant_B_tform + quadrant_C_tform + quadrant_D_tform
-
-    plt.figure()
-    plt.subplot(121)
-    plt.title("Before extra tform")
-    plt.imshow(combi_pre)
-    plt.plot(quadrant_A.h_edge_theilsen[:, 0], quadrant_A.h_edge_theilsen[:, 1], c="b")
-    plt.plot(quadrant_A.v_edge_theilsen[:, 0], quadrant_A.v_edge_theilsen[:, 1], c="g")
-    plt.plot(quadrant_B.h_edge_theilsen[:, 0], quadrant_B.h_edge_theilsen[:, 1], c="b")
-    plt.plot(quadrant_B.v_edge_theilsen[:, 0], quadrant_B.v_edge_theilsen[:, 1], c="g")
-    plt.plot(quadrant_C.h_edge_theilsen[:, 0], quadrant_C.h_edge_theilsen[:, 1], c="b")
-    plt.plot(quadrant_C.v_edge_theilsen[:, 0], quadrant_C.v_edge_theilsen[:, 1], c="g")
-    plt.plot(quadrant_D.h_edge_theilsen[:, 0], quadrant_D.h_edge_theilsen[:, 1], c="b")
-    plt.plot(quadrant_D.v_edge_theilsen[:, 0], quadrant_D.v_edge_theilsen[:, 1], c="g")
-
-    plt.subplot(122)
-    plt.title("After extra tform")
-    plt.imshow(combi_post)
-    plt.plot(quadrant_A_ts_h[:, 0], quadrant_A_ts_h[:, 1], c="b")
-    plt.plot(quadrant_A_ts_v[:, 0], quadrant_A_ts_v[:, 1], c="g")
-    plt.plot(quadrant_B_ts_h[:, 0], quadrant_B_ts_h[:, 1], c="b")
-    plt.plot(quadrant_B_ts_v[:, 0], quadrant_B_ts_v[:, 1], c="g")
-    plt.plot(quadrant_C_ts_h[:, 0], quadrant_C_ts_h[:, 1], c="b")
-    plt.plot(quadrant_C_ts_v[:, 0], quadrant_C_ts_v[:, 1], c="g")
-    plt.plot(quadrant_D_ts_h[:, 0], quadrant_D_ts_h[:, 1], c="b")
-    plt.plot(quadrant_D_ts_v[:, 0], quadrant_D_ts_v[:, 1], c="g")
-    plt.show()
-
-    return
-"""
 
 def plot_ga_tform(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     """
-    Plotting function to show the transformation of the Theil-Sen lines which was found by the
-    genetic algorithm.
+    Custom function to show the transformation of the Theil-Sen lines which was found by the genetic algorithm.
+
+    Input:
+        - All quadrants
+
+    Output:
+        - Figure displaying the transformed Theil-Sen lines by only taking into account the optimal transformation
+        found by the genetic algorithm.
     """
 
     plt.figure()
@@ -319,8 +320,15 @@ def plot_ga_tform(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
 
 def plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, final_tform):
     """
-    Plotting function to plot the transformation of the quadrants which was found by the
-    genetic algorithm.
+    Plotting function to plot the transformation of the quadrants which was found by the genetic algorithm.
+
+    Input:
+        - All quadrants
+        - Dict with parameters
+        - Final transformation from genetic algorithm
+
+    Output:
+        - Figure displaying the end result obtained by the genetic algorithm
     """
 
     # Extract individual tforms from final_tform
@@ -329,14 +337,17 @@ def plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, f
     ga_tform_C = final_tform[quadrant_C.quadrant_name]
     ga_tform_D = final_tform[quadrant_D.quadrant_name]
 
-    # Apply transformation
+    # Apply transformation to all quadrants
     tforms = [ga_tform_A, ga_tform_B, ga_tform_C, ga_tform_D]
     quadrants = [quadrant_A, quadrant_B, quadrant_C, quadrant_D]
     images = []
     for tform, quadrant in zip(tforms, quadrants):
         image = warp_image(
-            src=quadrant.colour_image_original, center=tform[3], rotation=tform[2],
-            translation=tform[:2], output_shape = tform[4]
+            src=quadrant.colour_image_original,
+            center=tform[3],
+            rotation=tform[2],
+            translation=tform[:2],
+            output_shape = tform[4]
         )
         images.append(image)
 
@@ -359,7 +370,15 @@ def plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, f
 
 def make_tform_gif(parameters):
     """
-    Custom function to make a gif of all the tformed results after the GA as a visual check of the result
+    Custom function to make a gif of all the tformed results after the genetic algorithm as a visual check of the
+    result. This function requires that intermediate results of the genetic algorithm from the different
+    resolutions are saved in a directory called images. This function will then combine these images into the GIF.
+
+    Input:
+        - Dict with parameters
+
+    Output:
+        - GIF file of the transformation
     """
 
 
@@ -409,9 +428,19 @@ def make_tform_gif(parameters):
 
 def plot_sampled_patches(total_im, patch_indices_x, patch_indices_y, ts_lines):
     """
-    Custom function to visualize the patches which are extracted in the histogram cost function.
+    Custom function to visualize the patches which are extracted in the histogram cost function. This function serves
+    as a visual check that the patches are extracted correctly.
+
+    Input:
+        - Final recombined image
+        - X/Y indices of the extracted patches
+        - Theil-Sen lines
+
+    Output:
+        - Figure displaying the sampled patches
     """
 
+    # Plotting parameters
     ts_line_colours = ["b", "g"]*4
 
     plt.figure()
@@ -428,7 +457,15 @@ def plot_sampled_patches(total_im, patch_indices_x, patch_indices_y, ts_lines):
 
 def plot_overlap_cost(im, relative_overlap):
     """
-    Custom function to plot the overlap between the quadrants
+    Custom function to plot the overlap between the quadrants. Currently the overlap between the quadrants is
+    visualized as a rather gray area, this could of course be visualized more explicitly.
+
+    Input:
+        - Final stitched image
+        - Percentual overlap
+
+    Output:
+        - Figure displaying the overlap between the quadrants
     """
 
     plt.figure()
@@ -447,13 +484,21 @@ def plot_ga_multires(parameters):
     may result in a decreasing fitness for higher resolutions while the visual fitness increases. Example: absolute
     distance between the endpoints of the edges increases for higher resolutions leading to a lower fitness when
     this is the only factor in the cost function.
+
+    Input:
+        - Dict with parameters
+
+    Output:
+        - Figure displaying the evolution of the fitness over different resolutions.
     """
 
+    # Set some plotting parameters
     fitness = parameters["GA_fitness"]
     xticks_loc = list(np.arange(0, 5))
     xticks_label = ["Initial"] + parameters["resolutions"]
 
-    # Only plot when the GA fitness has been tracked properly.
+    # Only plot when the GA fitness has been tracked properly (e.g. when the cost function has been scaled
+    # properly throughout the different resolutions).
     if len(fitness) == len(xticks_label):
         plt.figure()
         plt.title("Fitness progression at multiple resolutions")
