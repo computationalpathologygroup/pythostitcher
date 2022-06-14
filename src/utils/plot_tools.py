@@ -75,12 +75,8 @@ def plot_transformation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, p
     """
 
     # Merge all individual quadrant images into one final image
-    result = recombine_quadrants(
-        im_A=quadrant_A.colour_image,
-        im_B=quadrant_B.colour_image,
-        im_C=quadrant_C.colour_image,
-        im_D=quadrant_D.colour_image
-    )
+    images = [quadrant_A.colour_image, quadrant_B.colour_image, quadrant_C.colour_image, quadrant_D.colour_image]
+    result = recombine_quadrants(images=images)
 
     current_res = parameters['resolutions'][parameters['iteration']]
 
@@ -106,12 +102,8 @@ def plot_theilsen_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, paramet
     """
 
     # Combine all images
-    combi_image = recombine_quadrants(
-        im_A=quadrant_A.colour_image,
-        im_B=quadrant_B.colour_image,
-        im_C=quadrant_C.colour_image,
-        im_D=quadrant_D.colour_image
-    )
+    images = [quadrant_A.colour_image, quadrant_B.colour_image, quadrant_C.colour_image, quadrant_D.colour_image]
+    combi_image = recombine_quadrants(images=images)
 
     # Set some plotting parameters
     ratio = parameters["resolution_scaling"][parameters["iteration"]]
@@ -340,19 +332,20 @@ def plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, f
     # Apply transformation to all quadrants
     tforms = [ga_tform_A, ga_tform_B, ga_tform_C, ga_tform_D]
     quadrants = [quadrant_A, quadrant_B, quadrant_C, quadrant_D]
-    images = []
+    images, masks = [], []
     for tform, quadrant in zip(tforms, quadrants):
         image = warp_image(
             src=quadrant.colour_image_original,
             center=tform[3],
             rotation=tform[2],
             translation=tform[:2],
-            output_shape = tform[4]
+            output_shape=tform[4]
         )
+
         images.append(image)
 
     # Stitch all images together
-    result = recombine_quadrants(*images)
+    result = recombine_quadrants(images=images)
 
     res = parameters["resolutions"][parameters["iteration"]]
     imsavedir = f"{parameters['results_dir']}/{parameters['patient_idx']}/images/ga_result_gen_{res}.png"

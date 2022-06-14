@@ -12,7 +12,6 @@ from .recombine_quadrants import recombine_quadrants
 from .transformations import warp_2d_points, warp_image
 
 
-
 def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, initial_tform):
     """
     Function that runs a genetic algorithm using the pygad module. This function will use a global assembly method
@@ -52,7 +51,7 @@ def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters
                    *initial_tform[quadrant_C.quadrant_name][:-2],
                    *initial_tform[quadrant_D.quadrant_name][:-2]]
     num_genes = len(tform_combi)
-    ga_tform = np.zeros((num_genes))
+    ga_tform = np.zeros(num_genes)
     init_fitness = fitness_func(solution=ga_tform, solution_idx=0)
     num_sol = parameters["n_solutions"]
     num_gen = parameters["n_generations"]
@@ -345,10 +344,8 @@ def hist_cost_function(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameter
     patch_indices_y = dict()
 
     quadrants = [quadrant_A, quadrant_B, quadrant_C, quadrant_D]
-    total_im = recombine_quadrants(quadrant_A.tform_image,
-                                   quadrant_B.tform_image,
-                                   quadrant_C.tform_image,
-                                   quadrant_D.tform_image)
+    images = [quadrant_A.colour_image, quadrant_B.colour_image, quadrant_C.colour_image, quadrant_D.colour_image]
+    total_im = recombine_quadrants(images=images)
 
     # Loop over all quadrants to compute the cost for the horizontal and vertical edge
     for quadrant in quadrants:
@@ -625,7 +622,7 @@ def distance_cost_function(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
         distance_costs.append(combined_costs)
 
     # Distance scaling should be computed now
-    if len(distance_scaling.keys())>2:
+    if len(distance_scaling.keys()) > 2:
         distance_scaling["distance_scaling_hor_required"] = False
         distance_scaling["distance_scaling_ver_required"] = False
 
@@ -706,12 +703,20 @@ def plot_best_sol_per_gen(ga):
         )
 
         # Get final image
+        # EXPERIMENTAL
+        images = [global_quadrant_A.colour_image,
+                  global_quadrant_B.colour_image,
+                  global_quadrant_C.colour_image,
+                  global_quadrant_D.colour_image]
+        total_im = recombine_quadrants(images=images)
+        """
         total_im = recombine_quadrants(
             global_quadrant_A.colour_image,
             global_quadrant_B.colour_image,
             global_quadrant_C.colour_image,
             global_quadrant_D.colour_image
         )
+        """
 
         # Plotting parameters
         ratio = global_parameters["resolutions"][global_parameters["iteration"]] / global_parameters["resolutions"][0]
