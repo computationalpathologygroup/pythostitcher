@@ -1,5 +1,6 @@
 import glob
 import os
+import argparse
 
 from utils.preprocess import preprocess
 from utils.optimize_stitch import optimize_stitch
@@ -44,11 +45,21 @@ def run_pythostitcher():
 
     """
 
-    ### CHANGE THESE PARAMETERS ###
-    patient_idx = 1                                         # patient number between 1 and 999999
+    # Argument parser
+    parser = argparse.ArgumentParser(description="Stitch prostate histopathology images into a pseudo whole-mount image")
+    parser.add_argument("--patient", type=int, required=True, help="Index of the patient to analyse")
+    args = parser.parse_args()
+
+    # Set variables
+    patient_idx = args.patient                              # patient number between 1 and 999999
     patient_idx = "P" + str(patient_idx).zfill(6)           # you can change how Pythostitcher handles the patient_idx
-    data_dir = f"../sample_data/{patient_idx}/images"       # directory where the quadrant images can be found
-    results_dir = "../results"                              # directory where to save the Pythostitcher results
+
+    # Set data directories
+    if any([patient_idx in i for i in glob.glob("../sample_data/*")]):
+        data_dir = f"../sample_data/{patient_idx}/images"       # directory where the quadrant images can be found
+        results_dir = "../results"                              # directory where to save the Pythostitcher results
+    else:
+        raise ValueError(f"Patient idx does not exist in location (../sample_data/)")
 
     # Get all quadrant filenames
     all_files = [os.path.basename(i) for i in glob.glob(f"{data_dir}/*")]

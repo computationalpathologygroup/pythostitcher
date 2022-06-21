@@ -750,6 +750,7 @@ def plot_best_sol_per_gen(ga):
         plt.scatter(global_quadrant_D.h_edge_theilsen_endpoints_tform[:, 0],
                     global_quadrant_D.h_edge_theilsen_endpoints_tform[:, 1],
                     marker='+', s=ms, color="b")
+        plt.savefig(f"../results/{global_quadrant_A.patient_idx}/images/{global_quadrant_A.res_name}_iter{gen}.png")
         plt.show()
 
     return
