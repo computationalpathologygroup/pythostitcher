@@ -1,4 +1,4 @@
-name: pythostitcher_venv3
+name: pythostitcher_venv
 channels:
   - defaults
 dependencies:
