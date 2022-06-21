@@ -9,7 +9,7 @@ __pycache__/
 # Local stuff
 info.txt
 radboud_data/
-sample_data_old/
+sample_data_autostitcher/
 results/
 Dockerfile
 *.docx

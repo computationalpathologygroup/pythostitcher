@@ -235,6 +235,7 @@ def fitness_func(solution, solution_idx):
         plot=False
     )
     
+    
     # Cost function that penalizes a high degree of overlap between quadrants
     overlap_cost = overlap_cost_function(
         quadrant_A=global_quadrant_A,
@@ -243,7 +244,6 @@ def fitness_func(solution, solution_idx):
         quadrant_D=global_quadrant_D,
     )
     """
-
     # Cost function that penalizes a large distance between endpoints of quadrants
     distance_cost = distance_cost_function(
         quadrant_A=global_quadrant_A,

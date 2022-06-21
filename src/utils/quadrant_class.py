@@ -529,7 +529,7 @@ class Quadrant:
         self.mask_contour = get_largest_contour(self.mask_contour)
 
         # Compute centerpoint
-        self.image_center_pre = tuple(np.round(np.mean(self.mask_contour, axis=0)).astype("int"))
+        self.image_center_pre = tuple([int(i) for i in np.mean(self.mask_contour, axis=0)])
 
         return
 

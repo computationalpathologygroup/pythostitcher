@@ -135,11 +135,11 @@ def run_pythostitcher():
         quadrant_D = Quadrant(quadrant_name="LR", kwargs=parameters)
 
         # Preprocess all images
-        preprocess(quadrant_A = quadrant_A,
-                   quadrant_B = quadrant_B,
-                   quadrant_C = quadrant_C,
-                   quadrant_D = quadrant_D,
-                   parameters = parameters)
+        preprocess(quadrant_A=quadrant_A,
+                   quadrant_B=quadrant_B,
+                   quadrant_C=quadrant_C,
+                   quadrant_D=quadrant_D,
+                   parameters=parameters)
 
     print("> Finished!")
 

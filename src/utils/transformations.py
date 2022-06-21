@@ -16,7 +16,7 @@ def warp_2d_points(src, center, rotation, translation):
     assert len(translation) == 2, "Translation must consist of X/Y component"
 
     # Ensure variables are in correct format
-    center = tuple(np.squeeze(center))
+    center = tuple([int(i) for i in np.squeeze(center)])
     src = src.astype("float32")
 
     # Create rotation matrix
@@ -63,7 +63,7 @@ def warp_image(src, center, rotation, translation, output_shape=None):
         src = ((src/np.max(src))*255).astype("uint8")
 
     # Ensure center is in correct format
-    center = tuple(np.squeeze(center))
+    center = tuple([int(i) for i in np.squeeze(center)])
 
     # Create rotation matrix
     rot_mat = cv2.getRotationMatrix2D(center=center, angle=rotation, scale=1)
