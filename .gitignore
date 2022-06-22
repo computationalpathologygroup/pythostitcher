@@ -15,6 +15,7 @@ Dockerfile
 *.docx
 *.xlsx
 */.idea/*
+algorithm_analysis/
 
 # Distribution / packaging
 
