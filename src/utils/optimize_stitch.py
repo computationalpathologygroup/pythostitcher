@@ -26,28 +26,35 @@ def optimize_stitch(parameters, plot=False):
     """
 
     # Make some directories for saving results
+    current_res_name = get_resname(parameters['resolutions'][parameters['iteration']])
     dirpath_tform = f"../results/" \
                     f"{parameters['patient_idx']}/" \
-                    f"{parameters['slice_idx']}/" \
-                    f"{get_resname(parameters['resolutions'][parameters['iteration']])}/" \
                     f"tform/"
 
     dirpath_images = f"../results/" \
                      f"{parameters['patient_idx']}/" \
                      f"images"
 
+    dirpath_ga_progression = f"../results/" \
+                             f"{parameters['patient_idx']}/" \
+                             f"ga_progression"
+
+    dirpath_ga_iteration = f"../results/" \
+                           f"{parameters['patient_idx']}/" \
+                           f"ga_result_per_iteration"
+
     dirpath_quadrants = f"../results/" \
                         f"{parameters['patient_idx']}/" \
                         f"{parameters['slice_idx']}/" \
-                        f"{get_resname(parameters['resolutions'][parameters['iteration']])}/" \
+                        f"{current_res_name}/" \
                         f"quadrant"
 
-    for path in [dirpath_tform, dirpath_images]:
+    for path in [dirpath_tform, dirpath_images, dirpath_ga_progression, dirpath_ga_iteration]:
         if not os.path.exists(path):
             os.mkdir(path)
 
     # Check if optimized tform already exists
-    parameters["filepath_tform"] = f"{dirpath_tform}tform_final.npy"
+    parameters["filepath_tform"] = f"{dirpath_tform}/{current_res_name}_tform_final.npy"
     file_exists = os.path.isfile(parameters["filepath_tform"])
 
     # Start optimizing stitch
@@ -116,7 +123,7 @@ def optimize_stitch(parameters, plot=False):
                 total_y = q.crop_trans_y + q.pad_trans_y + q.trans_y
                 initial_tform[q.quadrant_name] = [total_x, total_y, q.angle, q.image_center_pre, q.outshape]
 
-            np.save(f"{dirpath_tform}/tform_initial.npy", initial_tform)
+            np.save(f"{dirpath_tform}/{current_res_name}_tform_initial.npy", initial_tform)
 
         # If initial transformation already exists, load and upsample it.
         elif parameters['iteration'] > 0:
@@ -129,7 +136,6 @@ def optimize_stitch(parameters, plot=False):
         parameters["image_centers"] = [q.image_center_peri for q in quadrants]    # required in cost function later on
 
         # Plot transformation result
-        """
         if plot:
             plot_transformation_result(
                 quadrant_A=quadrant_A,
@@ -138,7 +144,6 @@ def optimize_stitch(parameters, plot=False):
                 quadrant_D=quadrant_D,
                 parameters=parameters
             )
-        """
 
         # Get edges from quadrants
         print(f"- extracting edges from images...")
@@ -197,7 +202,7 @@ def optimize_stitch(parameters, plot=False):
     if parameters["iteration"] == 3:
 
         # Make a gif of the tform result
-        #make_tform_gif(parameters)
+        make_tform_gif(parameters)
 
         # Plot the fitness trajectory over the multiple resolutions
         plot_ga_multires(parameters)

@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 
 from .recombine_quadrants import recombine_quadrants
 from .transformations import warp_image
+from .get_resname import get_resname
 
 
 def plot_rotation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
@@ -57,7 +58,8 @@ def plot_rotation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
         plt.axis("off")
         plt.title(q.quadrant_name, fontsize=16)
         plt.imshow(p_rmask, cmap="gray")
-    plt.show()
+    plt.savefig(f"../results/{quadrant_A.patient_idx}/images/rotation_result.png")
+    plt.close()
 
     return
 
@@ -84,7 +86,9 @@ def plot_transformation_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, p
     plt.figure()
     plt.title(f"Initial alignment at resolution {current_res}")
     plt.imshow(result, cmap="gray")
-    plt.show()
+    if parameters["iteration"] == 0:
+        plt.savefig(f"../results/{parameters['patient_idx']}/ga_progression/initial_alignment.png")
+    plt.close()
 
     return
 
@@ -147,7 +151,7 @@ def plot_theilsen_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, paramet
     plt.scatter(quadrant_D.h_edge_theilsen_endpoints[:, 0], quadrant_D.h_edge_theilsen_endpoints[:, 1],
                 marker='+', s=ms, color="b")
     plt.legend(["v edge", "h edge"])
-    plt.show()
+    plt.close()
 
     return
 
@@ -180,7 +184,7 @@ def plot_rotated_bbox(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     plt.title("Quadrant A")
     plt.imshow(quadrant_A.tform_image, cmap="gray")
     plt.scatter(scat_x, scat_y, s=25, c="r")
-    plt.show()
+    plt.close()
 
     # X and y coordinates of the bounding box
     scat_x = [quadrant_B.bbox_corner_a[0], quadrant_B.bbox_corner_b[0], quadrant_B.bbox_corner_c[0], quadrant_B.bbox_corner_d[0]]
@@ -190,7 +194,7 @@ def plot_rotated_bbox(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     plt.title("Quadrant B")
     plt.imshow(quadrant_B.tform_image, cmap="gray")
     plt.scatter(scat_x, scat_y, s=25, c="r")
-    plt.show()
+    plt.close()
 
     # X and y coordinates of the bounding box
     scat_x = [quadrant_C.bbox_corner_a[0], quadrant_C.bbox_corner_b[0], quadrant_C.bbox_corner_c[0], quadrant_C.bbox_corner_d[0]]
@@ -200,7 +204,7 @@ def plot_rotated_bbox(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     plt.title("Quadrant C")
     plt.imshow(quadrant_C.tform_image, cmap="gray")
     plt.scatter(scat_x, scat_y, s=25, c="r")
-    plt.show()
+    plt.close()
 
     # X and y coordinates of the bounding box
     scat_x = [quadrant_D.bbox_corner_a[0], quadrant_D.bbox_corner_b[0], quadrant_D.bbox_corner_c[0], quadrant_D.bbox_corner_d[0]]
@@ -210,7 +214,7 @@ def plot_rotated_bbox(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     plt.title("Quadrant D")
     plt.imshow(quadrant_D.tform_image, cmap="gray")
     plt.scatter(scat_x, scat_y, s=25, c="r")
-    plt.show()
+    plt.close()
 
     return
 
@@ -238,7 +242,7 @@ def plot_tformed_edges(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     plt.plot(quadrant_D.h_edge_tform[:, 0], quadrant_D.h_edge_tform[:, 1], c="b")
     plt.plot(quadrant_D.v_edge_tform[:, 0], quadrant_D.v_edge_tform[:, 1], c="g")
     plt.legend(["Hor", "Ver"])
-    plt.show()
+    plt.close()
 
     return
 
@@ -266,7 +270,7 @@ def plot_tformed_theilsen_lines(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     plt.plot(quadrant_D.h_edge_theilsen_tform[:, 0], quadrant_D.h_edge_theilsen_tform[:, 1], c="b")
     plt.plot(quadrant_D.v_edge_theilsen_tform[:, 0], quadrant_D.v_edge_theilsen_tform[:, 1], c="g")
     plt.legend(["Hor", "Ver"])
-    plt.show()
+    plt.close()
 
     return
 
@@ -305,7 +309,7 @@ def plot_ga_tform(quadrant_A, quadrant_B, quadrant_C, quadrant_D):
     plt.plot(quadrant_C.v_edge_theilsen_tform, linewidth=3, color="g")
     plt.plot(quadrant_D.h_edge_theilsen_tform, linewidth=3, color="g")
     plt.plot(quadrant_D.v_edge_theilsen_tform, linewidth=3, color="g")
-    plt.show()
+    plt.close()
 
     return
 
@@ -346,17 +350,15 @@ def plot_ga_result(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, f
 
     # Stitch all images together
     result = recombine_quadrants(images=images)
+    current_res_name = get_resname(parameters["resolutions"][parameters["iteration"]])
 
-    res = parameters["resolutions"][parameters["iteration"]]
-    imsavedir = f"{parameters['results_dir']}/{parameters['patient_idx']}/images/ga_result_gen_{res}.png"
-
-    # Show result
+    # Save result
     plt.figure()
-    plt.title(f"Alignment at resolution {res}\n after genetic algorithm "
+    plt.title(f"Alignment at resolution {current_res_name}\n after genetic algorithm "
               f"(fitness={np.round(parameters['GA_fitness'][-1], 2)})")
     plt.imshow(result, cmap="gray")
-    plt.savefig(imsavedir)
-    plt.show()
+    plt.savefig(f"../results/{parameters['patient_idx']}/ga_progression/ga_result_{current_res_name}.png")
+    plt.close()
 
     return
 
@@ -403,7 +405,7 @@ def make_tform_gif(parameters):
     """
 
     # Make gif of the transformation
-    imsavedir = f"{parameters['results_dir']}/{parameters['patient_idx']}/images"
+    imsavedir = f"{parameters['results_dir']}/{parameters['patient_idx']}/ga_progression/"
     gifsavedir = f"{parameters['results_dir']}/{parameters['patient_idx']}/tform_progression.gif"
 
     all_images = glob.glob(imsavedir+"/*")
@@ -414,7 +416,7 @@ def make_tform_gif(parameters):
         image = imageio.imread(name)
         images.append(image)
 
-    imageio.mimsave(gifsavedir, images, duration=0.5)
+    imageio.mimsave(gifsavedir, images, duration=0.75)
 
     return
 
@@ -443,7 +445,7 @@ def plot_sampled_patches(total_im, patch_indices_x, patch_indices_y, ts_lines):
         plt.plot(x, y, linewidth=0.5, c="r")
     for ts, c in zip(ts_lines, ts_line_colours):
         plt.plot(ts[:, 0], ts[:, 1], linewidth=2, c=c)
-    plt.show()
+    plt.close()
 
     return
 
@@ -464,7 +466,7 @@ def plot_overlap_cost(im, relative_overlap):
     plt.figure()
     plt.title(f"Visualization of overlapping quadrants {np.round(relative_overlap*100, 1)}%")
     plt.imshow(im, cmap="gray")
-    plt.show()
+    plt.close()
 
     return
 
@@ -499,7 +501,8 @@ def plot_ga_multires(parameters):
         plt.xlabel("Resolution")
         plt.xticks(xticks_loc, xticks_label)
         plt.ylabel("Fitness")
-        plt.show()
+        plt.savefig(f"../results/{parameters['patient_idx']}/images/GA_fitness_result")
+        plt.close()
     else:
         warnings.warn("Could not plot fitness progression for multiple resolutions, "
                       "try running the genetic algorithm from scratch by deleting previously acquired tform files")

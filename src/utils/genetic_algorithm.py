@@ -10,6 +10,7 @@ from shapely.geometry import Polygon
 from .plot_tools import plot_sampled_patches
 from .recombine_quadrants import recombine_quadrants
 from .transformations import warp_2d_points, warp_image
+from .get_resname import get_resname
 
 
 def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters, initial_tform):
@@ -107,7 +108,7 @@ def genetic_algorithm(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters
     ga_instance.run()
 
     # Plot fitness and retrieve best solution
-    ga_instance.plot_fitness()
+    # ga_instance.plot_fitness()
     solution, solution_fitness, _ = ga_instance.best_solution()
 
     # Get genetic algorithm solution per quadrant
@@ -721,6 +722,7 @@ def plot_best_sol_per_gen(ga):
         # Plotting parameters
         ratio = global_parameters["resolutions"][global_parameters["iteration"]] / global_parameters["resolutions"][0]
         ms = np.sqrt(2500 * np.sqrt(ratio))
+        res = get_resname(global_parameters["resolutions"][global_parameters["iteration"]])
 
         # Make figure
         plt.figure()
@@ -750,7 +752,7 @@ def plot_best_sol_per_gen(ga):
         plt.scatter(global_quadrant_D.h_edge_theilsen_endpoints_tform[:, 0],
                     global_quadrant_D.h_edge_theilsen_endpoints_tform[:, 1],
                     marker='+', s=ms, color="b")
-        plt.savefig(f"../results/{global_quadrant_A.patient_idx}/images/{global_quadrant_A.res_name}_iter{gen}.png")
-        plt.show()
+        plt.savefig(f"../results/{global_quadrant_A.patient_idx}/ga_result_per_iteration/{res}_iter{gen}.png")
+        plt.close()
 
     return

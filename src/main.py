@@ -94,7 +94,7 @@ def run_pythostitcher():
     parameters["data_dir"] = data_dir
     parameters["results_dir"] = results_dir
     parameters["patient_idx"] = patient_idx
-    parameters["slice_idx"] = "test"
+    parameters["slice_idx"] = "preprocessed_input"
 
     # General input parameters. The resolutions can be changed depending on the size of the input images. The two most
     # important aspects are that a) the resolutions should be in ascending order and b) that the first resolution
