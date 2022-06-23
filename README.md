@@ -1,8 +1,6 @@
+# PythoStitcher
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![linting: pylint](https://img.shields.io/badge/linting-pylint-yellowgreen)](https://github.com/PyCQA/pylint)
-
-
-# PythoStitcher
 
 ### General
 PythoStitcher is a Python implementation of the AutoStitcher software which stitches prostate histopathology images into a pseudo whole mount image. For more information about AutoStitcher, check out the original paper [here](https://www.nature.com/articles/srep29906) or find the original Matlab implementation [here](https://engineering.case.edu/centers/ccipd/content/software).
