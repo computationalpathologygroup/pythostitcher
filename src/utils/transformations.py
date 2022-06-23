@@ -5,6 +5,15 @@ import cv2
 def warp_2d_points(src, center, rotation, translation):
     """
     Custom function to warp a set of 2D coordinates using an affine transform.
+
+    Input:
+        - Nx2 matrix with points to warp
+        - Center to rotate around
+        - Angle of rotation in degrees
+        - Translation in pixels
+
+    Output:
+        - Nx2 matrix with warped points
     """
 
     # Catch use case where only 1 coordinate pair is provided as input
@@ -12,7 +21,9 @@ def warp_2d_points(src, center, rotation, translation):
         src = np.array(src)
         src = np.transpose(src[:, np.newaxis])
 
-    assert len(np.array(src).shape) == 2 and np.array(src).shape[-1] == 2, "Input must be 2 dimensionsal and be ordered as Nx2 matrix"
+    assert (
+        len(np.array(src).shape) == 2 and np.array(src).shape[-1] == 2
+    ), "Input must be 2 dimensionsal and be ordered as Nx2 matrix"
     assert len(translation) == 2, "Translation must consist of X/Y component"
 
     # Ensure variables are in correct format
@@ -38,6 +49,16 @@ def warp_2d_points(src, center, rotation, translation):
 def warp_image(src, center, rotation, translation, output_shape=None):
     """
     Custom function to warp a 2D image using an affine transformation.
+
+    Input:
+        - Image to warp
+        - Center to rotate around
+        - Angle of rotation in degrees
+        - Translation in pixels
+        - Output shape of warped image
+
+    Output:
+        - Warped image
     """
 
     # Ensure that shape only holds integers
@@ -60,7 +81,7 @@ def warp_image(src, center, rotation, translation, output_shape=None):
 
     # Convert to uint8 for opencv
     if src.dtype == "float32":
-        src = ((src/np.max(src))*255).astype("uint8")
+        src = ((src / np.max(src)) * 255).astype("uint8")
 
     # Ensure center is in correct format
     center = tuple([int(i) for i in np.squeeze(center)])

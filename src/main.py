@@ -9,17 +9,18 @@ from utils.quadrant_class import Quadrant
 
 def run_pythostitcher():
     """
-    PythoStitcher is an automated and robust program for stitching prostate tissue fragments into a whole
-    histological section.
+    PythoStitcher is an automated and robust program for stitching prostate tissue
+    fragments into a whole histological section.
 
     Original paper: https://www.nature.com/articles/srep29906
     Original Matlab code by Greg Penzias, 2016
     Python implementation by Daan Schouten, 2022
 
-    Please see the 'sample data' directory for how to structure the input images for Pythostitcher. The general
-    structure is as follows, where Pxxxxxx denotes the patient ID. The current version requires four quadrants,
-    support for less/more quadrants might be added in a future version.
-    NOTE: the provided sample data was retrieved from (https://engineering.case.edu/centers/ccipd/content/software)
+    Please see the 'sample data' directory for how to structure the input images for
+    Pythostitcher. The general structure is as follows, where Pxxxxxx denotes the patient
+    ID. The current version requires four quadrants, support for less/more quadrants
+    might be added in a future version.
+
     ___________________________
     /sample_data
         /Pxxxxxx
@@ -46,20 +47,24 @@ def run_pythostitcher():
     """
 
     # Argument parser
-    parser = argparse.ArgumentParser(description="Stitch prostate histopathology images into a pseudo whole-mount image")
-    parser.add_argument("--patient", type=int, required=True, help="Index of the patient to analyse")
+    parser = argparse.ArgumentParser(
+        description="Stitch prostate histopathology images into a pseudo whole-mount image"
+    )
+    parser.add_argument(
+        "--patient", type=int, required=True, help="Index of the patient to analyse"
+    )
     args = parser.parse_args()
 
     # Set variables
-    patient_idx = args.patient                              # patient number between 1 and 999999
-    patient_idx = "P" + str(patient_idx).zfill(6)           # you can change how Pythostitcher handles the patient_idx
+    patient_idx = args.patient                      # patient number between 1 and 999999
+    patient_idx = "P" + str(patient_idx).zfill(6)   # convert int to string for later saving
 
     # Set data directories
     if any([patient_idx in i for i in glob.glob("../sample_data/*")]):
-        data_dir = f"../sample_data/{patient_idx}/images"       # directory where the quadrant images can be found
-        results_dir = "../results"                              # directory where to save the Pythostitcher results
+        data_dir = f"../sample_data/{patient_idx}/images"  # data directory with images
+        results_dir = "../results"                         # directory to save results
     else:
-        raise ValueError(f"Patient idx does not exist in location (../sample_data/)")
+        raise ValueError("Patient idx does not exist in location (../sample_data/)")
 
     # Get all quadrant filenames
     all_files = [os.path.basename(i) for i in glob.glob(f"{data_dir}/*")]
@@ -96,15 +101,17 @@ def run_pythostitcher():
     parameters["patient_idx"] = patient_idx
     parameters["slice_idx"] = "preprocessed_input"
 
-    # General input parameters. The resolutions can be changed depending on the size of the input images. The two most
-    # important aspects are that a) the resolutions should be in ascending order and b) that the first resolution
-    # should be of sufficient size to allow for a reasonable initialization of the stitching.
+    # General input parameters. The resolutions can be changed depending on the size of the
+    # input images. The two most important aspects are that a) the resolutions should be in
+    # ascending order and b) that the first resolution should be of sufficient size to allow
+    # for a reasonable initialization of the stitching.
     parameters["resolutions"] = [0.025, 0.05, 0.15, 0.5]
     parameters["pad_fraction"] = 0.7
 
-    # Genetic algorithm parameters. Check the genetic_algorithm.py file for the exact implementation of these
-    # parameters and check the pygad documentation (https://pygad.readthedocs.io/en/latest/) for an explanation and
-    # other options for all parameters.
+    # Genetic algorithm parameters. Check the genetic_algorithm.py file for the exact
+    # implementation of these parameters and check the pygad documentation
+    # (https://pygad.readthedocs.io/en/latest/) for an explanation and other options
+    # for all parameters.
     parameters["n_solutions"] = 20
     parameters["n_generations"] = 100
     parameters["n_parents"] = 3
@@ -116,7 +123,9 @@ def run_pythostitcher():
     parameters["parent_selection"] = "rank"
 
     # Parameters related to the cost function
-    parameters["resolution_scaling"] = [res/parameters["resolutions"][0] for res in parameters["resolutions"]]
+    parameters["resolution_scaling"] = [
+        res / parameters["resolutions"][0] for res in parameters["resolutions"]
+    ]
     parameters["nbins"] = 16
     parameters["hist_sizes"] = [4, 8, 20, 80]
     parameters["outer_point_weight"] = 0.5
@@ -125,10 +134,12 @@ def run_pythostitcher():
     parameters["distance_scaling_ver_required"] = True
 
     # Optimization parameters
-    parameters["translation_range"] = [0.05,
-                                       0.05 / (parameters["resolutions"][1] / parameters["resolutions"][0]),
-                                       0.05 / (parameters["resolutions"][2] / parameters["resolutions"][0]),
-                                       0.05 / (parameters["resolutions"][2] / parameters["resolutions"][0])]
+    parameters["translation_range"] = [
+        0.05,
+        0.05 / (parameters["resolutions"][1] / parameters["resolutions"][0]),
+        0.05 / (parameters["resolutions"][2] / parameters["resolutions"][0]),
+        0.05 / (parameters["resolutions"][2] / parameters["resolutions"][0]),
+    ]
     parameters["angle_range"] = [10, 10, 5, 5]
     parameters["GA_fitness"] = []
 
@@ -140,17 +151,19 @@ def run_pythostitcher():
         parameters["iteration"] = i
 
         # Initiate all quadrants
-        quadrant_A = Quadrant(quadrant_name="UL", kwargs=parameters)
-        quadrant_B = Quadrant(quadrant_name="UR", kwargs=parameters)
-        quadrant_C = Quadrant(quadrant_name="LL", kwargs=parameters)
-        quadrant_D = Quadrant(quadrant_name="LR", kwargs=parameters)
+        quadrant_a = Quadrant(quadrant_name="UL", kwargs=parameters)
+        quadrant_b = Quadrant(quadrant_name="UR", kwargs=parameters)
+        quadrant_c = Quadrant(quadrant_name="LL", kwargs=parameters)
+        quadrant_d = Quadrant(quadrant_name="LR", kwargs=parameters)
 
         # Preprocess all images
-        preprocess(quadrant_A=quadrant_A,
-                   quadrant_B=quadrant_B,
-                   quadrant_C=quadrant_C,
-                   quadrant_D=quadrant_D,
-                   parameters=parameters)
+        preprocess(
+            quadrant_a=quadrant_a,
+            quadrant_b=quadrant_b,
+            quadrant_c=quadrant_c,
+            quadrant_d=quadrant_d,
+            parameters=parameters,
+        )
 
     print("> Finished!")
 
@@ -161,7 +174,7 @@ def run_pythostitcher():
         parameters["iteration"] = i
 
         print(f"\nOptimizing stitch at resolution {parameters['resolutions'][i]}")
-        optimize_stitch(parameters=parameters, plot=True)
+        optimize_stitch(parameters=parameters)
 
     return
 

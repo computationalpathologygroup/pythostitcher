@@ -1,10 +1,10 @@
 import os
 
 
-def preprocess(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters):
+def preprocess(quadrant_a, quadrant_b, quadrant_c, quadrant_d, parameters):
     """
-    Function to load and preprocess all the quadrant images. The preprocessing mainly consists of resizing and saving
-    the image at multiple resolutions.
+    Function to load and preprocess all the quadrant images. The preprocessing mainly
+    consists of resizing and saving the image at multiple resolutions.
 
     Input:
     - Class of all four quadrants
@@ -12,32 +12,35 @@ def preprocess(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters):
 
     Output:
     - Quadrant class with all loaded images
-
     """
 
     # Make directories for later saving
-    dirnames = [f"../results",
-                f"../results/{quadrant_D.patient_idx}",
-                f"../results/{quadrant_D.patient_idx}/{quadrant_D.slice_idx}",
-                f"../results/{quadrant_D.patient_idx}/{quadrant_D.slice_idx}/{quadrant_D.res_name}"]
+    dirnames = [
+        "../results",
+        f"../results/{quadrant_d.patient_idx}",
+        f"../results/{quadrant_d.patient_idx}/{quadrant_d.slice_idx}",
+        f"../results/{quadrant_d.patient_idx}/{quadrant_d.slice_idx}/{quadrant_d.res_name}",
+    ]
 
     for name in dirnames:
         if not os.path.isdir(name):
             os.mkdir(name)
 
     # Verify whether preprocessed quadrants are available
-    filepath = f"../results/" \
-               f"{quadrant_D.patient_idx}/" \
-               f"{quadrant_D.slice_idx}/" \
-               f"{quadrant_D.res_name}/" \
-               f"quadrant_{quadrant_D.quadrant_name}"
+    filepath = (
+        f"../results/"
+        f"{quadrant_d.patient_idx}/"
+        f"{quadrant_d.slice_idx}/"
+        f"{quadrant_d.res_name}/"
+        f"quadrant_{quadrant_d.quadrant_name}"
+    )
     file_exists = os.path.isfile(filepath)
 
     # Preprocess all images if they are not yet available
     if not file_exists:
 
         # Loop over all quadrants
-        quadrants = [quadrant_A, quadrant_B, quadrant_C, quadrant_D]
+        quadrants = [quadrant_a, quadrant_b, quadrant_c, quadrant_d]
 
         for q in quadrants:
 
@@ -59,7 +62,9 @@ def preprocess(quadrant_A, quadrant_B, quadrant_C, quadrant_D, parameters):
             # Save the quadrant class for later use
             q.save_quadrant()
 
-        print(f"- preprocessing resolution {parameters['resolutions'][parameters['iteration']]}")
+        print(
+            f"- preprocessing resolution {parameters['resolutions'][parameters['iteration']]}"
+        )
 
     # Else nothing, images will be loaded in the next step in the optimize stitch function
     else:
