@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from shapely.geometry import Polygon
 
 from .plot_tools import plot_sampled_patches
-from .recombine_quadrants import recombine_quadrants
+from .fuse_images import fuse_images
 from .transformations import warp_2d_points, warp_image
 from .get_resname import get_resname
 
@@ -442,7 +442,8 @@ def hist_cost_function(
         quadrant_c.colour_image,
         quadrant_d.colour_image,
     ]
-    total_im = recombine_quadrants(images=images)
+
+    total_im = fuse_images(images=images)
 
     # Loop over all quadrants to compute the cost for the horizontal and vertical edge
     for quadrant in quadrants:
@@ -952,14 +953,13 @@ def plot_best_sol_per_gen(ga):
         )
 
         # Get final image
-        # EXPERIMENTAL
         images = [
             global_quadrant_a.colour_image,
             global_quadrant_b.colour_image,
             global_quadrant_c.colour_image,
             global_quadrant_d.colour_image,
         ]
-        total_im = recombine_quadrants(images=images)
+        total_im = fuse_images(images=images)
 
         # Plotting parameters
         ratio = (

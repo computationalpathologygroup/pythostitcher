@@ -7,7 +7,6 @@ import numpy as np
 from sklearn.linear_model import TheilSenRegressor
 
 from .get_resname import get_resname
-from .get_largest_contour import get_largest_contour
 from .transformations import warp_2d_points, warp_image
 
 
@@ -282,7 +281,7 @@ class Quadrant:
 
         # Obtain contour from mask
         self.cnt, _ = cv2.findContours(image, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
-        self.cnt = get_largest_contour(self.cnt)
+        self.cnt = np.squeeze(max(self.cnt, key = cv2.contourArea))
         self.cnt = self.cnt[::-1]
 
         # Convert bbox object to corner points. These corner points are always oriented
@@ -631,7 +630,7 @@ class Quadrant:
         mask_contour, _ = cv2.findContours(
             self.mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE
         )
-        mask_contour = get_largest_contour(mask_contour)
+        mask_contour = np.squeeze(max(mask_contour, key = cv2.contourArea))
 
         # Get centerpoint of the contour
         self.image_center_peri = np.mean(mask_contour, axis=0)
@@ -649,7 +648,7 @@ class Quadrant:
         self.mask_contour, _ = cv2.findContours(
             self.mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE
         )
-        self.mask_contour = get_largest_contour(self.mask_contour)
+        self.mask_contour = np.squeeze(max(self.mask_contour, key = cv2.contourArea))
 
         # Compute centerpoint
         self.image_center_pre = tuple(

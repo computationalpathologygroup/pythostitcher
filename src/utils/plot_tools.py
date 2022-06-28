@@ -2,11 +2,10 @@ import glob
 import os
 import warnings
 import numpy as np
-
 import imageio
 import matplotlib.pyplot as plt
 
-from .recombine_quadrants import recombine_quadrants
+from .fuse_images import fuse_images
 from .transformations import warp_image
 from .get_resname import get_resname
 
@@ -106,7 +105,7 @@ def plot_transformation_result(
         quadrant_c.colour_image,
         quadrant_d.colour_image,
     ]
-    result = recombine_quadrants(images=images)
+    result = fuse_images(images=images)
 
     current_res = parameters["resolutions"][parameters["iteration"]]
 
@@ -144,7 +143,7 @@ def plot_theilsen_result(quadrant_a, quadrant_b, quadrant_c, quadrant_d, paramet
         quadrant_c.colour_image,
         quadrant_d.colour_image,
     ]
-    combi_image = recombine_quadrants(images=images)
+    combi_image = fuse_images(images=images)
 
     # Set some plotting parameters
     ratio = parameters["resolution_scaling"][parameters["iteration"]]
@@ -531,7 +530,7 @@ def plot_ga_result(
         images.append(image)
 
     # Stitch all images together
-    result = recombine_quadrants(images=images)
+    result = fuse_images(images=images)
     current_res_name = get_resname(parameters["resolutions"][parameters["iteration"]])
 
     # Save result
