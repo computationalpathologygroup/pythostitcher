@@ -3,6 +3,7 @@ channels:
   - defaults
 dependencies:
   - imageio>=2.7
+  - numpy>=1.20,<=1.23
   - pip>=21.2
   - py-opencv>=4.5
   - scikit-learn>=1.0
