@@ -61,9 +61,6 @@ def warp_image(src, center, rotation, translation, output_shape=None):
         - Warped image
     """
 
-    # Ensure that shape only holds integers
-    output_shape = [int(i) for i in output_shape]
-
     # Get output shape if it is specified. Switch XY for opencv convention
     if output_shape:
         if len(output_shape) == 2:
@@ -79,8 +76,11 @@ def warp_image(src, center, rotation, translation, output_shape=None):
             output_shape = src.shape[:2]
             output_shape = tuple(output_shape[::-1])
 
+    # Ensure that shape only holds integers
+    output_shape = [int(i) for i in output_shape]
+
     # Convert to uint8 for opencv
-    if src.dtype == "float32":
+    if src.dtype == "float":
         src = ((src / np.max(src)) * 255).astype("uint8")
 
     # Ensure center is in correct format

@@ -281,7 +281,7 @@ class Quadrant:
 
         # Obtain contour from mask
         self.cnt, _ = cv2.findContours(image, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
-        self.cnt = np.squeeze(max(self.cnt, key = cv2.contourArea))
+        self.cnt = np.squeeze(max(self.cnt, key=cv2.contourArea))
         self.cnt = self.cnt[::-1]
 
         # Convert bbox object to corner points. These corner points are always oriented
@@ -630,7 +630,7 @@ class Quadrant:
         mask_contour, _ = cv2.findContours(
             self.mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE
         )
-        mask_contour = np.squeeze(max(mask_contour, key = cv2.contourArea))
+        mask_contour = np.squeeze(max(mask_contour, key=cv2.contourArea))
 
         # Get centerpoint of the contour
         self.image_center_peri = np.mean(mask_contour, axis=0)
@@ -648,7 +648,7 @@ class Quadrant:
         self.mask_contour, _ = cv2.findContours(
             self.mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE
         )
-        self.mask_contour = np.squeeze(max(self.mask_contour, key = cv2.contourArea))
+        self.mask_contour = np.squeeze(max(self.mask_contour, key=cv2.contourArea))
 
         # Compute centerpoint
         self.image_center_pre = tuple(
@@ -739,7 +739,9 @@ class Quadrant:
         x_edge = np.array([i[0] for i in self.h_edge])
         x_edge = x_edge[:, np.newaxis]
         x_edge = x_edge[::sample_rate]
-        x = x_edge[:, ]
+        x = x_edge[
+            :,
+        ]
         y_edge = np.array([i[1] for i in self.h_edge])
         y_edge = y_edge[::sample_rate]
 
@@ -769,7 +771,9 @@ class Quadrant:
         x_edge = np.array([i[1] for i in self.v_edge])
         x_edge = x_edge[:, np.newaxis]
         x_edge = x_edge[::sample_rate]
-        x = x_edge[:, ]
+        x = x_edge[
+            :,
+        ]
         y_edge = np.array([i[0] for i in self.v_edge])
         y_edge = y_edge[::sample_rate]
 

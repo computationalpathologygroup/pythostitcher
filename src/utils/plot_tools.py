@@ -6,7 +6,6 @@ import imageio
 import matplotlib.pyplot as plt
 
 from .fuse_images import fuse_images
-from .transformations import warp_image
 from .get_resname import get_resname
 
 
@@ -406,16 +405,8 @@ def plot_tformed_theilsen_lines(quadrant_a, quadrant_b, quadrant_c, quadrant_d):
 
     plt.figure()
     plt.title("Transformed Theil-Sen lines")
-    plt.plot(
-        quadrant_a.h_edge_theilsen[:, 0],
-        quadrant_a.h_edge_theilsen[:, 1],
-        c="b"
-    )
-    plt.plot(
-        quadrant_a.v_edge_theilsen[:, 0],
-        quadrant_a.v_edge_theilsen[:, 1],
-        c="g"
-    )
+    plt.plot(quadrant_a.h_edge_theilsen[:, 0], quadrant_a.h_edge_theilsen[:, 1], c="b")
+    plt.plot(quadrant_a.v_edge_theilsen[:, 0], quadrant_a.v_edge_theilsen[:, 1], c="g")
     plt.plot(
         quadrant_b.h_edge_theilsen_tform[:, 0],
         quadrant_b.h_edge_theilsen_tform[:, 1],
@@ -492,9 +483,7 @@ def plot_ga_tform(quadrant_a, quadrant_b, quadrant_c, quadrant_d):
     return
 
 
-def plot_ga_result(
-    quadrant_a, quadrant_b, quadrant_c, quadrant_d, parameters, final_tform
-):
+def plot_ga_result(final_image, parameters):
     """
     Plotting function to plot the transformation of the quadrants which was found
     by the genetic algorithm.
@@ -508,29 +497,6 @@ def plot_ga_result(
         - Figure displaying the end result obtained by the genetic algorithm
     """
 
-    # Extract individual tforms from final_tform
-    ga_tform_a = final_tform[quadrant_a.quadrant_name]
-    ga_tform_b = final_tform[quadrant_b.quadrant_name]
-    ga_tform_c = final_tform[quadrant_c.quadrant_name]
-    ga_tform_d = final_tform[quadrant_d.quadrant_name]
-
-    # Apply transformation to all quadrants
-    tforms = [ga_tform_a, ga_tform_b, ga_tform_c, ga_tform_d]
-    quadrants = [quadrant_a, quadrant_b, quadrant_c, quadrant_d]
-    images = []
-    for tform, quadrant in zip(tforms, quadrants):
-        image = warp_image(
-            src=quadrant.colour_image_original,
-            center=tform[3],
-            rotation=tform[2],
-            translation=tform[:2],
-            output_shape=tform[4],
-        )
-
-        images.append(image)
-
-    # Stitch all images together
-    result = fuse_images(images=images)
     current_res_name = get_resname(parameters["resolutions"][parameters["iteration"]])
 
     # Save result
@@ -539,7 +505,7 @@ def plot_ga_result(
         f"Alignment at resolution {current_res_name}\n after genetic algorithm "
         f"(fitness={np.round(parameters['GA_fitness'][-1], 2)})"
     )
-    plt.imshow(result, cmap="gray")
+    plt.imshow(final_image)
     plt.savefig(
         f"../results/{parameters['patient_idx']}/ga_progression/"
         f"ga_result_{current_res_name}.png"
@@ -675,7 +641,7 @@ def plot_ga_multires(parameters):
         warnings.warn(
             "Could not plot fitness progression for multiple resolutions, "
             "try running the genetic algorithm from scratch by deleting "
-            "previously acquired tform files"
+            "the results directory of this patient"
         )
 
     return

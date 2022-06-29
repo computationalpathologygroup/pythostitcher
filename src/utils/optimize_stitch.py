@@ -5,6 +5,8 @@ from .get_resname import get_resname
 from .genetic_algorithm import genetic_algorithm
 from .map_tform_low_res import map_tform_low_res
 from .plot_tools import *
+from .adjust_final_rotation import adjust_final_rotation
+from .transformations import warp_image
 
 
 def optimize_stitch(parameters):
@@ -190,15 +192,23 @@ def optimize_stitch(parameters):
         )
         np.save(parameters["filepath_tform"], ga_dict)
 
-        # Plot the results of the genetic algorithm
-        plot_ga_result(
-            quadrant_a=quadrant_a,
-            quadrant_b=quadrant_b,
-            quadrant_c=quadrant_c,
-            quadrant_d=quadrant_d,
-            parameters=parameters,
-            final_tform=ga_dict,
-        )
+        # Get final transformed image per quadrant
+        all_images = []
+        for q in quadrants:
+            final_tform = ga_dict[q.quadrant_name]
+            q.final_image = warp_image(
+                src=q.colour_image_original,
+                center=final_tform[3],
+                rotation=final_tform[2],
+                translation=final_tform[:2],
+                output_shape=final_tform[4],
+            )
+            all_images.append(q.final_image)
+
+        # Get final fused image, correct for the rotation and display it
+        final_image = fuse_images(images=all_images)
+        final_image = adjust_final_rotation(image=final_image)
+        plot_ga_result(final_image=final_image, parameters=parameters)
 
         # Provide verbose on computation time
         end_time = time.time()

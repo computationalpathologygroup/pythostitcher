@@ -11,9 +11,12 @@ from .plot_tools import plot_sampled_patches
 from .fuse_images import fuse_images
 from .transformations import warp_2d_points, warp_image
 from .get_resname import get_resname
+from .adjust_final_rotation import adjust_final_rotation
 
 
-def genetic_algorithm(quadrant_a, quadrant_b, quadrant_c, quadrant_d, parameters, initial_tform):
+def genetic_algorithm(
+    quadrant_a, quadrant_b, quadrant_c, quadrant_d, parameters, initial_tform
+):
     """
     Function that runs a genetic algorithm using the pygad module. This function will use
     a global assembly method where the stitching for all quadrants is optimised at once.
@@ -65,7 +68,7 @@ def genetic_algorithm(quadrant_a, quadrant_b, quadrant_c, quadrant_d, parameters
     crossover_type = parameters["crossover_type"]
     p_mutation = parameters["p_mutation"]
     mutation_type = parameters["mutation_type"]
-    num_quadrants = int(num_genes/3)
+    num_quadrants = int(num_genes / 3)
 
     # Cap solution ranges to plausible values. The param_range variable denotes the range
     # for the mutation values  that can be added/substracted from the genes in each parent.
@@ -112,21 +115,21 @@ def genetic_algorithm(quadrant_a, quadrant_b, quadrant_c, quadrant_d, parameters
     # Pygad has a wide variety of parameters for the optimization. Parents with a (M) were
     # copied from the Matlab implementation. Other parameters are chosen empirically.
     ga_instance = pygad.GA(
-        num_generations=num_gen,                # num generations to optimize
-        fitness_func=fitness_func,              # optimization function
-        initial_population=init_pop,            # gene values for first population
-        gene_space=param_range,                 # parameter search range
-        keep_parents=keep_parents,              # num of parents that proceed to next generation
-        num_parents_mating=parents_mating,      # num parents that produce offspring
-        parent_selection_type=parents,          # function to select parents for offspring
-        crossover_type=crossover_type,          # (M) method how genes between parents are combined
-        crossover_probability=p_crossover,      # probability that a parent is chosen for crossover
-        mutation_type=mutation_type,            # method how gene values are mutated
-        mutation_probability=p_mutation,        # probability that a gene mutates
-        on_generation=plot_best_sol_per_gen,    # plot the result after every N generations
-        save_best_solutions=True,               # must be True in order to use the callback above
-        suppress_warnings=True,                 # suppress warnings
-        stop_criteria=None,                     # can be changed to a certain level of convergence
+        num_generations=num_gen,  # num generations to optimize
+        fitness_func=fitness_func,  # optimization function
+        initial_population=init_pop,  # gene values for first population
+        gene_space=param_range,  # parameter search range
+        keep_parents=keep_parents,  # num of parents that proceed to next generation
+        num_parents_mating=parents_mating,  # num parents that produce offspring
+        parent_selection_type=parents,  # function to select parents for offspring
+        crossover_type=crossover_type,  # (M) method how genes between parents are combined
+        crossover_probability=p_crossover,  # probability that a parent is chosen for crossover
+        mutation_type=mutation_type,  # method how gene values are mutated
+        mutation_probability=p_mutation,  # probability that a gene mutates
+        on_generation=plot_best_sol_per_gen,  # plot the result after every N generations
+        save_best_solutions=True,  # must be True in order to use the callback above
+        suppress_warnings=True,  # suppress warnings
+        stop_criteria=None,  # can be changed to a certain level of convergence
     )
 
     # Run genetic algorithm
@@ -495,7 +498,8 @@ def hist_cost_function(
         # Compute difference between probability density function. For probability density
         # functions of an empty patch we set the cost to the maximum value of 2.
         summed_diff = [
-            2 if (np.sum(prob1) == 0 and np.sum(prob2) == 0)
+            2
+            if (np.sum(prob1) == 0 and np.sum(prob2) == 0)
             else np.sum(np.abs(prob1 - prob2))
             for prob1, prob2 in zip(prob_dens_upper, prob_dens_lower)
         ]
@@ -547,7 +551,8 @@ def hist_cost_function(
         # Compute difference between probability density function. For probability density
         # functions of an empty patch we set the cost to the maximum value of 2.
         summed_diff = [
-            2 if (np.sum(prob1) == 0 and np.sum(prob2) == 0)
+            2
+            if (np.sum(prob1) == 0 and np.sum(prob2) == 0)
             else np.sum(np.abs(prob1 - prob2))
             for prob1, prob2 in zip(prob_dens_left, prob_dens_right)
         ]
@@ -669,6 +674,12 @@ def distance_cost_function(quadrant_a, quadrant_b, quadrant_c, quadrant_d):
     hline_keys_outer = ["AC_outer", "BD_outer"]
     vline_keys_inner = ["AB_inner", "CD_inner"]
     vline_keys_outer = ["AB_outer", "CD_outer"]
+    all_keys = [
+        *hline_keys_inner,
+        *hline_keys_outer,
+        *vline_keys_inner,
+        *vline_keys_outer,
+    ]
 
     # Loop over horizontal lines
     for quadrants, hline_key_inner, hline_key_outer in zip(
@@ -722,16 +733,21 @@ def distance_cost_function(quadrant_a, quadrant_b, quadrant_c, quadrant_d):
                 np.linalg.norm(line1_outer_pt - line2_outer_pt), 2
             )
 
-        # Handle cases where the first genetic algorithm optimalization has already
-        # been performed in a different run and where the actual scaling factor is
+        # Handle cases where the initial genetic algorithm optimalization has already
+        # been performed in a previous run and where the actual scaling factor is
         # hence not available.
-        elif (
-            global_parameters["iteration"] > 0
-            and distance_scaling["distance_scaling_hor_required"]
-        ):
-            distance_scaling[hline_key_inner] = 1
-            distance_scaling[hline_key_outer] = 1
-            warnings.warn("Distance cost is not scaled properly")
+        elif global_parameters["iteration"] > 0 and "distance_scaling" not in globals():
+            distance_scaling = dict()
+
+            for key in all_keys:  #
+                distance_scaling[key] = 1
+
+            distance_scaling["distance_scaling_hor_required"] = False
+            distance_scaling["distance_scaling_ver_required"] = False
+            warnings.warn(
+                "Distance cost scaling is unavailable, try deleting the "
+                "results directory and rerun pythostitcher"
+            )
 
         # Get resolution specific scaling factor
         scaling_inner = distance_scaling[hline_key_inner] * res_scaling
@@ -959,7 +975,9 @@ def plot_best_sol_per_gen(ga):
             global_quadrant_c.colour_image,
             global_quadrant_d.colour_image,
         ]
+
         total_im = fuse_images(images=images)
+        total_im = adjust_final_rotation(image=total_im)
 
         # Plotting parameters
         ratio = (
