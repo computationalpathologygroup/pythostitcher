@@ -20,6 +20,7 @@ def preprocess(quadrant_a, quadrant_b, quadrant_c, quadrant_d, parameters):
         f"../results/{quadrant_d.patient_idx}",
         f"../results/{quadrant_d.patient_idx}/{quadrant_d.slice_idx}",
         f"../results/{quadrant_d.patient_idx}/{quadrant_d.slice_idx}/{quadrant_d.res_name}",
+        f"../results/{quadrant_d.patient_idx}/highres",
     ]
 
     for name in dirnames:
@@ -43,6 +44,9 @@ def preprocess(quadrant_a, quadrant_b, quadrant_c, quadrant_d, parameters):
         quadrants = [quadrant_a, quadrant_b, quadrant_c, quadrant_d]
 
         for q in quadrants:
+
+            # Read quadrant transformations
+            q.read_transforms()
 
             # Read all original images
             q.read_image()

@@ -36,6 +36,42 @@ class Quadrant:
 
         return
 
+    def read_transforms(self):
+        """
+        Method to read the transformation info for each quadrant. This is a .txt file
+        specifying the required counterclockwise rotation in degrees and whether
+        horizontal or vertical flipping is required.
+        """
+
+        if not os.path.isfile(f"../sample_data/{self.patient_idx}/rotations.txt"):
+            raise ValueError("Couldn't find file with quadrant transformations")
+
+        # Get line with quadrant info
+        with open(f"../sample_data/{self.patient_idx}/rotations.txt") as f:
+            lines = f.readlines()
+        q_idx_line = np.argmax([self.quadrant_name in i for i in lines])
+        q_line = lines[q_idx_line]
+
+        # Check for horizontal/vertical flipping
+        if "hf" in q_line:
+            self.hflip = True
+            q_line = q_line.replace("hf", "")
+        else:
+            self.hflip = False
+
+        if "vf" in q_line:
+            self.vflip = True
+            q_line = q_line.replace("vf", "")
+        else:
+            self.vflip = False
+
+        # Get the angle for counterclockwise rotation
+        self.initial_angle = int(q_line.split(":")[-1].replace("\n", ""))
+        self.initial_angle_k = int(self.initial_angle/90)
+        f.close()
+
+        return
+
     def read_image(self):
         """
         Method to read the quadrant image. Input images should preferably be .tiff or
@@ -52,6 +88,7 @@ class Quadrant:
 
             if os.path.isfile(impath):
                 self.original_image = cv2.imread(impath)
+                self.original_image = np.rot90(self.original_image, k=self.initial_angle_k)
                 self.original_image = cv2.cvtColor(
                     self.original_image, cv2.COLOR_BGR2RGB
                 )
@@ -105,6 +142,7 @@ class Quadrant:
             if os.path.isfile(mask_path):
                 # Read mask
                 self.mask = cv2.imread(mask_path)
+                self.mask = np.rot90(self.mask, k=self.initial_angle_k)
                 self.mask = cv2.cvtColor(self.mask, cv2.COLOR_BGR2GRAY)
 
                 # Resize mask to match images
@@ -201,28 +239,23 @@ class Quadrant:
         )
 
         # Save mask, grayscale and colour image. Remove these from the class after saving
-        # to prevent double saving
-        save_maskfile = self.quadrant_savepath + "_mask.png"
+        # to prevent double saving.
         cv2.imwrite(
-            save_maskfile,
+            self.quadrant_savepath + "_mask.png",
             cv2.cvtColor((self.mask * 255).astype("uint8"), cv2.COLOR_GRAY2BGR),
         )
-        del self.mask
 
-        save_grayimfile = self.quadrant_savepath + "_gray.png"
         cv2.imwrite(
-            save_grayimfile,
+            self.quadrant_savepath + "_gray.png",
             cv2.cvtColor(self.gray_image.astype("uint8"), cv2.COLOR_GRAY2BGR),
         )
-        del self.gray_image
 
-        save_colourimfile = self.quadrant_savepath + "_colour.png"
         cv2.imwrite(
-            save_colourimfile,
+            self.quadrant_savepath + "_colour.png",
             cv2.cvtColor(self.colour_image.astype("uint8"), cv2.COLOR_RGB2BGR),
         )
-        del self.colour_image
-        del self.original_image
+
+        del self.mask, self.gray_image, self.colour_image, self.original_image
 
         # Save the quadrant info without the images
         with open(self.quadrant_savepath, "wb") as savefile:
@@ -771,9 +804,7 @@ class Quadrant:
         x_edge = np.array([i[1] for i in self.v_edge])
         x_edge = x_edge[:, np.newaxis]
         x_edge = x_edge[::sample_rate]
-        x = x_edge[
-            :,
-        ]
+        x = x_edge[:]
         y_edge = np.array([i[0] for i in self.v_edge])
         y_edge = y_edge[::sample_rate]
 

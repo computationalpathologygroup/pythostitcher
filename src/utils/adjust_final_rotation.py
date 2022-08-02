@@ -1,5 +1,6 @@
 import cv2
 import numpy as np
+import copy
 
 from .transformations import warp_image
 
@@ -29,9 +30,18 @@ def adjust_final_rotation(image):
     bbox = cv2.minAreaRect(cnt)
 
     # Adjust angle
-    angle = bbox[2]
+    angle = copy.deepcopy(bbox[2])
     if angle > 45:
         angle = 90 - angle
+
+    else:
+        angle = -angle
+
+    """
+    angle = angle - 45
+    if angle > 45:
+        angle = 90 - angle
+    """
 
     # Get center of contour
     moment = cv2.moments(cnt)

@@ -100,7 +100,7 @@ def fuse_images(images):
 
                     # Extract bbox params
                     bbox_center = bbox[0]
-                    angle = bbox[2]
+                    angle = copy.deepcopy(bbox[2])
 
                     # OpenCV defines angles in the cv2.minAreaRect function between
                     # [0, 90] but instead of a rotation of 0-90 degrees we can also
