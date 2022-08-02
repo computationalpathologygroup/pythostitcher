@@ -5,6 +5,9 @@ import argparse
 from utils.preprocess import preprocess
 from utils.optimize_stitch import optimize_stitch
 from utils.quadrant_class import Quadrant
+from utils.high_resolution_writing import write_highres_quadrants
+from utils.high_resolution_blending import blend_image_tilewise
+from utils.high_resolution_reconstruction import reconstruct_image
 
 
 def run_pythostitcher():
@@ -46,6 +49,7 @@ def run_pythostitcher():
 
     """
 
+    #"""
     # Argument parser
     parser = argparse.ArgumentParser(
         description="Stitch prostate histopathology images into a pseudo whole-mount image"
@@ -54,9 +58,14 @@ def run_pythostitcher():
         "--patient", type=int, required=True, help="Index of the patient to analyse"
     )
     args = parser.parse_args()
-
+    
     # Set variables
     patient_idx = args.patient                      # patient number between 1 and 999999
+    #"""
+
+    """
+    patient_idx = 2
+    """
     patient_idx = "P" + str(patient_idx).zfill(6)   # convert int to string for later saving
 
     # Set data directories
@@ -107,6 +116,7 @@ def run_pythostitcher():
     # for a reasonable initialization of the stitching.
     parameters["resolutions"] = [0.025, 0.05, 0.15, 0.5]
     parameters["pad_fraction"] = 0.7
+    parameters["image_level"] = 6
 
     # Genetic algorithm parameters. Check the genetic_algorithm.py file for the exact
     # implementation of these parameters and check the pygad documentation
@@ -172,9 +182,17 @@ def run_pythostitcher():
 
         # Set current iteration
         parameters["iteration"] = i
-
         print(f"\nOptimizing stitch at resolution {parameters['resolutions'][i]}")
         optimize_stitch(parameters=parameters)
+
+    # Save individual high resolution quadrants
+    write_highres_quadrants(parameters=parameters)
+
+    # Perform blending
+    blend_image_tilewise(parameters=parameters, size=2096)
+
+    # Reconstruct final image
+    reconstruct_image(parameters)
 
     return
 
