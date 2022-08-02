@@ -152,8 +152,6 @@ def write_highres_quadrants(parameters):
 
             angle = int(q_line.split(":")[-1].replace("\n", ""))
 
-            ######### ADD SUPPORT FOR HORIZONTAL/VERTICAL FLIPPING #########
-
             # ===========================================================================
             # MASK PREPROCESSING
             # ===========================================================================
@@ -197,6 +195,9 @@ def write_highres_quadrants(parameters):
             # Get nonzero indices
             r, c = np.nonzero(original_mask)
 
+            ######### ADD SUPPORT FOR HORIZONTAL/VERTICAL FLIPPING #########
+
+
             # ===========================================================================
             # PREPARE FULL RES IMAGE
             # ===========================================================================
@@ -224,6 +225,8 @@ def write_highres_quadrants(parameters):
 
             # Crop image
             fullres_image = fullres_image.crop(cmin, rmin, width, height)
+
+            ######### ADD SUPPORT FOR HORIZONTAL/VERTICAL FLIPPING #########
 
             # Rotate image
             fullres_image = fullres_image.rotate(-angle)
@@ -284,7 +287,9 @@ def write_highres_quadrants(parameters):
                 f"### total running time {np.round((time.time() - start) / 60)} mins\n"
             )
 
-    # Sum all images as a very coarse "blending"
+    # Sum all images as a very coarse "blending". This only serves as a sanity check
+    # to ensure that all transformations were performed correctly and this will
+    # be deleted in the next stable version.
     fullres_ul = pyvips.Image.new_from_file(
         f"../results/{parameters['patient_idx']}/highres/full_res_ul.tif"
     )

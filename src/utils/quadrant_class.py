@@ -89,6 +89,12 @@ class Quadrant:
             if os.path.isfile(impath):
                 self.original_image = cv2.imread(impath)
                 self.original_image = np.rot90(self.original_image, k=self.initial_angle_k)
+
+                if self.hflip:
+                    self.original_image = np.fliplr(self.original_image)
+                if self.vflip:
+                    self.original_image = np.flipud(self.original_image)
+
                 self.original_image = cv2.cvtColor(
                     self.original_image, cv2.COLOR_BGR2RGB
                 )
