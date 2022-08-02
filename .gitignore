@@ -8,14 +8,21 @@ __pycache__/
 
 # Local stuff
 info.txt
-radboud_data/
-sample_data_autostitcher/
 results/
 Dockerfile
 *.docx
 *.xlsx
 */.idea/*
 algorithm_analysis/
+sample_data/*/raw_images/
+sample_data/*/raw_masks/
+sample_data/P000004
+sample_data/P000005
+sample_data/P000006
+sample_data/P000007
+sample_data/P000008
+sample_data/P000009
+sample_data/P000010
 
 # Distribution / packaging
 
