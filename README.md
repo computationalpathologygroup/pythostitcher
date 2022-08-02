@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="640" height="480" src="./results/general/tform_progression.gif">
+  <img width="640" height="480" src="./tform_progression.gif">
 </p>
 
 <h1 align="center">Pythostitcher</h2>
