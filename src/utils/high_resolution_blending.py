@@ -133,7 +133,7 @@ def blend_image_tilewise(parameters, size):
                 patch_np = np.ndarray(
                     buffer=patch.write_to_memory(),
                     dtype=np.uint8,
-                    shape=[new_tilesize[1], new_tilesize[0], patch.shape[2]],
+                    shape=[new_tilesize[1], new_tilesize[0], patch.bands],
                 )
                 patch_dict[n] = patch_np
 

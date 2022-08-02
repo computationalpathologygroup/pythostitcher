@@ -49,7 +49,7 @@ def run_pythostitcher():
 
     """
 
-    #"""
+    # """
     # Argument parser
     parser = argparse.ArgumentParser(
         description="Stitch prostate histopathology images into a pseudo whole-mount image"
@@ -61,7 +61,7 @@ def run_pythostitcher():
     
     # Set variables
     patient_idx = args.patient                      # patient number between 1 and 999999
-    #"""
+    # """
 
     """
     patient_idx = 2
@@ -186,7 +186,7 @@ def run_pythostitcher():
         optimize_stitch(parameters=parameters)
 
     # Save individual high resolution quadrants
-    write_highres_quadrants(parameters=parameters)
+    #write_highres_quadrants(parameters=parameters)
 
     # Perform blending
     blend_image_tilewise(parameters=parameters, size=2096)
