@@ -2,6 +2,21 @@ import os
 import numpy as np
 import pyvips
 import glob
+import time
+
+
+def eval_handler(full_image, progress):
+    """
+    Function to track progress of a pyvips operation. Name of variable to be tracked
+    must be included as the first argument.
+    """
+
+    print(
+        f"  > elapsed time: {int(progress.run/60)} min, progress: {progress.percent}%"
+    )
+    time.sleep(60)
+
+    return
 
 
 def reconstruct_image(parameters):

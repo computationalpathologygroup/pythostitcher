@@ -6,21 +6,7 @@ import os
 import time
 import glob
 
-from utils.fuse_images import fuse_images
-
-
-def eval_handler(full_image, progress):
-    """
-    Function to track progress of a pyvips operation. Name of variable to be tracked
-    must be included as the first argument.
-    """
-
-    print(
-        f"  > elapsed time: {int(progress.run/60)} min, progress: {progress.percent}%"
-    )
-    time.sleep(60)
-
-    return
+from utils.fuse_images_highres import fuse_images_highres
 
 
 def create_smooth_mask(image):
@@ -95,11 +81,12 @@ def blend_image_tilewise(parameters, size):
     num_ytiles = int(np.ceil(height / tilesize[1]))
 
     # Loop over cols
-    for x in range(num_xtiles):
+    # for x in range(num_xtiles):
+    for x in np.arange(22, 24):
         print(f"Processing column {str(x).zfill(len(str(num_xtiles)))}/{num_xtiles}")
 
         # Loop over rows
-        for y in range(num_ytiles):
+        for y in range(54, 56):
 
             # To extract tiles via pyvips we need the starting X and Y and the tilesize.
             # This tilesize will differ based on whether we can retrieve a full square
@@ -147,7 +134,7 @@ def blend_image_tilewise(parameters, size):
 
             # If so, use alpha blending
             if is_overlap:
-                blend, grad, overlap_quadrants, angle, valid = fuse_images(
+                blend, grad, overlap_quadrants, angle, valid = fuse_images_highres(
                     images, masks
                 )
 
@@ -208,11 +195,14 @@ def blend_image_tilewise(parameters, size):
 
     # Save small dict with some values for reconstruction
     print("> finished creating tiles!")
-    info = dict()
-    info["cols"] = num_xtiles
-    info["rows"] = num_ytiles
-    info["tilesize"] = tilesize
-    info["targetsize"] = [width, height]
-    np.save(f"{tile_dir}/info.npy", info)
+
+    with open(f"{tile_dir}/info.txt", "w") as f:
+        f.write(f"cols:{num_xtiles}\n")
+        f.write(f"rows:{num_ytiles}\n")
+        f.write(f"tilesize_width:{tilesize[0]}\n")
+        f.write(f"tilesize_height:{tilesize[1]}\n")
+        f.write(f"targetsize_width:{width}\n")
+        f.write(f"targetsize_height:{height}\n")
+    f.close()
 
     return

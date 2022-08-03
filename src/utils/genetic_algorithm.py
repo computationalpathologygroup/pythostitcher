@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 from shapely.geometry import Polygon
 
 from .plot_tools import plot_sampled_patches
-from .fuse_images import fuse_images
+from .fuse_images_lowres import fuse_images_lowres
 from .transformations import warp_2d_points, warp_image
 from .get_resname import get_resname
 from .adjust_final_rotation import adjust_final_rotation
@@ -976,7 +976,7 @@ def plot_best_sol_per_gen(ga):
             global_quadrant_d.colour_image,
         ]
 
-        total_im = fuse_images(images=images)
+        total_im = fuse_images_lowres(images=images)
         total_im = adjust_final_rotation(image=total_im)
 
         # Plotting parameters

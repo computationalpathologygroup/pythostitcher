@@ -7,6 +7,7 @@ from .map_tform_low_res import map_tform_low_res
 from .plot_tools import *
 from .adjust_final_rotation import adjust_final_rotation
 from .transformations import warp_image
+from .fuse_images_lowres import fuse_images_lowres
 
 
 def optimize_stitch(parameters):
@@ -206,7 +207,7 @@ def optimize_stitch(parameters):
             all_images.append(q.final_image)
 
         # Get final fused image, correct for the rotation and display it
-        final_image = fuse_images(images=all_images)
+        final_image = fuse_images_lowres(images=all_images)
         final_image = adjust_final_rotation(image=final_image)
         plot_ga_result(final_image=final_image, parameters=parameters)
 

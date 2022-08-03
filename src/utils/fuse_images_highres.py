@@ -106,7 +106,7 @@ def get_gradients(bbox, q1_mask, overlap, direction, pad):
     return masked_gradient, masked_gradient_rev
 
 
-def fuse_images(images, masks):
+def fuse_images_highres(images, masks):
     """
     Custom function to merge overlapping quadrants into a visually appealing combined
     image using alpha blending. This is accomplished by the following steps:

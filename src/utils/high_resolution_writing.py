@@ -36,7 +36,7 @@ def eval_handler_combo(fullres_combo, progress):
 
 def write_highres_quadrants(parameters):
     """
-    Custom function to write a full resolution output image of the transformed
+    Function to write a full resolution output image of the transformed
     quadrant. This output image will only contain one specific quadrant. This quadrant
     can then serve as input for the final blending algorithm. The outline of this
     function is as follows:
@@ -68,10 +68,6 @@ def write_highres_quadrants(parameters):
             start = time.time()
             print(f"\nProcessing quadrant {q.upper()}")
 
-            # ===========================================================================
-            # GENERAL
-            # ===========================================================================
-
             # Get original mask and image
             mask = opener.open(
                 f"../sample_data/{parameters['patient_idx']}/raw_masks/{q}.tif"
@@ -80,14 +76,14 @@ def write_highres_quadrants(parameters):
                 f"../sample_data/{parameters['patient_idx']}/raw_images/{q}.mrxs"
             )
 
+            # ===========================================================================
+            # SCALE CONVERSIONS AND QUADRANT INFO
+            # ===========================================================================
+
             # Get dimensions of mask and image
             mask_dims = mask.getLevelDimensions(0)
             image_dims = image.getLevelDimensions(0)
             scaling_mask2fullres = int(image_dims[0] / mask_dims[0])
-
-            # ===========================================================================
-            # SCALE CONVERSION
-            # ===========================================================================
 
             # Get shape of preprocessed mask from pythostitcher
             resname = get_resname(parameters["resolutions"][-1])
@@ -102,23 +98,12 @@ def write_highres_quadrants(parameters):
             # make the image suitable for pythostitcher and 2) the fraction of the
             # resolution in 1) that was used as the highest resolution in pythostitcher.
             ps_level = parameters["image_level"]
-            scaling_ps2fullres = (
+            scaling_ps2fullres = int(
                 image.getLevelDownsample(ps_level) * 1 / (parameters["resolutions"][-1])
             )
             target_dims = [
                 int(i * scaling_ps2fullres) for i in ps_highest_res_mask.shape
             ]
-
-            # Get pyvips image from mask array
-            height, width = ps_highest_res_mask.shape
-            bands = 1
-            dformat = "uchar"
-            fullres_mask = pyvips.Image.new_from_memory(
-                ps_highest_res_mask.ravel(), width, height, bands, dformat
-            )
-
-            # Resize mask to full size
-            fullres_mask = fullres_mask.resize(scaling_ps2fullres, kernel="nearest")
 
             # Get the highest resolution tform from pythostitcher
             ps_tform = np.load(
@@ -138,7 +123,12 @@ def write_highres_quadrants(parameters):
 
             # Get manually obtained rotation
             with open(f"../sample_data/{parameters['patient_idx']}/rotations.txt") as f:
-                lines = f.readlines()
+                lines = []
+                for line in f:
+                    line = line.split()
+                    lines.extend(line)
+            f.close()
+
             q_idx_line = np.argmax([q.upper() in i for i in lines])
             q_line = lines[q_idx_line]
             hflip, vflip = False, False
@@ -150,7 +140,8 @@ def write_highres_quadrants(parameters):
                 vflip = True
                 q_line = q_line.replace("vf", "")
 
-            angle = int(q_line.split(":")[-1].replace("\n", ""))
+            angle = int(q_line.split(":")[-1])
+            angle_k = int(angle/90)
 
             # ===========================================================================
             # MASK PREPROCESSING
@@ -161,7 +152,7 @@ def write_highres_quadrants(parameters):
                 startX=0, startY=0, width=mask_dims[0], height=mask_dims[1], level=0
             )
 
-            # Convert mask to opencv standards
+            # Convert mask for opencv processing
             original_mask = original_mask / np.max(original_mask)
             original_mask = (original_mask * 255).astype("uint8")
 
@@ -189,14 +180,33 @@ def write_highres_quadrants(parameters):
             _, _, original_mask, _ = cv2.floodFill(
                 original_mask, floodfill_mask, seedpoint, 255
             )
-            original_mask = original_mask[1:-1, 1:-1]
-            original_mask = 1 - original_mask
+            original_mask = 1 - original_mask[1:-1, 1:-1]
 
-            # Get nonzero indices
+            # Get nonzero indices and crop
             r, c = np.nonzero(original_mask)
+            original_mask = original_mask[np.min(r):np.max(r), np.min(c):np.max(c)]
 
-            ######### ADD SUPPORT FOR HORIZONTAL/VERTICAL FLIPPING #########
+            # Rotate and flip if necessary
+            original_mask = np.rot90(original_mask, k=angle_k)
+            if hflip:
+                original_mask = np.fliplr(original_mask)
+            if vflip:
+                original_mask = np.flipud(original_mask)
 
+            # Convert to pyvips array
+            height, width = original_mask.shape
+            bands = 1
+            dformat = "uchar"
+            fullres_mask = pyvips.Image.new_from_memory(
+                original_mask.ravel(), width, height, bands, dformat
+            )
+
+            fullres_mask = fullres_mask.resize(scaling_mask2fullres)
+
+            # Pad image with zeros
+            fullres_mask = fullres_mask.gravity(
+                "centre", target_dims[1], target_dims[0]
+            )
 
             # ===========================================================================
             # PREPARE FULL RES IMAGE
@@ -226,10 +236,14 @@ def write_highres_quadrants(parameters):
             # Crop image
             fullres_image = fullres_image.crop(cmin, rmin, width, height)
 
-            ######### ADD SUPPORT FOR HORIZONTAL/VERTICAL FLIPPING #########
-
             # Rotate image
             fullres_image = fullres_image.rotate(-angle)
+
+            # Flip if necessary
+            if hflip:
+                fullres_image = fullres_image.fliphor()
+            if vflip:
+                fullres_image = fullres_image.flipver()
 
             # Pad image with zeros
             fullres_image = fullres_image.gravity(
@@ -244,7 +258,6 @@ def write_highres_quadrants(parameters):
             # ===========================================================================
 
             # Apply mask to image
-            fullres_mask = (fullres_mask / 255).cast("uchar")
             final_image = fullres_image.multiply(fullres_mask)
 
             # Get transformation matrix
@@ -326,7 +339,7 @@ def write_highres_quadrants(parameters):
         compression="jpeg",
         bigtiff=True,
         pyramid=True,
-        Q=50,
+        Q=25,
     )
 
     print(f"> total running time {np.round((time.time()-start)/60)} mins")

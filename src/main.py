@@ -1,6 +1,7 @@
 import glob
 import os
 import argparse
+import logging
 
 from utils.preprocess import preprocess
 from utils.optimize_stitch import optimize_stitch
@@ -37,6 +38,7 @@ def run_pythostitcher():
                 ur.tif
                 ll.tif
                 lr.tif
+            rotations.txt
     ___________________________
 
     Input arguments
@@ -64,7 +66,7 @@ def run_pythostitcher():
     # """
 
     """
-    patient_idx = 2
+    patient_idx = 1
     """
     patient_idx = "P" + str(patient_idx).zfill(6)   # convert int to string for later saving
 
@@ -186,13 +188,13 @@ def run_pythostitcher():
         optimize_stitch(parameters=parameters)
 
     # Save individual high resolution quadrants
-    #write_highres_quadrants(parameters=parameters)
+    write_highres_quadrants(parameters=parameters)
 
     # Perform blending
     blend_image_tilewise(parameters=parameters, size=2096)
 
     # Reconstruct final image
-    reconstruct_image(parameters)
+    reconstruct_image(parameters=parameters)
 
     return
 

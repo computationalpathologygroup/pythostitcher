@@ -5,7 +5,7 @@ import numpy as np
 import imageio
 import matplotlib.pyplot as plt
 
-from .fuse_images import fuse_images
+from .fuse_images_lowres import fuse_images_lowres
 from .get_resname import get_resname
 
 
@@ -104,7 +104,7 @@ def plot_transformation_result(
         quadrant_c.colour_image,
         quadrant_d.colour_image,
     ]
-    result = fuse_images(images=images)
+    result = fuse_images_lowres(images=images)
 
     current_res = parameters["resolutions"][parameters["iteration"]]
 
@@ -142,7 +142,7 @@ def plot_theilsen_result(quadrant_a, quadrant_b, quadrant_c, quadrant_d, paramet
         quadrant_c.colour_image,
         quadrant_d.colour_image,
     ]
-    combi_image = fuse_images(images=images)
+    combi_image = fuse_images_lowres(images=images)
 
     # Set some plotting parameters
     ratio = parameters["resolution_scaling"][parameters["iteration"]]
