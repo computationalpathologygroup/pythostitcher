@@ -7,8 +7,10 @@ def fuse_images_lowres(images):
     """
     Custom function to merge overlapping quadrants into a visually appealing combined
     image using alpha blending. This is accomplished by the following steps:
-	@@ -21,247 +124,258 @@ def fuse_images(images):
-        - Merged output image
+	    1. Find areas of overlap
+	    2. Compute bounding box around overlap to estimate its direction
+	    3. Apply gradient field to region of overlap
+	    4. Use alpha blending to blend the region of overlap
     """
 
     im_a, im_b, im_c, im_d = images

@@ -59,26 +59,31 @@ def run_pythostitcher():
     parser.add_argument(
         "--patient", type=int, required=True, help="Index of the patient to analyse"
     )
+    parser.add_argument(
+        "--tissue", required=True, help="Anatomical region of tissue"
+    )
+
     args = parser.parse_args()
     
     # Set variables
-    patient_idx = args.patient                      # patient number between 1 and 999999
+    patient_idx = args.patient
+    tissue = args.tissue
     # """
 
     """
     patient_idx = 3
     """
-    patient_idx = "P" + str(patient_idx).zfill(6)   # convert int to string for later saving
+    patient_idx = "P" + str(patient_idx).zfill(6)
 
     # Set data directories
-    if any([patient_idx in i for i in glob.glob("../sample_data/*")]):
-        data_dir = f"../sample_data/{patient_idx}/images"  # data directory with images
-        results_dir = "../results"                         # directory to save results
+    if any([patient_idx in i for i in glob.glob(f"../sample_data/{tissue}/*")]):
+        data_dir = f"../sample_data/{tissue}/{patient_idx}"
+        results_dir = f"../results/{tissue}/{patient_idx}"
     else:
-        raise ValueError("Patient idx does not exist in location (../sample_data/)")
+        raise ValueError(f"Patient idx does not exist in location (../sample_data/{tissue})")
 
     # Get all quadrant filenames
-    all_files = [os.path.basename(i) for i in glob.glob(f"{data_dir}/*")]
+    all_files = [os.path.basename(i) for i in glob.glob(f"{data_dir}/images/*")]
     filename_ul, filename_ur, filename_ll, filename_lr = None, None, None, None
 
     for file in all_files:
@@ -110,7 +115,8 @@ def run_pythostitcher():
     parameters["data_dir"] = data_dir
     parameters["results_dir"] = results_dir
     parameters["patient_idx"] = patient_idx
-    parameters["slice_idx"] = "preprocessed_input"
+    parameters["slice_idx"] = "input"
+    parameters["tissue"] = tissue
 
     # General input parameters. The resolutions can be changed depending on the size of the
     # input images. The two most important aspects are that a) the resolutions should be in
@@ -157,10 +163,14 @@ def run_pythostitcher():
 
     # Make directories for later saving
     dirnames = [
-        "../results",
-        f"../results/{parameters['patient_idx']}",
-        f"../results/{parameters['patient_idx']}/highres",
-        f"../results/{parameters['patient_idx']}/{parameters['slice_idx']}",
+        f"../results/{tissue}",
+        f"{parameters['results_dir']}",
+        f"{parameters['results_dir']}/highres",
+        f"{parameters['results_dir']}/tform",
+        f"{parameters['results_dir']}/images",
+        f"{parameters['results_dir']}/images/ga_progression",
+        f"{parameters['results_dir']}/images/ga_result_per_iteration",
+        f"{parameters['results_dir']}/images/{parameters['slice_idx']}",
     ]
 
     for name in dirnames:
@@ -168,7 +178,7 @@ def run_pythostitcher():
             os.mkdir(name)
 
     # Remove previous logfile if applicable
-    logfile = f'../results/{patient_idx}/pythostitcher_log.log'
+    logfile = f"{results_dir}/pythostitcher_log.log"
     if os.path.isfile(logfile):
         os.remove(logfile)
 
@@ -215,20 +225,19 @@ def run_pythostitcher():
         log.critical(f"Optimizing stitch at resolution {parameters['resolutions'][i]}")
         optimize_stitch(parameters=parameters, log=log)
 
-
     # Save individual high resolution quadrants
     print("Writing full resolution quadrants")
-    write_highres_quadrants(parameters=parameters, log=log, sanity_check=False)
+    # write_highres_quadrants(parameters=parameters, log=log, sanity_check=False)
 
     # Perform blending
     print("Performing quadrant blending")
-    blend_image_tilewise(parameters=parameters, size=2096, log=log)
+    # blend_image_tilewise(parameters=parameters, size=2096, log=log)
 
     # Reconstruct final image
     print("Reconstructing blended image")
-    reconstruct_image(parameters=parameters, log=log)
+    # reconstruct_image(parameters=parameters, log=log)
 
-    log.critical(f"Succesfully stitched prostate {parameters['patient_idx']}")
+    log.critical(f"Succesfully stitched {parameters['tissue']} {parameters['patient_idx']}")
 
     return
 

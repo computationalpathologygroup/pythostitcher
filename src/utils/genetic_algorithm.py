@@ -1052,7 +1052,7 @@ def plot_best_sol_per_gen(ga):
             color="b",
         )
         plt.savefig(
-            f"../results/{global_quadrant_a.patient_idx}/"
+            f"{global_parameters['results_dir']}/images/"
             f"ga_result_per_iteration/{res}_iter{gen}.png"
         )
         plt.close()

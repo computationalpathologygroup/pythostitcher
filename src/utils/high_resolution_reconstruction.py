@@ -33,15 +33,15 @@ def reconstruct_image(parameters, log):
         - Reconstructed blended image at full resolution
     """
 
-    basedir = f"../results/{parameters['patient_idx']}/highres"
-    tile_dir = f"../results/{parameters['patient_idx']}/highres/tiles"
-    tif_dir = f"../results/{parameters['patient_idx']}/highres/temp_tifs"
+    basedir = f"{parameters['results_dir']}/highres"
+    tile_dir = f"{parameters['results_dir']}/highres/tiles"
+    tif_dir = f"{parameters['results_dir']}/highres/temp_tifs"
 
     if not os.path.isdir(tif_dir):
         os.mkdir(tif_dir)
 
     # Get required reconstruction info
-    with open(f"../results/{parameters['patient_idx']}/highres/tiles/info.txt") as f:
+    with open(f"{parameters['results_dir']}/highres/tiles/info.txt") as f:
         lines = []
         for line in f:
             line = line.split()
@@ -100,7 +100,7 @@ def reconstruct_image(parameters, log):
     full_image.set_progress(True)
     full_image.signal_connect("eval", eval_handler)
     full_image.tiffsave(
-        f"../results/{parameters['patient_idx']}/highres/full_res_blended_image.tif",
+        f"{parameters['results_dir']}/highres/full_res_blended_image.tif",
         tile=True,
         compression="jpeg",
         bigtiff=True,

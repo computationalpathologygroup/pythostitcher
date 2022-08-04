@@ -63,7 +63,7 @@ def write_highres_quadrants(parameters, log, sanity_check):
     for q in quadrants:
 
         # Check if file already exists
-        savefile = f"../results/{parameters['patient_idx']}/highres/full_res_{q}.tif"
+        savefile = f"{parameters['results_dir']}/highres/full_res_{q}.tif"
 
         if not os.path.isfile(savefile):
 
@@ -72,10 +72,10 @@ def write_highres_quadrants(parameters, log, sanity_check):
 
             # Get original mask and image
             mask = opener.open(
-                f"../sample_data/{parameters['patient_idx']}/raw_masks/{q}.tif"
+                f"{parameters['data_dir']}/raw_masks/{q}.tif"
             )
             image = opener.open(
-                f"../sample_data/{parameters['patient_idx']}/raw_images/{q}.mrxs"
+                f"{parameters['data_dir']}/raw_images/{q}.mrxs"
             )
 
             # ===========================================================================
@@ -90,7 +90,7 @@ def write_highres_quadrants(parameters, log, sanity_check):
             # Get shape of preprocessed mask from pythostitcher
             resname = get_resname(parameters["resolutions"][-1])
             ps_highest_res_mask = cv2.imread(
-                f"../results/{parameters['patient_idx']}/{parameters['slice_idx']}/"
+                f"{parameters['results_dir']}/{parameters['slice_idx']}/"
                 + f"{resname}/quadrant_{q.upper()}_mask.png"
             )
             ps_highest_res_mask = cv2.cvtColor(ps_highest_res_mask, cv2.COLOR_BGR2GRAY)
@@ -109,7 +109,7 @@ def write_highres_quadrants(parameters, log, sanity_check):
 
             # Get the highest resolution tform from pythostitcher
             ps_tform = np.load(
-                f"../results/{parameters['patient_idx']}/tform/res0500_tform_final.npy",
+                f"{parameters['results_dir']}/tform/res0500_tform_final.npy",
                 allow_pickle=True,
             ).item()
 
@@ -124,7 +124,7 @@ def write_highres_quadrants(parameters, log, sanity_check):
             ]
 
             # Get manually obtained rotation
-            with open(f"../sample_data/{parameters['patient_idx']}/rotations.txt") as f:
+            with open(f"{parameters['data_dir']}/rotations.txt") as f:
                 lines = []
                 for line in f:
                     line = line.split()
@@ -215,7 +215,7 @@ def write_highres_quadrants(parameters, log, sanity_check):
             # ===========================================================================
 
             fullres_image = pyvips.Image.new_from_file(
-                f"../sample_data/{parameters['patient_idx']}/raw_images/{q}.mrxs"
+                f"{parameters['data_dir']}/raw_images/{q}.mrxs"
             )
 
             # Dispose of alpha channel if applicable
@@ -307,16 +307,16 @@ def write_highres_quadrants(parameters, log, sanity_check):
         # to ensure that all transformations were performed correctly and this will
         # be deleted in the next stable version.
         fullres_ul = pyvips.Image.new_from_file(
-            f"../results/{parameters['patient_idx']}/highres/full_res_ul.tif"
+            f"{parameters['results_dir']}/highres/full_res_ul.tif"
         )
         fullres_ur = pyvips.Image.new_from_file(
-            f"../results/{parameters['patient_idx']}/highres/full_res_ur.tif"
+            f"{parameters['results_dir']}/highres/full_res_ur.tif"
         )
         fullres_lr = pyvips.Image.new_from_file(
-            f"../results/{parameters['patient_idx']}/highres/full_res_lr.tif"
+            f"{parameters['results_dir']}/highres/full_res_lr.tif"
         )
         fullres_ll = pyvips.Image.new_from_file(
-            f"../results/{parameters['patient_idx']}/highres/full_res_ll.tif"
+            f"{parameters['results_dir']}/highres/full_res_ll.tif"
         )
 
         log.critical("Computing recombined image")
@@ -337,7 +337,7 @@ def write_highres_quadrants(parameters, log, sanity_check):
         fullres_combo.set_progress(True)
         fullres_combo.signal_connect("eval", eval_handler_combo)
         fullres_combo.tiffsave(
-            f"../results/{parameters['patient_idx']}/highres/full_res_added.tif",
+            f"{parameters['results_dir']}/highres/full_res_added.tif",
             tile=True,
             compression="jpeg",
             bigtiff=True,

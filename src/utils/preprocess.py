@@ -15,14 +15,13 @@ def preprocess(quadrant_a, quadrant_b, quadrant_c, quadrant_d, parameters, log):
     - Quadrant class with all loaded images
     """
 
-    res_dir = f"../results/{quadrant_d.patient_idx}/{quadrant_d.slice_idx}/{quadrant_d.res_name}"
+    res_dir = f"{parameters['results_dir']}/images/{quadrant_d.slice_idx}/{quadrant_d.res_name}"
     if not os.path.isdir(res_dir):
         os.mkdir(res_dir)
 
     # Verify whether preprocessed quadrants are available
     filepath = (
-        f"../results/"
-        f"{quadrant_d.patient_idx}/"
+        f"{parameters['results_dir']}/"
         f"{quadrant_d.slice_idx}/"
         f"{quadrant_d.res_name}/"
         f"quadrant_{quadrant_d.quadrant_name}"

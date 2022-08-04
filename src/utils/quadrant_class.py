@@ -27,9 +27,10 @@ class Quadrant:
         self.resolutions = kwargs["resolutions"]
         self.nbins = kwargs["nbins"]
         self.hist_sizes = kwargs["hist_sizes"]
-        self.datadir = kwargs["data_dir"]
-        self.maskdir = self.datadir.replace("images", "masks")
-        self.impath = os.path.join(self.datadir, self.file_name)
+        self.results_dir = kwargs["results_dir"]
+        self.data_dir = kwargs["data_dir"]
+        self.im_path = f"{self.data_dir}/images/{self.file_name}.tif"
+        self.mask_path = f"{self.data_dir}/masks/{self.file_name}.tif"
         self.res = self.resolutions[self.iteration]
         self.res_name = get_resname(self.res)
         self.pad_fraction = kwargs["pad_fraction"]
@@ -43,11 +44,11 @@ class Quadrant:
         horizontal or vertical flipping is required.
         """
 
-        if not os.path.isfile(f"../sample_data/{self.patient_idx}/rotations.txt"):
+        if not os.path.isfile(f"{self.data_dir}/rotations.txt"):
             raise ValueError("Couldn't find file with quadrant transformations")
 
         # Get line with quadrant info
-        with open(f"../sample_data/{self.patient_idx}/rotations.txt") as f:
+        with open(f"{self.data_dir}/rotations.txt") as f:
             lines = []
             for line in f:
                 line = line.split()
@@ -82,32 +83,24 @@ class Quadrant:
         .tif files, but can probably be any format as long as it is supported by opencv.
         """
 
-        # Image extension can be either .tif or .tiff depending on how it was preprocessed
-        extensions = [".tif", ".tiff"]
+        if os.path.isfile(self.im_path):
+            self.original_image = cv2.imread(self.im_path)
 
-        # Try different extensions
-        for ext in extensions:
+            # Apply manual rotation/flipping
+            if self.initial_angle_k != 0:
+                self.original_image = np.rot90(self.original_image, k=self.initial_angle_k)
+            if self.hflip:
+                self.original_image = np.fliplr(self.original_image)
+            if self.vflip:
+                self.original_image = np.flipud(self.original_image)
 
-            impath = self.impath + ext
+            self.original_image = cv2.cvtColor(
+                self.original_image, cv2.COLOR_BGR2RGB
+            )
 
-            if os.path.isfile(impath):
-                self.original_image = cv2.imread(impath)
+            return
 
-                if self.initial_angle_k != 0:
-                    self.original_image = np.rot90(self.original_image, k=self.initial_angle_k)
-
-                if self.hflip:
-                    self.original_image = np.fliplr(self.original_image)
-                if self.vflip:
-                    self.original_image = np.flipud(self.original_image)
-
-                self.original_image = cv2.cvtColor(
-                    self.original_image, cv2.COLOR_BGR2RGB
-                )
-
-                return
-
-        raise ValueError(f"No images found for {self.impath}")
+        raise ValueError(f"No images found for {self.im_path}")
 
     def preprocess_gray_image(self):
         """
@@ -142,36 +135,27 @@ class Quadrant:
         A later version of Pythostitcher could perhaps integrate this segmentation model.
         """
 
-        # Mask extension can be .tif or .tiff depending on how it was preprocessed
-        extensions = [".tif", ".tiff"]
-        base_path = self.impath.replace("images", "masks")
+        if os.path.isfile(self.mask_path):
+            # Read mask
+            self.mask = cv2.imread(self.mask_path)
 
-        # Try different extensions
-        for ext in extensions:
+            if self.initial_angle_k != 0:
+                self.mask = np.rot90(self.mask, k=self.initial_angle_k)
+            if self.hflip:
+                self.mask = np.fliplr(self.mask)
+            if self.vflip:
+                self.mask = np.flipud(self.mask)
 
-            mask_path = base_path + ext
+            self.mask = cv2.cvtColor(self.mask, cv2.COLOR_BGR2GRAY)
 
-            if os.path.isfile(mask_path):
-                # Read mask
-                self.mask = cv2.imread(mask_path)
+            # Resize mask to match images
+            self.mask = cv2.resize(self.mask, self.target_size)
+            self.mask = (self.mask > 0.5) * 1
 
-                if self.initial_angle_k != 0:
-                    self.mask = np.rot90(self.mask, k=self.initial_angle_k)
-                if self.hflip:
-                    self.mask = np.fliplr(self.mask)
-                if self.vflip:
-                    self.mask = np.flipud(self.mask)
-
-                self.mask = cv2.cvtColor(self.mask, cv2.COLOR_BGR2GRAY)
-
-                # Resize mask to match images
-                self.mask = cv2.resize(self.mask, self.target_size)
-                self.mask = (self.mask > 0.5) * 1
-
-                return
+            return
 
         # Raise error if mask is not found
-        raise ValueError(f"No mask found for {base_path}")
+        raise ValueError(f"No mask found for {self.mask_path}")
 
     def apply_masks(self):
         """
@@ -220,9 +204,7 @@ class Quadrant:
             )
         else:
             prev_res_image_path = (
-                f"../results/"
-                f"{self.patient_idx}/"
-                f"{self.slice_idx}/"
+                f"{self.results_dir}/images/{self.slice_idx}/"
                 f"{get_resname(self.resolutions[self.iteration-1])}/"
                 f"quadrant_{self.quadrant_name}_gray.png"
             )
@@ -253,7 +235,7 @@ class Quadrant:
         """
 
         self.quadrant_savepath = (
-            f"../results/{self.patient_idx}/{self.slice_idx}/"
+            f"{self.results_dir}/images/{self.slice_idx}/"
             f"{self.res_name}/quadrant_{self.quadrant_name}"
         )
 
@@ -290,7 +272,7 @@ class Quadrant:
         # Read all relevant images. Take into account that opencv reads images in BGR
         # rather than RGB.
         basepath_load = (
-            f"../results/{self.patient_idx}/{self.slice_idx}/{self.res_name}"
+            f"{self.results_dir}/images/{self.slice_idx}/{self.res_name}"
         )
         self.mask = cv2.imread(
             f"{basepath_load}/quadrant_{self.quadrant_name}_mask.png"

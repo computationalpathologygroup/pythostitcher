@@ -9,7 +9,7 @@ from .fuse_images_lowres import fuse_images_lowres
 from .get_resname import get_resname
 
 
-def plot_rotation_result(quadrant_a, quadrant_b, quadrant_c, quadrant_d):
+def plot_rotation_result(quadrant_a, quadrant_b, quadrant_c, quadrant_d, parameters):
     """
     Custom function to plot the result of the automatic rotation of all quadrants.
 
@@ -76,7 +76,7 @@ def plot_rotation_result(quadrant_a, quadrant_b, quadrant_c, quadrant_d):
         plt.axis("off")
         plt.title(q.quadrant_name, fontsize=16)
         plt.imshow(p_rmask, cmap="gray")
-    plt.savefig(f"../results/{quadrant_a.patient_idx}/images/rotation_result.png")
+    plt.savefig(f"{parameters['results_dir']}/images/rotation_result.png")
     plt.close()
 
     return
@@ -114,7 +114,7 @@ def plot_transformation_result(
     plt.imshow(result, cmap="gray")
     if parameters["iteration"] == 0:
         plt.savefig(
-            f"../results/{parameters['patient_idx']}/"
+            f"{parameters['results_dir']}/images/"
             f"ga_progression/initial_alignment.png"
         )
     plt.close()
@@ -507,7 +507,7 @@ def plot_ga_result(final_image, parameters):
     )
     plt.imshow(final_image)
     plt.savefig(
-        f"../results/{parameters['patient_idx']}/ga_progression/"
+        f"{parameters['results_dir']}/images/ga_progression/"
         f"ga_result_{current_res_name}.png"
     )
     plt.close()
@@ -531,10 +531,10 @@ def make_tform_gif(parameters):
 
     # Make gif of the transformation
     imsavedir = (
-        f"{parameters['results_dir']}/{parameters['patient_idx']}/ga_progression/"
+        f"{parameters['results_dir']}/images/ga_progression/"
     )
     gifsavedir = (
-        f"{parameters['results_dir']}/{parameters['patient_idx']}/tform_progression.gif"
+        f"{parameters['results_dir']}/images/tform_progression.gif"
     )
 
     all_images = glob.glob(imsavedir + "/*")
@@ -635,7 +635,7 @@ def plot_ga_multires(parameters):
         plt.xlabel("Resolution")
         plt.xticks(xticks_loc, xticks_label)
         plt.ylabel("Fitness")
-        plt.savefig(f"../results/{parameters['patient_idx']}/images/GA_fitness_result")
+        plt.savefig(f"{parameters['results_dir']}/images/GA_fitness_result.png")
         plt.close()
     else:
         warnings.warn(

@@ -27,17 +27,13 @@ def map_tform_low_res(parameters):
     prev_resname = get_resname(parameters["resolutions"][parameters["iteration"] - 1])
     prev_filepath_final_tform = (
         f"{parameters['results_dir']}/"
-        f"{parameters['patient_idx']}/"
-        f"tform/"
-        f"{prev_resname}_tform_final.npy"
+        f"tform/{prev_resname}_tform_final.npy"
     )
 
     current_resname = get_resname(parameters["resolutions"][parameters["iteration"]])
     current_filepath_initial_tform = (
         f"{parameters['results_dir']}/"
-        f"{parameters['patient_idx']}/"
-        f"tform/"
-        f"{current_resname}_tform_initial.npy"
+        f"tform/{current_resname}_tform_initial.npy"
     )
     # Load genetic algorithm tform
     if os.path.isfile(prev_filepath_final_tform):

@@ -37,12 +37,6 @@ def adjust_final_rotation(image):
     else:
         angle = -angle
 
-    """
-    angle = angle - 45
-    if angle > 45:
-        angle = 90 - angle
-    """
-
     # Get center of contour
     moment = cv2.moments(cnt)
     center_x = int(moment["m10"] / moment["m00"])

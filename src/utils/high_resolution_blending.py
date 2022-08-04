@@ -53,22 +53,22 @@ def blend_image_tilewise(parameters, size, log):
 
     # Get original highres files from individual quadrants
     ul = pyvips.Image.new_from_file(
-        f"../results/{parameters['patient_idx']}/highres/full_res_ul.tif"
+        f"{parameters['results_dir']}/highres/full_res_ul.tif"
     )
     ur = pyvips.Image.new_from_file(
-        f"../results/{parameters['patient_idx']}/highres/full_res_ur.tif"
+        f"{parameters['results_dir']}/highres/full_res_ur.tif"
     )
     ll = pyvips.Image.new_from_file(
-        f"../results/{parameters['patient_idx']}/highres/full_res_ll.tif"
+        f"{parameters['results_dir']}/highres/full_res_ll.tif"
     )
     lr = pyvips.Image.new_from_file(
-        f"../results/{parameters['patient_idx']}/highres/full_res_lr.tif"
+        f"{parameters['results_dir']}/highres/full_res_lr.tif"
     )
 
     quadrants = [ul, ur, ll, lr]
     quadrant_names = ["ul", "ur", "ll", "lr"]
-    tile_dir = f"../results/{parameters['patient_idx']}/highres/tiles"
-    blend_dir = f"../results/{parameters['patient_idx']}/highres/blend_summary"
+    tile_dir = f"{parameters['results_dir']}/highres/tiles"
+    blend_dir = f"{parameters['results_dir']}/highres/blend_summary"
 
     for dir in [tile_dir, blend_dir]:
         if not os.path.isdir(dir):

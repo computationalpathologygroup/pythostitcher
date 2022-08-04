@@ -32,34 +32,16 @@ def optimize_stitch(parameters, log):
 
     # Make some directories for saving results
     current_res_name = get_resname(parameters["resolutions"][parameters["iteration"]])
-    dirpath_tform = f"../results/" f"{parameters['patient_idx']}/" f"tform/"
 
-    dirpath_images = f"../results/" f"{parameters['patient_idx']}/" f"images"
-
-    dirpath_ga_progression = (
-        f"../results/" f"{parameters['patient_idx']}/" f"ga_progression"
-    )
-
-    dirpath_ga_iteration = (
-        f"../results/" f"{parameters['patient_idx']}/" f"ga_result_per_iteration"
-    )
+    dirpath_tform = f"{parameters['results_dir']}/tform"
+    dirpath_images = f"{parameters['results_dir']}/images"
+    dirpath_ga_progression = f"{dirpath_images}/ga_progression"
+    dirpath_ga_iteration = f"{dirpath_images}/ga_result_per_iteration"
 
     dirpath_quadrants = (
-        f"../results/"
-        f"{parameters['patient_idx']}/"
-        f"{parameters['slice_idx']}/"
-        f"{current_res_name}/"
-        f"quadrant"
+        f"{parameters['results_dir']}/images/{parameters['slice_idx']}/"
+        f"{current_res_name}"
     )
-
-    for path in [
-        dirpath_tform,
-        dirpath_images,
-        dirpath_ga_progression,
-        dirpath_ga_iteration,
-    ]:
-        if not os.path.exists(path):
-            os.mkdir(path)
 
     # Check if optimized tform already exists
     parameters["filepath_tform"] = f"{dirpath_tform}/{current_res_name}_tform_final.npy"
@@ -71,13 +53,13 @@ def optimize_stitch(parameters, log):
         start_time = time.time()
 
         # Load previously saved quadrants
-        with open(f"{dirpath_quadrants}_UL", "rb") as loadfile:
+        with open(f"{dirpath_quadrants}/quadrant_UL", "rb") as loadfile:
             quadrant_a = pickle.load(loadfile)
-        with open(f"{dirpath_quadrants}_UR", "rb") as loadfile:
+        with open(f"{dirpath_quadrants}/quadrant_UR", "rb") as loadfile:
             quadrant_b = pickle.load(loadfile)
-        with open(f"{dirpath_quadrants}_LL", "rb") as loadfile:
+        with open(f"{dirpath_quadrants}/quadrant_LL", "rb") as loadfile:
             quadrant_c = pickle.load(loadfile)
-        with open(f"{dirpath_quadrants}_LR", "rb") as loadfile:
+        with open(f"{dirpath_quadrants}/quadrant_LR", "rb") as loadfile:
             quadrant_d = pickle.load(loadfile)
 
         # Save quadrants in list for easier handling of class methods
@@ -109,6 +91,7 @@ def optimize_stitch(parameters, log):
                 quadrant_b=quadrant_b,
                 quadrant_c=quadrant_c,
                 quadrant_d=quadrant_d,
+                parameters=parameters
             )
 
             # Compute local transformation to align horizontal pieces. Input for this
