@@ -66,7 +66,7 @@ def run_pythostitcher():
     # """
 
     """
-    patient_idx = 1
+    patient_idx = 3
     """
     patient_idx = "P" + str(patient_idx).zfill(6)   # convert int to string for later saving
 
@@ -155,8 +155,35 @@ def run_pythostitcher():
     parameters["angle_range"] = [10, 10, 5, 5]
     parameters["GA_fitness"] = []
 
+    # Make directories for later saving
+    dirnames = [
+        "../results",
+        f"../results/{parameters['patient_idx']}",
+        f"../results/{parameters['patient_idx']}/highres",
+        f"../results/{parameters['patient_idx']}/{parameters['slice_idx']}",
+    ]
+
+    for name in dirnames:
+        if not os.path.isdir(name):
+            os.mkdir(name)
+
+    # Remove previous logfile if applicable
+    logfile = f'../results/{patient_idx}/pythostitcher_log.log'
+    if os.path.isfile(logfile):
+        os.remove(logfile)
+
+    # Initiate logging file
+    logging.basicConfig(
+        filename=logfile,
+        level=logging.CRITICAL,
+        format='%(asctime)s    %(message)s',
+        datefmt="%Y-%m-%d %H:%M:%S"
+    )
+    log = logging.getLogger("pythostitcher")
+    log.critical("Preprocessing data on multiple resolutions...")
+
     # Start with preprocessing data
-    print("\nPreprocessing data on multiple resolutions...")
+    print("\nComputing Pythostitcher transformation")
     for i in range(len(parameters["resolutions"])):
 
         # Set current iteration
@@ -175,26 +202,33 @@ def run_pythostitcher():
             quadrant_c=quadrant_c,
             quadrant_d=quadrant_d,
             parameters=parameters,
+            log=log,
         )
 
-    print("> Finished!")
+    log.critical(" > Finished!\n")
 
     # Optimize stitch for multiple resolutions
     for i in range(len(parameters["resolutions"])):
 
         # Set current iteration
         parameters["iteration"] = i
-        print(f"\nOptimizing stitch at resolution {parameters['resolutions'][i]}")
-        optimize_stitch(parameters=parameters)
+        log.critical(f"Optimizing stitch at resolution {parameters['resolutions'][i]}")
+        optimize_stitch(parameters=parameters, log=log)
+
 
     # Save individual high resolution quadrants
-    write_highres_quadrants(parameters=parameters)
+    print("Writing full resolution quadrants")
+    write_highres_quadrants(parameters=parameters, log=log, sanity_check=False)
 
     # Perform blending
-    blend_image_tilewise(parameters=parameters, size=2096)
+    print("Performing quadrant blending")
+    blend_image_tilewise(parameters=parameters, size=2096, log=log)
 
     # Reconstruct final image
-    reconstruct_image(parameters=parameters)
+    print("Reconstructing blended image")
+    reconstruct_image(parameters=parameters, log=log)
+
+    log.critical(f"Succesfully stitched prostate {parameters['patient_idx']}")
 
     return
 

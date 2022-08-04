@@ -1,5 +1,6 @@
 import time
 import pickle
+import logging
 
 from .get_resname import get_resname
 from .genetic_algorithm import genetic_algorithm
@@ -10,7 +11,7 @@ from .transformations import warp_image
 from .fuse_images_lowres import fuse_images_lowres
 
 
-def optimize_stitch(parameters):
+def optimize_stitch(parameters, log):
     """
     Function to optimize the stitching between quadrants. This will consist of the
     following steps:
@@ -83,7 +84,7 @@ def optimize_stitch(parameters):
         quadrants = [quadrant_a, quadrant_b, quadrant_c, quadrant_d]
 
         # Load images
-        print("- loading images...")
+        log.critical(" - loading images...")
         for q in quadrants:
             q.load_images()
 
@@ -161,12 +162,12 @@ def optimize_stitch(parameters):
         )
 
         # Get edges from quadrants
-        print(f"- extracting edges from images...")
+        log.critical(f" - extracting edges from images...")
         for q in quadrants:
             q.get_edges()
 
         # Compute Theil Sen lines through edges
-        print("- computing Theil-Sen estimation of edge...")
+        log.critical(" - computing Theil-Sen estimation of edge...")
         for q in quadrants:
             q.fit_theilsen_lines()
 
@@ -180,7 +181,7 @@ def optimize_stitch(parameters):
         )
 
         # Optimization with genetic algorithm
-        print("- computing reconstruction with genetic algorithm...")
+        log.critical(" - computing reconstruction with genetic algorithm...")
         parameters["output_shape"] = quadrant_a.tform_image.shape
 
         ga_dict = genetic_algorithm(
@@ -215,13 +216,13 @@ def optimize_stitch(parameters):
         end_time = time.time()
         current_res = parameters["resolutions"][parameters["iteration"]]
         sec = np.round(end_time - start_time, 1)
-        print(
-            f"> time to optimize patient {parameters['patient_idx']} at "
-            f"resolution {current_res}: {sec} seconds"
+        log.critical(
+            f" > time to optimize patient {parameters['patient_idx']} at "
+            f"resolution {current_res}: {sec} seconds\n"
         )
 
     else:
-        print("- already optimized this resolution!")
+        log.critical(" - already optimized this resolution!")
 
     # At final resolution provide some extra visualizations
     if parameters["iteration"] == 3:

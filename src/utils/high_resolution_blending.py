@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import os
 import time
 import glob
+import logging
 
 from utils.fuse_images_highres import fuse_images_highres
 
@@ -34,7 +35,7 @@ def create_smooth_mask(image):
     return mask
 
 
-def blend_image_tilewise(parameters, size):
+def blend_image_tilewise(parameters, size, log):
     """
     Function to perform image blending per tile. These tiles are all saved in /tiles
     and can later be used by tile_based_reconstruction.py to reconstruct the final
@@ -46,6 +47,9 @@ def blend_image_tilewise(parameters, size):
     Output:
         - Directory full of tiles with the blended quadrants.
     """
+
+    start = time.time()
+    log.critical("Blending quadrants")
 
     # Get original highres files from individual quadrants
     ul = pyvips.Image.new_from_file(
@@ -66,10 +70,9 @@ def blend_image_tilewise(parameters, size):
     tile_dir = f"../results/{parameters['patient_idx']}/highres/tiles"
     blend_dir = f"../results/{parameters['patient_idx']}/highres/blend_summary"
 
-    if not os.path.isdir(tile_dir):
-        os.mkdir(tile_dir)
-    if not os.path.isdir(blend_dir):
-        os.mkdir(blend_dir)
+    for dir in [tile_dir, blend_dir]:
+        if not os.path.isdir(dir):
+            os.mkdir(dir)
 
     # Get dimensions of image
     width = ul.width
@@ -81,12 +84,14 @@ def blend_image_tilewise(parameters, size):
     num_ytiles = int(np.ceil(height / tilesize[1]))
 
     # Loop over cols
-    # for x in range(num_xtiles):
-    for x in np.arange(22, 24):
-        print(f"Processing column {str(x).zfill(len(str(num_xtiles)))}/{num_xtiles}")
+    for x in range(num_xtiles):
+
+        progress = int((x + 1) / num_xtiles * 100)
+        if progress % 10 == 0 and progress != 0:
+            log.critical(f" - progress {progress}%")
 
         # Loop over rows
-        for y in range(54, 56):
+        for y in range(num_ytiles):
 
             # To extract tiles via pyvips we need the starting X and Y and the tilesize.
             # This tilesize will differ based on whether we can retrieve a full square
@@ -194,7 +199,9 @@ def blend_image_tilewise(parameters, size):
             )
 
     # Save small dict with some values for reconstruction
-    print("> finished creating tiles!")
+    log.critical(
+        f" > finished creating tiles in {int((time.time() - start)/60)} mins!\n"
+    )
 
     with open(f"{tile_dir}/info.txt", "w") as f:
         f.write(f"cols:{num_xtiles}\n")

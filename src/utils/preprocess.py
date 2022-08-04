@@ -1,7 +1,8 @@
 import os
+import logging
 
 
-def preprocess(quadrant_a, quadrant_b, quadrant_c, quadrant_d, parameters):
+def preprocess(quadrant_a, quadrant_b, quadrant_c, quadrant_d, parameters, log):
     """
     Function to load and preprocess all the quadrant images. The preprocessing mainly
     consists of resizing and saving the image at multiple resolutions.
@@ -14,18 +15,9 @@ def preprocess(quadrant_a, quadrant_b, quadrant_c, quadrant_d, parameters):
     - Quadrant class with all loaded images
     """
 
-    # Make directories for later saving
-    dirnames = [
-        "../results",
-        f"../results/{quadrant_d.patient_idx}",
-        f"../results/{quadrant_d.patient_idx}/{quadrant_d.slice_idx}",
-        f"../results/{quadrant_d.patient_idx}/{quadrant_d.slice_idx}/{quadrant_d.res_name}",
-        f"../results/{quadrant_d.patient_idx}/highres",
-    ]
-
-    for name in dirnames:
-        if not os.path.isdir(name):
-            os.mkdir(name)
+    res_dir = f"../results/{quadrant_d.patient_idx}/{quadrant_d.slice_idx}/{quadrant_d.res_name}"
+    if not os.path.isdir(res_dir):
+        os.mkdir(res_dir)
 
     # Verify whether preprocessed quadrants are available
     filepath = (
@@ -66,8 +58,8 @@ def preprocess(quadrant_a, quadrant_b, quadrant_c, quadrant_d, parameters):
             # Save the quadrant class for later use
             q.save_quadrant()
 
-        print(
-            f"- preprocessing resolution {parameters['resolutions'][parameters['iteration']]}"
+        log.critical(
+            f" - preprocessing resolution {parameters['resolutions'][parameters['iteration']]}"
         )
 
     # Else nothing, images will be loaded in the next step in the optimize stitch function

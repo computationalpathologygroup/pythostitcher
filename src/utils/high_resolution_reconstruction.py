@@ -3,6 +3,7 @@ import numpy as np
 import pyvips
 import glob
 import time
+import logging
 
 
 def eval_handler(full_image, progress):
@@ -11,15 +12,15 @@ def eval_handler(full_image, progress):
     must be included as the first argument.
     """
 
-    print(
-        f"  > elapsed time: {int(progress.run/60)} min, progress: {progress.percent}%"
-    )
-    time.sleep(60)
+    if progress.percent % 10 == 0 and progress.percent != 0:
+        handler_log.critical(f" - progress {int(progress.percent)}%")
+
+    time.sleep(10)
 
     return
 
 
-def reconstruct_image(parameters):
+def reconstruct_image(parameters, log):
     """
     Function to reconstruct the high resolution image by assembling all the previously
     created tiles from the blend_image_tilewise function.
@@ -39,15 +40,28 @@ def reconstruct_image(parameters):
     if not os.path.isdir(tif_dir):
         os.mkdir(tif_dir)
 
-    tile_info = np.load(f"{tile_dir}/info.npy", allow_pickle=True).item()
+    # Get required reconstruction info
+    with open(f"../results/{parameters['patient_idx']}/highres/tiles/info.txt") as f:
+        lines = []
+        for line in f:
+            line = line.split()
+            lines.extend(line)
+        f.close()
 
-    print("\nCreating tile-based reconstruction")
+    tile_info = dict()
+    for line in lines:
+        key, val = line.split(":")
+        tile_info[key] = int(val)
+
+    log.critical("Performing tile-based reconstruction")
+    start = time.time()
 
     # Loop over all rows
     for row in range(tile_info["rows"]):
-        print(
-            f"Processing row {str(row).zfill(len(str(tile_info['rows'])))}/{tile_info['rows']}"
-        )
+
+        progress = int((row + 1) / tile_info["rows"] * 100)
+        if progress % 10 == 0 and progress != 0:
+            log.critical(f" - progress {progress}%")
 
         images = []
 
@@ -69,13 +83,20 @@ def reconstruct_image(parameters):
             Q=90,
         )
 
+    log.critical(
+        f" > finished assembling tiles in {int((time.time() - start)/60)} mins!\n"
+    )
+
     # Get all tifs and assemble final image
-    print(f"\nSaving fullres image")
+    log.critical(f"Saving final image")
     tif_filenames = sorted(glob.glob(f"{tif_dir}/*"))
     tif_files = [pyvips.Image.new_from_file(t) for t in tif_filenames]
     full_image = pyvips.Image.arrayjoin(tif_files, across=1)
 
     # Save final image
+    global handler_log
+    handler_log = copy.copy(log)
+    start = time.time()
     full_image.set_progress(True)
     full_image.signal_connect("eval", eval_handler)
     full_image.tiffsave(
@@ -86,5 +107,6 @@ def reconstruct_image(parameters):
         pyramid=True,
         Q=90,
     )
+    log.critical(f" > finished saving image in {int((time.time() - start)/60)} mins!\n")
 
     return

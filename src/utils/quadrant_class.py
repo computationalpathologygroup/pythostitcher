@@ -48,7 +48,12 @@ class Quadrant:
 
         # Get line with quadrant info
         with open(f"../sample_data/{self.patient_idx}/rotations.txt") as f:
-            lines = f.readlines()
+            lines = []
+            for line in f:
+                line = line.split()
+                lines.extend(line)
+        f.close()
+
         q_idx_line = np.argmax([self.quadrant_name in i for i in lines])
         q_line = lines[q_idx_line]
 
@@ -66,9 +71,8 @@ class Quadrant:
             self.vflip = False
 
         # Get the angle for counterclockwise rotation
-        self.initial_angle = int(q_line.split(":")[-1].replace("\n", ""))
+        self.initial_angle = int(q_line.split(":")[-1])
         self.initial_angle_k = int(self.initial_angle/90)
-        f.close()
 
         return
 
@@ -88,7 +92,9 @@ class Quadrant:
 
             if os.path.isfile(impath):
                 self.original_image = cv2.imread(impath)
-                self.original_image = np.rot90(self.original_image, k=self.initial_angle_k)
+
+                if self.initial_angle_k != 0:
+                    self.original_image = np.rot90(self.original_image, k=self.initial_angle_k)
 
                 if self.hflip:
                     self.original_image = np.fliplr(self.original_image)
@@ -148,7 +154,14 @@ class Quadrant:
             if os.path.isfile(mask_path):
                 # Read mask
                 self.mask = cv2.imread(mask_path)
-                self.mask = np.rot90(self.mask, k=self.initial_angle_k)
+
+                if self.initial_angle_k != 0:
+                    self.mask = np.rot90(self.mask, k=self.initial_angle_k)
+                if self.hflip:
+                    self.mask = np.fliplr(self.mask)
+                if self.vflip:
+                    self.mask = np.flipud(self.mask)
+
                 self.mask = cv2.cvtColor(self.mask, cv2.COLOR_BGR2GRAY)
 
                 # Resize mask to match images

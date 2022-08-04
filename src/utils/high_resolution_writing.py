@@ -4,6 +4,8 @@ import numpy as np
 import cv2
 import time
 import os
+import logging
+import copy
 
 from .get_resname import get_resname
 
@@ -13,10 +15,10 @@ def eval_handler_image(final_masked_image, progress):
     Function to display progress of pyvips operation.
     """
 
-    print(
-        f"  > elapsed time: {int(progress.run/60)} min, progress: {progress.percent}%"
-    )
-    time.sleep(60)
+    if progress.percent % 10 == 0 and progress.percent != 0:
+        handler_log.critical(f" - progress {progress.percent}%")
+
+    time.sleep(10)
 
     return
 
@@ -26,15 +28,15 @@ def eval_handler_combo(fullres_combo, progress):
     Function to display progress of pyvips operation.
     """
 
-    print(
-        f"  > elapsed time: {int(progress.run/60)} min, progress: {progress.percent}%"
-    )
-    time.sleep(60)
+    if progress.percent % 10 == 0 and progress.percent != 0:
+        handler_log.critical(f" - progress {progress.percent}%")
+
+    time.sleep(10)
 
     return
 
 
-def write_highres_quadrants(parameters):
+def write_highres_quadrants(parameters, log, sanity_check):
     """
     Function to write a full resolution output image of the transformed
     quadrant. This output image will only contain one specific quadrant. This quadrant
@@ -66,7 +68,7 @@ def write_highres_quadrants(parameters):
         if not os.path.isfile(savefile):
 
             start = time.time()
-            print(f"\nProcessing quadrant {q.upper()}")
+            log.critical(f"Generating full resolution quadrant {q.upper()}")
 
             # Get original mask and image
             mask = opener.open(
@@ -141,7 +143,7 @@ def write_highres_quadrants(parameters):
                 q_line = q_line.replace("vf", "")
 
             angle = int(q_line.split(":")[-1])
-            angle_k = int(angle/90)
+            angle_k = int(angle / 90)
 
             # ===========================================================================
             # MASK PREPROCESSING
@@ -184,7 +186,7 @@ def write_highres_quadrants(parameters):
 
             # Get nonzero indices and crop
             r, c = np.nonzero(original_mask)
-            original_mask = original_mask[np.min(r):np.max(r), np.min(c):np.max(c)]
+            original_mask = original_mask[np.min(r) : np.max(r), np.min(c) : np.max(c)]
 
             # Rotate and flip if necessary
             original_mask = np.rot90(original_mask, k=angle_k)
@@ -212,7 +214,6 @@ def write_highres_quadrants(parameters):
             # PREPARE FULL RES IMAGE
             # ===========================================================================
 
-            print("- processing fullres image")
             fullres_image = pyvips.Image.new_from_file(
                 f"../sample_data/{parameters['patient_idx']}/raw_images/{q}.mrxs"
             )
@@ -284,7 +285,8 @@ def write_highres_quadrants(parameters):
 
             # Save final masked image.
             # NOTE: JPEG QUALITY IS VERY LOW JUST TO SAVE WRITING TIME
-            print("- saving fullres masked image")
+            global handler_log
+            handler_log = copy.copy(log)
             final_masked_image.set_progress(True)
             final_masked_image.signal_connect("eval", eval_handler_image)
             final_masked_image.tiffsave(
@@ -296,52 +298,53 @@ def write_highres_quadrants(parameters):
                 Q=25,
             )
 
-            print(
-                f"### total running time {np.round((time.time() - start) / 60)} mins\n"
+            log.critical(
+                f" > total processing time {int((time.time() - start) / 60)} mins\n"
             )
 
-    # Sum all images as a very coarse "blending". This only serves as a sanity check
-    # to ensure that all transformations were performed correctly and this will
-    # be deleted in the next stable version.
-    fullres_ul = pyvips.Image.new_from_file(
-        f"../results/{parameters['patient_idx']}/highres/full_res_ul.tif"
-    )
-    fullres_ur = pyvips.Image.new_from_file(
-        f"../results/{parameters['patient_idx']}/highres/full_res_ur.tif"
-    )
-    fullres_lr = pyvips.Image.new_from_file(
-        f"../results/{parameters['patient_idx']}/highres/full_res_lr.tif"
-    )
-    fullres_ll = pyvips.Image.new_from_file(
-        f"../results/{parameters['patient_idx']}/highres/full_res_ll.tif"
-    )
+    if sanity_check:
+        # Sum all images as a very coarse "blending". This only serves as a sanity check
+        # to ensure that all transformations were performed correctly and this will
+        # be deleted in the next stable version.
+        fullres_ul = pyvips.Image.new_from_file(
+            f"../results/{parameters['patient_idx']}/highres/full_res_ul.tif"
+        )
+        fullres_ur = pyvips.Image.new_from_file(
+            f"../results/{parameters['patient_idx']}/highres/full_res_ur.tif"
+        )
+        fullres_lr = pyvips.Image.new_from_file(
+            f"../results/{parameters['patient_idx']}/highres/full_res_lr.tif"
+        )
+        fullres_ll = pyvips.Image.new_from_file(
+            f"../results/{parameters['patient_idx']}/highres/full_res_ll.tif"
+        )
 
-    print("\nComputing recombined image")
-    start = time.time()
+        log.critical("Computing recombined image")
+        start = time.time()
 
-    fullres_upper = fullres_ul.add(fullres_ur)
-    fullres_lower = fullres_ll.add(fullres_lr)
-    fullres_combo = fullres_upper.add(fullres_lower)
+        fullres_upper = fullres_ul.add(fullres_ur)
+        fullres_lower = fullres_ll.add(fullres_lr)
+        fullres_combo = fullres_upper.add(fullres_lower)
 
-    # Dispose of alpha channel
-    if fullres_combo.hasalpha():
-        fullres_combo = fullres_combo.flatten()
+        # Dispose of alpha channel
+        if fullres_combo.hasalpha():
+            fullres_combo = fullres_combo.flatten()
 
-    if not fullres_combo.format == "uchar":
-        fullres_combo = fullres_combo.cast("uchar", shift=False)
+        if not fullres_combo.format == "uchar":
+            fullres_combo = fullres_combo.cast("uchar", shift=False)
 
-    # NOTE: JPEG QUALITY IS VERY LOW JUST TO SAVE WRITING TIME
-    fullres_combo.set_progress(True)
-    fullres_combo.signal_connect("eval", eval_handler_combo)
-    fullres_combo.tiffsave(
-        f"../results/{parameters['patient_idx']}/highres/full_res_added.tif",
-        tile=True,
-        compression="jpeg",
-        bigtiff=True,
-        pyramid=True,
-        Q=25,
-    )
+        # NOTE: JPEG QUALITY IS VERY LOW JUST TO SAVE WRITING TIME
+        fullres_combo.set_progress(True)
+        fullres_combo.signal_connect("eval", eval_handler_combo)
+        fullres_combo.tiffsave(
+            f"../results/{parameters['patient_idx']}/highres/full_res_added.tif",
+            tile=True,
+            compression="jpeg",
+            bigtiff=True,
+            pyramid=True,
+            Q=25,
+        )
 
-    print(f"> total running time {np.round((time.time()-start)/60)} mins")
+        log.critical(f" > finished saving image in {int((time.time()-start)/60)} mins")
 
     return
