@@ -1,4 +1,0 @@
-UL:90fh
-UR:90fh
-LL:270fh
-LR:90fh
