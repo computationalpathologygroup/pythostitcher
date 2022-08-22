@@ -10,22 +10,14 @@ __pycache__/
 info.txt
 results/
 Dockerfile
+src/preprocessing/prepare_data_oesophagus.py
 *.docx
 *.xlsx
 */.idea/*
 algorithm_analysis/
-sample_data/*/raw_images/
-sample_data/*/raw_masks/
-sample_data/P000004
-sample_data/P000005
-sample_data/P000006
-sample_data/P000007
-sample_data/P000008
-sample_data/P000009
-sample_data/P000010
+.idea
 
 # Distribution / packaging
-
 __pycache__/
 .Python
 build/
