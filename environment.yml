@@ -10,3 +10,4 @@ dependencies:
   - shapely>=1.7
   - pip:
     - pygad>=2.16
+    - pyvips>=2.1.15

@@ -3,3 +3,4 @@ opencv-python>=4.5
 scikit-learn>=1.0
 shapely>=1.8
 pygad>=2.16
+pyvips>=2.1.15
