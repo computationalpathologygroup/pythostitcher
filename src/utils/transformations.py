@@ -67,6 +67,7 @@ def warp_image(src, center, rotation, translation, output_shape=None):
             output_shape = tuple(output_shape[::-1])
         elif len(output_shape) == 3:
             output_shape = tuple(output_shape[:2][::-1])
+
     # Else keep same output size as input image
     else:
         if len(src.shape) == 2:
@@ -92,6 +93,6 @@ def warp_image(src, center, rotation, translation, output_shape=None):
     rot_mat[1, 2] += translation[1]
 
     # Warp image
-    tform_src = cv2.warpAffine(src, rot_mat, output_shape)
+    tform_src = cv2.warpAffine(src=src, M=rot_mat, dsize=output_shape)
 
     return tform_src

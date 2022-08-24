@@ -14,15 +14,13 @@ from .get_resname import get_resname
 from .adjust_final_rotation import adjust_final_rotation
 
 
-def genetic_algorithm(
-    quadrant_a, quadrant_b, quadrant_c, quadrant_d, parameters, initial_tform
-):
+def genetic_algorithm(fragments, parameters, initial_tform):
     """
     Function that runs a genetic algorithm using the pygad module. This function will use
-    a global assembly method where the stitching for all quadrants is optimised at once.
+    a global assembly method where the stitching for all fragments is optimised at once.
 
     Input:
-    - all quadrants
+    - all fragments
     - dict with parameters
     - initial transformation matrix
 
@@ -32,13 +30,9 @@ def genetic_algorithm(
 
     # Make some variables global for access by fitness function. The fitness function in
     # pygad must be built to not accept any other input parameters than the solution and
-    # solution index, but we need the quadrants to compute fitness.
-    global global_quadrant_a, global_quadrant_b, global_quadrant_c, global_quadrant_d
-    global global_parameters, num_gen, global_init_tform
-    global_quadrant_a = copy.deepcopy(quadrant_a)
-    global_quadrant_b = copy.deepcopy(quadrant_b)
-    global_quadrant_c = copy.deepcopy(quadrant_c)
-    global_quadrant_d = copy.deepcopy(quadrant_d)
+    # solution index, but we need the fragments to compute fitness.
+    global global_fragments, global_parameters, num_gen, global_init_tform
+    global_fragments = [copy.deepcopy(i) for i in fragments]
     global_parameters = copy.deepcopy(parameters)
     global_init_tform = copy.deepcopy(initial_tform)
 
@@ -49,18 +43,11 @@ def genetic_algorithm(
         distance_scaling["distance_scaling_hor_required"] = True
         distance_scaling["distance_scaling_ver_required"] = True
 
-    # Initialize parameters
-    tform_combi = [
-        *initial_tform[quadrant_a.quadrant_name][:-2],
-        *initial_tform[quadrant_b.quadrant_name][:-2],
-        *initial_tform[quadrant_c.quadrant_name][:-2],
-        *initial_tform[quadrant_d.quadrant_name][:-2],
-    ]
-    num_genes = len(tform_combi)
+    num_genes = 3 * parameters["n_fragments"]
     ga_tform = np.zeros(num_genes)
     init_fitness = fitness_func(solution=ga_tform, solution_idx=0)
     num_sol = parameters["n_solutions"]
-    num_gen = parameters["n_generations"]
+    num_gen = parameters["n_generations"][parameters["iteration"]]
     keep_parents = parameters["n_parents"]
     parents_mating = parameters["n_mating"]
     parents = parameters["parent_selection"]
@@ -68,15 +55,15 @@ def genetic_algorithm(
     crossover_type = parameters["crossover_type"]
     p_mutation = parameters["p_mutation"]
     mutation_type = parameters["mutation_type"]
-    num_quadrants = int(num_genes / 3)
+    num_fragments = parameters["n_fragments"]
 
     # Cap solution ranges to plausible values. The param_range variable denotes the range
-    # for the mutation values  that can be added/substracted from the genes in each parent.
+    # for the mutation values that can be added/substracted from the genes in each parent.
     t_range = parameters["translation_range"][parameters["iteration"]] * int(
-        np.mean(quadrant_a.tform_image.shape)
+        np.mean(fragments[0].tform_image.shape)
     )
     a_range = parameters["angle_range"][parameters["iteration"]]
-    angles = [False, False, True] * num_quadrants
+    angles = [False, False, True] * num_fragments
     lb = [
         int(x - a_range) if is_angle else int(x - t_range)
         for x, is_angle in zip(ga_tform, angles)
@@ -139,49 +126,24 @@ def genetic_algorithm(
     # ga_instance.plot_fitness()
     solution, solution_fitness, _ = ga_instance.best_solution()
 
-    # Get genetic algorithm solution per quadrant
-    sol_a = [np.round(s, 1) for s in solution[:3]]
-    sol_b = [np.round(s, 1) for s in solution[3:6]]
-    sol_c = [np.round(s, 1) for s in solution[6:9]]
-    sol_d = [np.round(s, 1) for s in solution[9:]]
+    # Get individual fragment solutions
+    sol_tforms = []
+    for c, f in enumerate(global_fragments):
+        sol = [
+            *solution[c*3:c*3+3],
+            f.image_center_peri,
+            global_init_tform[f.fragment_name][4]
+        ]
+        sol_tforms.append(sol)
 
     # Combine genetic algorithm solution with initial transformation
-    combo_tform_a = [
-        *[
-            a + b
-            for a, b in zip(
-                global_init_tform[global_quadrant_a.quadrant_name][:3], sol_a
-            )
-        ],
-        *global_init_tform[global_quadrant_a.quadrant_name][3:],
-    ]
-    combo_tform_b = [
-        *[
-            a + b
-            for a, b in zip(
-                global_init_tform[global_quadrant_b.quadrant_name][:3], sol_b
-            )
-        ],
-        *global_init_tform[global_quadrant_b.quadrant_name][3:],
-    ]
-    combo_tform_c = [
-        *[
-            a + b
-            for a, b in zip(
-                global_init_tform[global_quadrant_c.quadrant_name][:3], sol_c
-            )
-        ],
-        *global_init_tform[global_quadrant_c.quadrant_name][3:],
-    ]
-    combo_tform_d = [
-        *[
-            a + b
-            for a, b in zip(
-                global_init_tform[global_quadrant_d.quadrant_name][:3], sol_d
-            )
-        ],
-        *global_init_tform[global_quadrant_d.quadrant_name][3:],
-    ]
+    combo_tforms = []
+    for f, s in zip(global_fragments, sol_tforms):
+        sol = [
+            *[a+b for a, b in zip(global_init_tform[f.fragment_name][:3], s)],
+            *global_init_tform[f.fragment_name][3:]
+        ]
+        combo_tforms.append(sol)
 
     # Save some results for later plotting
     if parameters["iteration"] == 0:
@@ -191,9 +153,8 @@ def genetic_algorithm(
     # Save final transformation for each quadrant
     ga_dict = dict()
     ga_dict["fitness"] = solution_fitness
-    tforms = [combo_tform_a, combo_tform_b, combo_tform_c, combo_tform_d]
-    for t, key in zip(tforms, parameters["filenames"].keys()):
-        ga_dict[key] = t
+    for key, tform in zip(parameters["fragment_names"], combo_tforms):
+        ga_dict[key] = tform
 
     return ga_dict
 
@@ -219,102 +180,43 @@ def fitness_func(solution, solution_idx):
           function and thus this function must return the fitness instead of the cost)
     """
 
-    global global_quadrant_a, global_quadrant_b, global_quadrant_c, global_quadrant_d
-    global global_parameters, distance_scaling
+    global global_fragments, global_parameters, distance_scaling
 
     # General cost function global_parameters
     global_parameters["center_of_mass"] = np.mean(
         global_parameters["image_centers"], axis=0
     )
 
-    # Get solution per quadrant
-    sol_a = [
-        *solution[:3],
-        global_quadrant_a.image_center_peri,
-        global_init_tform[global_quadrant_a.quadrant_name][4],
-    ]
-    sol_b = [
-        *solution[3:6],
-        global_quadrant_b.image_center_peri,
-        global_init_tform[global_quadrant_b.quadrant_name][4],
-    ]
-    sol_c = [
-        *solution[6:9],
-        global_quadrant_c.image_center_peri,
-        global_init_tform[global_quadrant_c.quadrant_name][4],
-    ]
-    sol_d = [
-        *solution[9:],
-        global_quadrant_d.image_center_peri,
-        global_init_tform[global_quadrant_d.quadrant_name][4],
-    ]
+    # Get individual fragment solutions
+    sol_tforms = []
+    for c, f in enumerate(global_fragments):
+        sol = [
+            *solution[c*3:c*3+3],
+            f.image_center_peri,
+            global_init_tform[f.fragment_name][4]
+        ]
+        sol_tforms.append(sol)
 
     # Combine genetic algorithm solution with initial transformation
-    combo_tform_a = [
-        *[
-            a + b
-            for a, b in zip(
-                global_init_tform[global_quadrant_a.quadrant_name][:3], sol_a
-            )
-        ],
-        *global_init_tform[global_quadrant_a.quadrant_name][3:],
-    ]
-    combo_tform_b = [
-        *[
-            a + b
-            for a, b in zip(
-                global_init_tform[global_quadrant_b.quadrant_name][:3], sol_b
-            )
-        ],
-        *global_init_tform[global_quadrant_b.quadrant_name][3:],
-    ]
-    combo_tform_c = [
-        *[
-            a + b
-            for a, b in zip(
-                global_init_tform[global_quadrant_c.quadrant_name][:3], sol_c
-            )
-        ],
-        *global_init_tform[global_quadrant_c.quadrant_name][3:],
-    ]
-    combo_tform_d = [
-        *[
-            a + b
-            for a, b in zip(
-                global_init_tform[global_quadrant_d.quadrant_name][:3], sol_d
-            )
-        ],
-        *global_init_tform[global_quadrant_d.quadrant_name][3:],
-    ]
+    combo_tforms = []
+    for f, s in zip(global_fragments, sol_tforms):
+        com = [
+            *[a+b for a, b in zip(global_init_tform[f.fragment_name][:3], s)],
+            *global_init_tform[f.fragment_name][3:]
+        ]
+        combo_tforms.append(com)
 
-    # Apply tform to several attributes of the quadrant
-    global_quadrant_a = apply_new_transform(
-        quadrant=global_quadrant_a,
-        sol_tform=sol_a,
-        combo_tform=combo_tform_a,
-        tform_image=False,
-    )
-    global_quadrant_b = apply_new_transform(
-        quadrant=global_quadrant_b,
-        sol_tform=sol_b,
-        combo_tform=combo_tform_b,
-        tform_image=False,
-    )
-    global_quadrant_c = apply_new_transform(
-        quadrant=global_quadrant_c,
-        sol_tform=sol_c,
-        combo_tform=combo_tform_c,
-        tform_image=False,
-    )
-    global_quadrant_d = apply_new_transform(
-        quadrant=global_quadrant_d,
-        sol_tform=sol_d,
-        combo_tform=combo_tform_d,
-        tform_image=False,
-    )
+    # Apply combo transform to several attributes
+    # tform_fragments = []
+    for c, vars in enumerate(zip(global_fragments, sol_tforms, combo_tforms)):
+        f, sol, combo = vars
+        frag = apply_new_transform(fragment=f, sol_tform=sol, combo_tform=combo, tform_image=False)
+        global_fragments[c] = frag
+
+    # global_fragments = copy.deepcopy(tform_fragments)
 
     """
-    # Cost function that penalizes dissimilar histograms along the edge of neighbouring quadrants
+    # Cost function that penalizes dissimilar histograms along the edge of neighbouring fragments
     histogram_cost = hist_cost_function(
         quadrant_a=global_quadrant_a,
         quadrant_b=global_quadrant_b,
@@ -324,7 +226,7 @@ def fitness_func(solution, solution_idx):
         plot=False
     )
     
-    # Cost function that penalizes a high degree of overlap between quadrants
+    # Cost function that penalizes a high degree of overlap between fragments
     overlap_cost = overlap_cost_function(
         quadrant_a=global_quadrant_a,
         quadrant_b=global_quadrant_b,
@@ -332,67 +234,64 @@ def fitness_func(solution, solution_idx):
         quadrant_d=global_quadrant_d,
     )
     """
-    # Cost function that penalizes a large distance between endpoints of quadrants
-    distance_cost = distance_cost_function(
-        quadrant_a=global_quadrant_a,
-        quadrant_b=global_quadrant_b,
-        quadrant_c=global_quadrant_c,
-        quadrant_d=global_quadrant_d,
-    )
 
+    # Cost function that penalizes a large distance between endpoints of fragments
+    distance_cost = distance_cost_function(fragments=global_fragments)
     total_cost = distance_cost
 
     return 1 / total_cost
 
 
-def apply_new_transform(quadrant, sol_tform, combo_tform, tform_image=False):
+def apply_new_transform(fragment, sol_tform, combo_tform, tform_image):
     """
     Custom function to apply the newly acquired genetic algorithm solution to several
-    attributes of the quadrant. These attributes will subsequently be used for computing
+    attributes of the fragment. These attributes will subsequently be used for computing
     the cost.
 
     Input:
-    - Quadrants
+    - Fragment
     - Transformation matrix
 
     Output:
-    - Transformed quadrants and lines
+    - Transformed fragment and lines
     """
 
     # Ensure correct formats
-    center_sol = tuple(np.squeeze(sol_tform[3]))
-    center_combo = tuple(np.squeeze(combo_tform[3]))
+    center_sol = sol_tform[3]
+    center_combo = combo_tform[3]
 
     # Apply tform to theilsen endpoints
-    quadrant.h_edge_theilsen_endpoints_tform = warp_2d_points(
-        src=quadrant.h_edge_theilsen_endpoints,
-        center=center_sol,
-        rotation=sol_tform[2],
-        translation=sol_tform[:2],
-    )
+    if hasattr(fragment, "h_edge"):
+        fragment.h_edge_theilsen_endpoints_tform = warp_2d_points(
+            src=fragment.h_edge_theilsen_endpoints,
+            center=center_sol,
+            rotation=sol_tform[2],
+            translation=sol_tform[:2],
+        )
 
-    quadrant.v_edge_theilsen_endpoints_tform = warp_2d_points(
-        src=quadrant.v_edge_theilsen_endpoints,
-        center=center_sol,
-        rotation=sol_tform[2],
-        translation=sol_tform[:2],
-    )
+    if hasattr(fragment, "v_edge"):
+        fragment.v_edge_theilsen_endpoints_tform = warp_2d_points(
+            src=fragment.v_edge_theilsen_endpoints,
+            center=center_sol,
+            rotation=sol_tform[2],
+            translation=sol_tform[:2],
+        )
 
     # Apply tform to mask coordinates. Append first element to coordinate list to ensure
     # closed polygon.
-    quadrant.mask_contour_tform = warp_2d_points(
-        src=quadrant.mask_contour,
+    fragment.mask_contour_tform = warp_2d_points(
+        src=fragment.mask_contour,
         center=center_combo,
         rotation=combo_tform[2],
         translation=combo_tform[:2],
     )
-    quadrant.mask_contour_tform = list(quadrant.mask_contour_tform) + list(
-        [quadrant.mask_contour_tform[0]]
+    fragment.mask_contour_tform = list(fragment.mask_contour_tform) + list(
+        [fragment.mask_contour_tform[0]]
     )
 
     # Apply tform to image center
-    quadrant.image_center_post = warp_2d_points(
-        src=quadrant.image_center_pre,
+    fragment.image_center_post = warp_2d_points(
+        src=fragment.image_center_pre,
         center=center_combo,
         rotation=combo_tform[2],
         translation=combo_tform[:2],
@@ -400,15 +299,15 @@ def apply_new_transform(quadrant, sol_tform, combo_tform, tform_image=False):
 
     # Apply tform to image when required
     if tform_image:
-        quadrant.colour_image = warp_image(
-            src=quadrant.colour_image_original,
+        fragment.colour_image = warp_image(
+            src=fragment.colour_image_original,
             center=center_combo,
             rotation=combo_tform[2],
             translation=combo_tform[:2],
             output_shape=combo_tform[4],
         )
 
-    return quadrant
+    return fragment
 
 
 def hist_cost_function(
@@ -418,11 +317,11 @@ def hist_cost_function(
     Custom function which penalizes dissimilarity between histograms of patches
     alongside a stitching edge. This function loops over all edges and will extract
     a patch from the upper and lower side from horizontal lines and from the left and
-    right side from vertical lines. When quadrants are aligned well, it is expected
+    right side from vertical lines. When fragments are aligned well, it is expected
     that the histograms of these patches should be approximately similar.
 
     Input:
-    - All quadrants
+    - All fragments
     - Dict with parameters
     - Boolean value whether to plot the result
 
@@ -448,7 +347,7 @@ def hist_cost_function(
 
     total_im = fuse_images(images=images)
 
-    # Loop over all quadrants to compute the cost for the horizontal and vertical edge
+    # Loop over all fragments to compute the cost for the horizontal and vertical edge
     for quadrant in quadrants:
 
         # Set the points along horizontal edge to sample
@@ -590,36 +489,35 @@ def hist_cost_function(
     return np.mean(histogram_costs)
 
 
-def overlap_cost_function(quadrant_a, quadrant_b, quadrant_c, quadrant_d):
+def overlap_cost_function(fragments):
     """
-    Custom function to compute the overlap between the quadrants. This is implemented
+    Custom function to compute the overlap between the fragments. This is implemented
     using polygons rather than the transformed images as this is an order of magnitude
     faster.
 
     Note that the current implementation provides an approximation of the overlap rather
-    than the exact amount as overlap is only calculated for quadrant pairs and not quadrant
-    triplets (i.e. if there is overlap between quadrant ACD this can be counted multiple
+    than the exact amount as overlap is only calculated for fragment pairs and not fragment
+    triplets (i.e. if there is overlap between fragment ACD this can be counted multiple
     times due to inclusion in the AC, AD and CD pairs).
 
     Input:
-        - All four quadrants
+        - All fragments
 
     Output:
         - Cost
     """
 
     # Set some initial parameters
-    keys = ["A", "B", "C", "D"]
+    keys = [f.fragment_name for f in fragments]
     combinations = itertools.combinations(keys, 2)
-    quadrants = [quadrant_a, quadrant_b, quadrant_c, quadrant_d]
     poly_dict = dict()
     total_area = 0
     total_overlap = 0
     weighting_factor = 10
 
     # Create a polygon from the transformed mask contour and compute its area
-    for quadrant, key in zip(quadrants, keys):
-        poly_dict[key] = Polygon(quadrant.mask_contour_tform)
+    for f, key in zip(fragments, keys):
+        poly_dict[key] = Polygon(f.mask_contour_tform)
         total_area += poly_dict[key].area
 
     # Return a cost of 0 when one of the polygons is invalid and thus overlap cost
@@ -627,7 +525,7 @@ def overlap_cost_function(quadrant_a, quadrant_b, quadrant_c, quadrant_d):
     if not all([p.is_valid for p in poly_dict.values()]):
         return 0
 
-    # Compute overlap between all possible quadrant pairs
+    # Compute overlap between all possible fragment pairs
     for combo in combinations:
         overlap_polygon = poly_dict[combo[0]].intersection(poly_dict[combo[1]])
         total_overlap += overlap_polygon.area
@@ -642,7 +540,7 @@ def overlap_cost_function(quadrant_a, quadrant_b, quadrant_c, quadrant_d):
     return cost
 
 
-def distance_cost_function(quadrant_a, quadrant_b, quadrant_c, quadrant_d):
+def distance_cost_function(fragments):
     """
     Custom function to compute the distance cost between the endpoints. This distance is
     computed as the Euclidean distance, but we want to scale this to a normalized range in
@@ -650,203 +548,248 @@ def distance_cost_function(quadrant_a, quadrant_b, quadrant_c, quadrant_d):
     distance by dividing the distance by the starting value without any transformations.
 
     Input:
-    - All quadrants
+    - All fragments
     - (GLOBAL) Dict with parameters
 
     Output:
     - Cost normalized by initial distance
     """
 
-    # Create variable for scaling the cost function with respect to the resolution
-    global global_parameters
-    global distance_scaling
+    global global_parameters, distance_scaling
 
-    # Define pairs to loop over
-    hline_pairs = [[quadrant_a, quadrant_c], [quadrant_b, quadrant_d]]
-    vline_pairs = [[quadrant_a, quadrant_b], [quadrant_c, quadrant_d]]
+    # Get the pairs of fragments which share either a horizontal or vertical edge
+    names = global_parameters["fragment_names"]
+    if global_parameters["n_fragments"] == 2:
+        if "top" in names:
+            hline_pairs = [copy.deepcopy(fragments)]
+            vline_pairs = None
+        else:
+            hline_pairs = None
+            vline_pairs = [copy.deepcopy(fragments)]
+
+    elif global_parameters["n_fragments"] == 4:
+            hline_pairs = [[fragments[names.index("ul")], fragments[names.index("ll")]],
+                           [fragments[names.index("ur")], fragments[names.index("lr")]]]
+            vline_pairs = [[fragments[names.index("ul")], fragments[names.index("ur")]],
+                           [fragments[names.index("ll")], fragments[names.index("lr")]]]
 
     # Distance scaling parameters
     distance_costs = []
     res_scaling = global_parameters["resolution_scaling"][
         global_parameters["iteration"]
     ]
-    hline_keys_inner = ["AC_inner", "BD_inner"]
-    hline_keys_outer = ["AC_outer", "BD_outer"]
-    vline_keys_inner = ["AB_inner", "CD_inner"]
-    vline_keys_outer = ["AB_outer", "CD_outer"]
-    all_keys = [
-        *hline_keys_inner,
-        *hline_keys_outer,
-        *vline_keys_inner,
-        *vline_keys_outer,
-    ]
+
+    # Keys for saving the scaling factor related to the inner point norm and the outer
+    # point norm from the endpoints of the theilsen lines.
+    if hline_pairs:
+        hline_inner_scaling = [f"hscale_inner_{n+1}" for n in range(len(hline_pairs))]
+        hline_outer_scaling = [f"hscale_outer_{n+1}" for n in range(len(hline_pairs))]
+    else:
+        hline_inner_scaling, hline_outer_scaling = None, None
+
+    if vline_pairs:
+        vline_inner_scaling = [f"vscale_inner_{n+1}" for n in range(len(vline_pairs))]
+        vline_outer_scaling = [f"vscale_outer_{n+1}" for n in range(len(vline_pairs))]
+    else:
+        vline_inner_scaling, vline_outer_scaling = None, None
+
+    # Get all valid keys
+    all_keys = []
+    for key in [hline_inner_scaling, hline_outer_scaling, vline_inner_scaling, vline_outer_scaling]:
+        if key:
+            all_keys += key
 
     # Loop over horizontal lines
-    for quadrants, hline_key_inner, hline_key_outer in zip(
-        hline_pairs, hline_keys_inner, hline_keys_outer
-    ):
-
-        # Extract quadrants
-        quadrant1 = quadrants[0]
-        quadrant2 = quadrants[1]
-
-        # Get the lines from the quadrant
-        hline1_pts = quadrant1.h_edge_theilsen_endpoints_tform
-        hline2_pts = quadrant2.h_edge_theilsen_endpoints_tform
-
-        # Calculate the distance of all points to the center of mass to find out which
-        # points are located at the center side of the line.
-        line1_dist_com = [
-            np.linalg.norm(hline1_pts[0] - global_parameters["center_of_mass"]),
-            np.linalg.norm(hline1_pts[1] - global_parameters["center_of_mass"]),
-        ]
-        line2_dist_com = [
-            np.linalg.norm(hline2_pts[0] - global_parameters["center_of_mass"]),
-            np.linalg.norm(hline2_pts[1] - global_parameters["center_of_mass"]),
-        ]
-
-        # Get indices of inner and outer points of both lines
-        inner_pt_idx_line1 = np.argmin(line1_dist_com)
-        outer_pt_idx_line1 = 1 if inner_pt_idx_line1 == 0 else 0
-
-        inner_pt_idx_line2 = np.argmin(line2_dist_com)
-        outer_pt_idx_line2 = 1 if inner_pt_idx_line2 == 0 else 0
-
-        # Get the inner and outer points.
-        line1_inner_pt = hline1_pts[inner_pt_idx_line1]
-        line1_outer_pt = hline1_pts[outer_pt_idx_line1]
-        line2_inner_pt = hline2_pts[inner_pt_idx_line2]
-        line2_outer_pt = hline2_pts[outer_pt_idx_line2]
-
-        # Obtain a scaling factor to normalize the distance cost across multiple
-        # resolutions. This scaling factor consists of the initial cost at the lowest
-        # resolution which is then extrapolated to what this cost would be on higher
-        # resolutions.
-        if (
-            global_parameters["iteration"] == 0
-            and distance_scaling["distance_scaling_hor_required"]
+    if hline_inner_scaling:
+        for fragments, hkey_inner, hkey_outer in zip(
+            hline_pairs, hline_inner_scaling, hline_outer_scaling
         ):
-            distance_scaling[hline_key_inner] = np.round(
-                np.linalg.norm(line1_inner_pt - line2_inner_pt), 2
+
+            # Extract fragments
+            fragment_1 = fragments[0]
+            fragment_2 = fragments[1]
+
+            # Get the lines from the fragment
+            hline1_pts = fragment_1.h_edge_theilsen_endpoints_tform
+            hline2_pts = fragment_2.h_edge_theilsen_endpoints_tform
+
+            # Calculate the distance of all points to the center of mass to find out which
+            # points are located at the center side of the line.
+            if names[0] in ["top", "bottom"]:
+                line1_inner_pt = vline1_pts[np.argmin(vline1_pts[:, 0])]
+                line1_outer_pt = vline1_pts[np.argmax(vline1_pts[:, 0])]
+                line2_inner_pt = vline1_pts[np.argmin(vline2_pts[:, 0])]
+                line2_outer_pt = vline1_pts[np.argmax(vline2_pts[:, 0])]
+
+            else:
+                line1_dist_com = [
+                    np.linalg.norm(hline1_pts[0] - global_parameters["center_of_mass"]),
+                    np.linalg.norm(hline1_pts[1] - global_parameters["center_of_mass"]),
+                ]
+                line2_dist_com = [
+                    np.linalg.norm(hline2_pts[0] - global_parameters["center_of_mass"]),
+                    np.linalg.norm(hline2_pts[1] - global_parameters["center_of_mass"]),
+                ]
+
+                # Get indices of inner and outer points of both lines
+                inner_pt_idx_line1 = np.argmin(line1_dist_com)
+                outer_pt_idx_line1 = 1 if inner_pt_idx_line1 == 0 else 0
+
+                inner_pt_idx_line2 = np.argmin(line2_dist_com)
+                outer_pt_idx_line2 = 1 if inner_pt_idx_line2 == 0 else 0
+
+                # Get the inner and outer points.
+                line1_inner_pt = hline1_pts[inner_pt_idx_line1]
+                line1_outer_pt = hline1_pts[outer_pt_idx_line1]
+                line2_inner_pt = hline2_pts[inner_pt_idx_line2]
+                line2_outer_pt = hline2_pts[outer_pt_idx_line2]
+
+            # Obtain a scaling factor to normalize the distance cost across multiple
+            # resolutions. This scaling factor consists of the initial cost at the lowest
+            # resolution which is then extrapolated to what this cost would be on higher
+            # resolutions.
+            if (
+                global_parameters["iteration"] == 0
+                and distance_scaling["distance_scaling_hor_required"]
+            ):
+                distance_scaling[hkey_inner] = np.round(
+                    np.linalg.norm(line1_inner_pt - line2_inner_pt), 2
+                )
+                distance_scaling[hkey_outer] = np.round(
+                    np.linalg.norm(line1_outer_pt - line2_outer_pt), 2
+                )
+
+            # Handle cases where the initial genetic algorithm optimalization has already
+            # been performed in a previous run and where the actual scaling factor is
+            # hence not available.
+            elif global_parameters["iteration"] > 0 and "distance_scaling" not in globals():
+                distance_scaling = dict()
+
+                for key in all_keys:  #
+                    distance_scaling[key] = 1
+
+                distance_scaling["distance_scaling_hor_required"] = False
+                distance_scaling["distance_scaling_ver_required"] = False
+                warnings.warn(
+                    "Distance cost scaling is unavailable, try deleting the "
+                    "results directory and rerun pythostitcher"
+                )
+
+            # Get resolution specific scaling factor
+            scaling_inner = distance_scaling[hkey_inner] * res_scaling
+            scaling_outer = distance_scaling[hkey_outer] * res_scaling
+            # scaling_inner = 1
+            # scaling_outer = 1
+
+            # Compute edge_distance_costs as sum of distances
+            inner_point_weight = 1 - global_parameters["outer_point_weight"]
+            inner_point_norm = (
+                np.linalg.norm(line1_inner_pt - line2_inner_pt) / scaling_inner
+            ) ** 2
+            outer_point_norm = (
+                np.linalg.norm(line1_outer_pt - line2_outer_pt) / scaling_outer
+            ) ** 2
+            combined_costs = (
+                inner_point_weight * inner_point_norm
+                + global_parameters["outer_point_weight"] * outer_point_norm
             )
-            distance_scaling[hline_key_outer] = np.round(
-                np.linalg.norm(line1_outer_pt - line2_outer_pt), 2
-            )
-
-        # Handle cases where the initial genetic algorithm optimalization has already
-        # been performed in a previous run and where the actual scaling factor is
-        # hence not available.
-        elif global_parameters["iteration"] > 0 and "distance_scaling" not in globals():
-            distance_scaling = dict()
-
-            for key in all_keys:  #
-                distance_scaling[key] = 1
-
-            distance_scaling["distance_scaling_hor_required"] = False
-            distance_scaling["distance_scaling_ver_required"] = False
-            warnings.warn(
-                "Distance cost scaling is unavailable, try deleting the "
-                "results directory and rerun pythostitcher"
-            )
-
-        # Get resolution specific scaling factor
-        scaling_inner = distance_scaling[hline_key_inner] * res_scaling
-        scaling_outer = distance_scaling[hline_key_outer] * res_scaling
-
-        # Compute edge_distance_costs as sum of distances
-        inner_point_weight = 1 - global_parameters["outer_point_weight"]
-        inner_point_norm = (
-            np.linalg.norm(line1_inner_pt - line2_inner_pt) / scaling_inner
-        ) ** 2
-        outer_point_norm = (
-            np.linalg.norm(line1_outer_pt - line2_outer_pt) / scaling_outer
-        ) ** 2
-        combined_costs = (
-            inner_point_weight * inner_point_norm
-            + global_parameters["outer_point_weight"] * outer_point_norm
-        )
-        distance_costs.append(combined_costs)
+            distance_costs.append(combined_costs)
 
     # Loop over vertical lines
-    for quadrants, vline_key_inner, vline_key_outer in zip(
-        vline_pairs, vline_keys_inner, vline_keys_outer
-    ):
-
-        # Extract quadrants
-        quadrant1 = quadrants[0]
-        quadrant2 = quadrants[1]
-
-        # Get the lines from the quadrants
-        vline1_pts = quadrant1.v_edge_theilsen_endpoints_tform
-        vline2_pts = quadrant2.v_edge_theilsen_endpoints_tform
-
-        # Calculate distance from center of mass
-        line1_dist_com = [
-            np.linalg.norm(vline1_pts[0] - global_parameters["center_of_mass"]),
-            np.linalg.norm(vline1_pts[1] - global_parameters["center_of_mass"]),
-        ]
-        line2_dist_com = [
-            np.linalg.norm(vline2_pts[0] - global_parameters["center_of_mass"]),
-            np.linalg.norm(vline2_pts[1] - global_parameters["center_of_mass"]),
-        ]
-
-        # Get indices of inner and outer points of both lines
-        inner_pt_idx_line1 = np.argmin(line1_dist_com)
-        outer_pt_idx_line1 = 1 if inner_pt_idx_line1 == 0 else 0
-
-        inner_pt_idx_line2 = np.argmin(line2_dist_com)
-        outer_pt_idx_line2 = 1 if inner_pt_idx_line2 == 0 else 0
-
-        # Get the inner and outer points. We divide this by the scaling to account
-        # for the increased distance due to the higher resolutions.
-        line1_inner_pt = vline1_pts[inner_pt_idx_line1]
-        line1_outer_pt = vline1_pts[outer_pt_idx_line1]
-        line2_inner_pt = vline2_pts[inner_pt_idx_line2]
-        line2_outer_pt = vline2_pts[outer_pt_idx_line2]
-
-        # Obtain a scaling factor to normalize the distance cost across multiple
-        # resolutions. This scaling factor consists of the initial cost at the lowest
-        # resolution which is then extrapolated to what this cost would be on higher
-        # resolutions.
-        if (
-            global_parameters["iteration"] == 0
-            and distance_scaling["distance_scaling_ver_required"]
+    if vline_inner_scaling:
+        for fragments, vkey_inner, vkey_outer in zip(
+            vline_pairs, vline_inner_scaling, vline_outer_scaling
         ):
-            distance_scaling[vline_key_inner] = np.round(
-                np.linalg.norm(line1_inner_pt - line2_inner_pt), 2
+
+            # Extract fragments
+            fragment_1 = fragments[0]
+            fragment_2 = fragments[1]
+
+            # Get the lines from the fragments
+            vline1_pts = fragment_1.v_edge_theilsen_endpoints_tform
+            vline2_pts = fragment_2.v_edge_theilsen_endpoints_tform
+
+            # Case of 2 tissue fragments. We define inner point on the line as the
+            # point with lowest y-coordinate and outer point as the point on the line
+            # with the highest y-coordinate.
+            if names[0] in ["left", "right"]:
+                line1_inner_pt = vline1_pts[np.argmin(vline1_pts[:, 1])]
+                line1_outer_pt = vline1_pts[np.argmax(vline1_pts[:, 1])]
+                line2_inner_pt = vline2_pts[np.argmin(vline2_pts[:, 1])]
+                line2_outer_pt = vline2_pts[np.argmax(vline2_pts[:, 1])]
+
+            # Case of 4 tissue fragments. Calculate distance from each line to center of
+            # mass to find out which point on the line corresponds to the center of the
+            # prostate and which point corresponds with the prostate boundary.
+            else:
+                line1_dist_com = [
+                    np.linalg.norm(vline1_pts[0] - global_parameters["center_of_mass"]),
+                    np.linalg.norm(vline1_pts[1] - global_parameters["center_of_mass"]),
+                ]
+                line2_dist_com = [
+                    np.linalg.norm(vline2_pts[0] - global_parameters["center_of_mass"]),
+                    np.linalg.norm(vline2_pts[1] - global_parameters["center_of_mass"]),
+                ]
+
+                # Get indices of inner and outer points of both lines
+                inner_pt_idx_line1 = np.argmin(line1_dist_com)
+                outer_pt_idx_line1 = 1 if inner_pt_idx_line1 == 0 else 0
+
+                inner_pt_idx_line2 = np.argmin(line2_dist_com)
+                outer_pt_idx_line2 = 1 if inner_pt_idx_line2 == 0 else 0
+
+                # Get the inner and outer points. We divide this by the scaling to account
+                # for the increased distance due to the higher resolutions.
+                line1_inner_pt = vline1_pts[inner_pt_idx_line1]
+                line1_outer_pt = vline1_pts[outer_pt_idx_line1]
+                line2_inner_pt = vline2_pts[inner_pt_idx_line2]
+                line2_outer_pt = vline2_pts[outer_pt_idx_line2]
+
+            # Obtain a scaling factor to normalize the distance cost across multiple
+            # resolutions. This scaling factor consists of the initial cost at the lowest
+            # resolution which is then extrapolated to what this cost would be on higher
+            # resolutions.
+            if (
+                global_parameters["iteration"] == 0
+                and distance_scaling["distance_scaling_ver_required"]
+            ):
+                distance_scaling[vkey_inner] = np.round(
+                    np.linalg.norm(line1_inner_pt - line2_inner_pt), 2
+                )
+                distance_scaling[vkey_outer] = np.round(
+                    np.linalg.norm(line1_outer_pt - line2_outer_pt), 2
+                )
+
+            # Handle cases where the first genetic algorithm optimalization has already
+            # been performed in a different run and where the actual scaling factor is
+            # hence not available.
+            elif (
+                global_parameters["iteration"] > 0
+                and distance_scaling["distance_scaling_ver_required"]
+            ):
+                distance_scaling[vkey_inner] = 1
+                distance_scaling[vkey_outer] = 1
+                warnings.warn("Distance cost is not scaled properly")
+
+            # Get resolution specific scaling factor
+            scaling_inner = distance_scaling[vkey_inner] * res_scaling
+            scaling_outer = distance_scaling[vkey_outer] * res_scaling
+            # scaling_inner = 1
+            # scaling_outer = 1
+
+            # Compute edge_distance_costs as sum of distances
+            inner_point_weight = 1 - global_parameters["outer_point_weight"]
+            inner_point_norm = (
+                np.linalg.norm(line1_inner_pt - line2_inner_pt) / scaling_inner
+            ) ** 2
+            outer_point_norm = (
+                np.linalg.norm(line1_outer_pt - line2_outer_pt) / scaling_outer
+            ) ** 2
+            combined_costs = (
+                inner_point_weight * inner_point_norm
+                + global_parameters["outer_point_weight"] * outer_point_norm
             )
-            distance_scaling[vline_key_outer] = np.round(
-                np.linalg.norm(line1_outer_pt - line2_outer_pt), 2
-            )
-
-        # Handle cases where the first genetic algorithm optimalization has already
-        # been performed in a different run and where the actual scaling factor is
-        # hence not available.
-        elif (
-            global_parameters["iteration"] > 0
-            and distance_scaling["distance_scaling_ver_required"]
-        ):
-            distance_scaling[vline_key_inner] = 1
-            distance_scaling[vline_key_outer] = 1
-            warnings.warn("Distance cost is not scaled properly")
-
-        # Get resolution specific scaling factor
-        scaling_inner = distance_scaling[vline_key_inner] * res_scaling
-        scaling_outer = distance_scaling[vline_key_outer] * res_scaling
-
-        # Compute edge_distance_costs as sum of distances
-        inner_point_weight = 1 - global_parameters["outer_point_weight"]
-        inner_point_norm = (
-            np.linalg.norm(line1_inner_pt - line2_inner_pt) / scaling_inner
-        ) ** 2
-        outer_point_norm = (
-            np.linalg.norm(line1_outer_pt - line2_outer_pt) / scaling_outer
-        ) ** 2
-        combined_costs = (
-            inner_point_weight * inner_point_norm
-            + global_parameters["outer_point_weight"] * outer_point_norm
-        )
-        distance_costs.append(combined_costs)
+            distance_costs.append(combined_costs)
 
     # Distance scaling should be computed now
     if len(distance_scaling.keys()) > 2:
@@ -864,14 +807,13 @@ def plot_best_sol_per_gen(ga):
 
     Input:
         - Genetic algorithm instance
-        - (GLOBAL) all quadrants
+        - (GLOBAL) all fragments
 
     Output:
         - Figure showing the stitching result
     """
 
-    global global_quadrant_a, global_quadrant_b
-    global global_quadrant_c, global_quadrant_d
+    global global_fragments
 
     # Only plot the result every N generations
     gen = ga.generations_completed
@@ -882,102 +824,38 @@ def plot_best_sol_per_gen(ga):
         # Get best solution
         solution, fitness, _ = ga.best_solution()
 
-        # Get solution per quadrant
-        sol_a = [
-            *solution[:3],
-            global_quadrant_a.image_center_peri,
-            global_init_tform[global_quadrant_a.quadrant_name][4],
-        ]
-        sol_b = [
-            *solution[3:6],
-            global_quadrant_b.image_center_peri,
-            global_init_tform[global_quadrant_b.quadrant_name][4],
-        ]
-        sol_c = [
-            *solution[6:9],
-            global_quadrant_c.image_center_peri,
-            global_init_tform[global_quadrant_c.quadrant_name][4],
-        ]
-        sol_d = [
-            *solution[9:],
-            global_quadrant_d.image_center_peri,
-            global_init_tform[global_quadrant_d.quadrant_name][4],
-        ]
+        # Get individual fragment solutions
+        sol_tforms = []
+        for c, f in enumerate(global_fragments):
+            sol = [
+                *solution[c * 3:c * 3 + 3],
+                f.image_center_peri,
+                global_init_tform[f.fragment_name][4]
+            ]
+            sol_tforms.append(sol)
 
         # Combine genetic algorithm solution with initial transformation
-        combo_tform_a = [
-            *[
-                a + b
-                for a, b in zip(
-                    global_init_tform[global_quadrant_a.quadrant_name][:3], sol_a
-                )
-            ],
-            *global_init_tform[global_quadrant_a.quadrant_name][3:],
-        ]
-        combo_tform_b = [
-            *[
-                a + b
-                for a, b in zip(
-                    global_init_tform[global_quadrant_b.quadrant_name][:3], sol_b
-                )
-            ],
-            *global_init_tform[global_quadrant_b.quadrant_name][3:],
-        ]
-        combo_tform_c = [
-            *[
-                a + b
-                for a, b in zip(
-                    global_init_tform[global_quadrant_c.quadrant_name][:3], sol_c
-                )
-            ],
-            *global_init_tform[global_quadrant_c.quadrant_name][3:],
-        ]
-        combo_tform_d = [
-            *[
-                a + b
-                for a, b in zip(
-                    global_init_tform[global_quadrant_d.quadrant_name][:3], sol_d
-                )
-            ],
-            *global_init_tform[global_quadrant_d.quadrant_name][3:],
-        ]
+        combo_tforms = []
+        for f, s in zip(global_fragments, sol_tforms):
+            sol = [
+                *[a + b for a, b in zip(global_init_tform[f.fragment_name][:3], s)],
+                *global_init_tform[f.fragment_name][3:]
+            ]
+            combo_tforms.append(sol)
 
-        # Apply tform to several attributes of the quadrant
-        global_quadrant_a = apply_new_transform(
-            quadrant=global_quadrant_a,
-            sol_tform=sol_a,
-            combo_tform=combo_tform_a,
-            tform_image=True,
-        )
-        global_quadrant_b = apply_new_transform(
-            quadrant=global_quadrant_b,
-            sol_tform=sol_b,
-            combo_tform=combo_tform_b,
-            tform_image=True,
-        )
-        global_quadrant_c = apply_new_transform(
-            quadrant=global_quadrant_c,
-            sol_tform=sol_c,
-            combo_tform=combo_tform_c,
-            tform_image=True,
-        )
-        global_quadrant_d = apply_new_transform(
-            quadrant=global_quadrant_d,
-            sol_tform=sol_d,
-            combo_tform=combo_tform_d,
-            tform_image=True,
-        )
+        # Apply combo transform to several attributes
+        new_fragments = []
+        for c, vars in enumerate(zip(global_fragments, sol_tforms, combo_tforms)):
+            f, sol, combo = vars
+            frag = apply_new_transform(fragment=f, sol_tform=sol, combo_tform=combo,
+                                       tform_image=True)
+            new_fragments.append(frag)
+        global_fragments = copy.deepcopy(new_fragments)
 
         # Get final image
-        images = [
-            global_quadrant_a.colour_image,
-            global_quadrant_b.colour_image,
-            global_quadrant_c.colour_image,
-            global_quadrant_d.colour_image,
-        ]
-
-        total_im = fuse_images_lowres(images=images)
-        total_im = adjust_final_rotation(image=total_im)
+        images = [f.colour_image for f in global_fragments]
+        total_im = fuse_images_lowres(images=images, parameters=global_parameters)
+        # total_im = adjust_final_rotation(image=total_im)
 
         # Plotting parameters
         ratio = (
@@ -995,62 +873,23 @@ def plot_best_sol_per_gen(ga):
             f"Best result at generation {gen}/{num_gen}: fitness = {np.round(fitness, 2)}"
         )
         plt.imshow(total_im, cmap="gray")
-        plt.scatter(
-            global_quadrant_a.v_edge_theilsen_endpoints_tform[:, 0],
-            global_quadrant_a.v_edge_theilsen_endpoints_tform[:, 1],
-            marker="*",
-            s=ms,
-            color="g",
-        )
-        plt.scatter(
-            global_quadrant_a.h_edge_theilsen_endpoints_tform[:, 0],
-            global_quadrant_a.h_edge_theilsen_endpoints_tform[:, 1],
-            marker="+",
-            s=ms,
-            color="b",
-        )
-        plt.scatter(
-            global_quadrant_b.v_edge_theilsen_endpoints_tform[:, 0],
-            global_quadrant_b.v_edge_theilsen_endpoints_tform[:, 1],
-            marker="*",
-            s=ms,
-            color="g",
-        )
-        plt.scatter(
-            global_quadrant_b.h_edge_theilsen_endpoints_tform[:, 0],
-            global_quadrant_b.h_edge_theilsen_endpoints_tform[:, 1],
-            marker="+",
-            s=ms,
-            color="b",
-        )
-        plt.scatter(
-            global_quadrant_c.v_edge_theilsen_endpoints_tform[:, 0],
-            global_quadrant_c.v_edge_theilsen_endpoints_tform[:, 1],
-            marker="*",
-            s=ms,
-            color="g",
-        )
-        plt.scatter(
-            global_quadrant_c.h_edge_theilsen_endpoints_tform[:, 0],
-            global_quadrant_c.h_edge_theilsen_endpoints_tform[:, 1],
-            marker="+",
-            s=ms,
-            color="b",
-        )
-        plt.scatter(
-            global_quadrant_d.v_edge_theilsen_endpoints_tform[:, 0],
-            global_quadrant_d.v_edge_theilsen_endpoints_tform[:, 1],
-            marker="*",
-            s=ms,
-            color="g",
-        )
-        plt.scatter(
-            global_quadrant_d.h_edge_theilsen_endpoints_tform[:, 0],
-            global_quadrant_d.h_edge_theilsen_endpoints_tform[:, 1],
-            marker="+",
-            s=ms,
-            color="b",
-        )
+        for f in global_fragments:
+            if hasattr(f, "v_edge_theilsen_endpoints_tform"):
+                plt.scatter(
+                    f.v_edge_theilsen_endpoints_tform[:, 0],
+                    f.v_edge_theilsen_endpoints_tform[:, 1],
+                    marker="*",
+                    s=ms,
+                    color="g",
+                )
+            if hasattr(f, "h_edge_theilsen_endpoints_tform"):
+                plt.scatter(
+                    f.h_edge_theilsen_endpoints_tform[:, 0],
+                    f.h_edge_theilsen_endpoints_tform[:, 1],
+                    marker="*",
+                    s=ms,
+                    color="b",
+                )
         plt.savefig(
             f"{global_parameters['results_dir']}/images/"
             f"ga_result_per_iteration/{res}_iter{gen}.png"

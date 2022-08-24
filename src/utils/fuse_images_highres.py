@@ -1,6 +1,8 @@
 import copy
 import numpy as np
 import cv2
+import itertools
+import json
 
 
 def is_valid_contour(cnt):
@@ -47,7 +49,7 @@ def get_gradients(bbox, q1_mask, overlap, direction, pad):
 
     Input:
         - Bounding box of the overlap
-        - Mask of quadrant 1
+        - Mask of fragment 1
         - Overlapping area
         - Direction of overlap
 
@@ -61,7 +63,7 @@ def get_gradients(bbox, q1_mask, overlap, direction, pad):
     angle = bbox[2]
 
     # Preallocate gradient field
-    gradient_2d = np.zeros(q1_mask.shape)
+    gradient_2d = np.zeros_like(q1_mask)
     gradient_2d = np.pad(gradient_2d, [[pad, pad], [pad, pad]]).astype("float")
 
     # OpenCV provides angles in range [0, 90]. We rescale these values to range [-45, 45]
@@ -71,7 +73,7 @@ def get_gradients(bbox, q1_mask, overlap, direction, pad):
         angle = -angle
         width = int(bbox[1][0])
         height = int(bbox[1][1])
-    elif 45 <= bbox[2]:
+    elif bbox[2] >= 45:
         angle = 90 - angle
         width = int(bbox[1][1])
         height = int(bbox[1][0])
@@ -108,9 +110,9 @@ def get_gradients(bbox, q1_mask, overlap, direction, pad):
 
 def fuse_images_highres(images, masks):
     """
-    Custom function to merge overlapping quadrants into a visually appealing combined
+    Custom function to merge overlapping fragments into a visually appealing combined
     image using alpha blending. This is accomplished by the following steps:
-    1. Compute areas of overlap between different quadrants
+    1. Compute areas of overlap between different fragments
     2. Compute bounding box around the overlap
     3. Compute alpha gradient field over this bounding box
     4. Mask the gradient field with the area of overlap
@@ -118,65 +120,67 @@ def fuse_images_highres(images, masks):
     6. Sum all resulting (non)overlapping images to create the final image
 
     Inputs
-        - Final colour image of all quadrants
+        - Final colour image of all fragments
 
     Output
         - Merged output image
     """
 
-    # Get plausible overlapping quadrants
-    quadrant_names = ["A", "B", "C", "D"]
-    combinations = ["AB", "AC", "BD", "CD"]
+    # Get plausible overlapping fragments
+    names = list(images.keys())
+    combinations = itertools.combinations(names, 2)
+    with open("../config/config.json") as f:
+        file = json.load(f)
+        hor_combinations = file["horizontal_combinations"]
+        ver_combinations = file["vertical_combinations"]
 
     # Create some lists for iterating
-    image_list = copy.deepcopy(images)
-    mask_list = copy.deepcopy(masks)
-    total_mask = np.sum(mask_list, axis=0)
+    total_mask = np.sum(list(masks.values()), axis=0).astype("uint8")
     all_contours = []
     is_overlap_list = []
-    overlapping_quadrants = []
+    overlapping_fragments = []
 
     # Create some dicts for saving results
-    images = dict()
-    masks = dict()
     gradients = dict()
     overlaps = dict()
     nonoverlap = dict()
 
-    # Populate dicts
-    for name, im, mask in zip(quadrant_names, image_list, mask_list):
-        images[name] = im
-        masks[name] = mask
-
     # Some values for postprocessing
     patch_size_mean = 25
 
-    # Loop over possible combinations of overlapping quadrants
+    # Loop over possible combinations of overlapping fragments
     for combi in combinations:
 
-        # Get quadrant names
-        q1_name, q2_name = combi
+        # Ensure right direction in gradient
+        all_combinations = hor_combinations + ver_combinations
+        if list(combi) in all_combinations:
+            q1_name, q2_name = combi
+        elif list(combi[::-1]) in all_combinations:
+            q2_name, q1_name = combi
 
-        # Get quadrants and masks
+        # Check if overlap is between horizontally or vertically aligned fragments
+        is_horizontal = [q1_name, q2_name] in hor_combinations
+        is_vertical = [q1_name, q2_name] in ver_combinations
+
+        # Get fragments and masks
         q1_image = images[q1_name]
         q2_image = images[q2_name]
         q1_mask = masks[q1_name]
         q2_mask = masks[q2_name]
 
         # Check if there is any overlap
-        overlap = ((q1_mask + q2_mask) == 2) * 1
+        overlap = np.squeeze(((q1_mask + q2_mask) == 2) * 1).astype("uint8")
         is_overlap = np.sum(overlap) > 0
         is_overlap_list.append(is_overlap)
-        overlaps[combi] = overlap
+        overlaps[(q1_name, q1_name)] = overlap
 
         # In case of overlap, apply alpha blending
         if is_overlap:
 
-            # Save index of overlapping quadrants
-            overlapping_quadrants.append(quadrant_names.index(q1_name))
-            overlapping_quadrants.append(quadrant_names.index(q2_name))
+            # Save index of overlapping fragments
+            overlapping_fragments.append([q1_name, q2_name])
 
-            # Compute non overlapping part of quadrants
+            # Compute non overlapping part of fragments
             only_q1 = q1_image * (total_mask == 1)[:, :, np.newaxis]
             only_q2 = q2_image * (total_mask == 1)[:, :, np.newaxis]
             nonoverlap[q1_name] = only_q1
@@ -188,13 +192,13 @@ def fuse_images_highres(images, masks):
             eps = int((np.shape(overlap)[0] * np.shape(overlap)[1]) / 100)
             approx_max_overlap = np.shape(overlap)[0] * np.shape(overlap)[1] - eps
             if np.sum(overlap) > approx_max_overlap:
-                gradients[combi] = np.full(overlap.shape, 0.5)
-                gradients[combi[::-1]] = np.full(overlap.shape, 0.5)
+                gradients[(q1_name, q2_name)] = np.full(overlap.shape, 0.5)
+                gradients[(q2_name, q1_name)] = np.full(overlap.shape, 0.5)
                 continue
 
             # Pad overlap image to obtain rotated bounding boxes even in cases when
             # overlap reaches images border.
-            pad = int(overlap.shape[0] / 2)
+            pad = int(overlap.shape[0] / 4)
             overlap_pad = np.pad(overlap, [[pad, pad], [pad, pad]])
             overlap_pad = (overlap_pad * 255).astype("uint8")
 
@@ -208,14 +212,6 @@ def fuse_images_highres(images, masks):
             # filter actual contours rather than line-like artefacts, check function
             # for criteria.
             actual_cnts = [np.squeeze(c) for c in cnt if is_valid_contour(c)]
-
-            # Check if overlap is between horizontally or vertically aligned quadrants
-            is_horizontal = (sorted([q1_name, q2_name]) == ["A", "B"]) or (
-                (sorted([q1_name, q2_name]) == ["C", "D"])
-            )
-            is_vertical = (sorted([q1_name, q2_name]) == ["A", "C"]) or (
-                (sorted([q1_name, q2_name]) == ["B", "D"])
-            )
 
             # In case of multiple valid contours, create gradient for each and sum
             if len(actual_cnts) > 1:
@@ -252,8 +248,8 @@ def fuse_images_highres(images, masks):
                 all_grad_rev = np.sum(all_grads_rev, axis=0)
 
                 # Save the gradients
-                gradients[combi] = all_grad
-                gradients[combi[::-1]] = all_grad_rev
+                gradients[(q1_name, q2_name)] = all_grad
+                gradients[(q2_name, q1_name)] = all_grad_rev
 
             # In case of only 1 valid contour
             elif len(actual_cnts) == 1:
@@ -281,8 +277,8 @@ def fuse_images_highres(images, masks):
                     )
 
                 # Save the gradients
-                gradients[combi] = all_grad
-                gradients[combi[::-1]] = all_grad_rev
+                gradients[(q1_name, q2_name)] = all_grad
+                gradients[(q2_name, q1_name)] = all_grad_rev
 
             # Rare case when there is 1 contour but this contour is not valid and
             # basically an artefact. In this case we treat this as nonoverlap.
@@ -294,11 +290,11 @@ def fuse_images_highres(images, masks):
 
     # Sum all overlapping parts relative to their gradient
     if True in is_overlap_list:
-        gradient_quadrants = [images[str(j[0])] for j in gradients.keys()]
+        grad_fragments = [images[str(j[0])] for j in gradients.keys()]
         all_overlap = np.sum(
             [
                 (g[:, :, np.newaxis] * gq).astype("uint8")
-                for g, gq in zip(gradients.values(), gradient_quadrants)
+                for g, gq in zip(gradients.values(), grad_fragments)
             ],
             axis=0,
         )
@@ -309,7 +305,7 @@ def fuse_images_highres(images, masks):
     final_image = all_nonoverlap + all_overlap
     final_image_edit = copy.deepcopy(final_image)
 
-    # Check if there was any overlap between quadrants
+    # Check if there was any overlap between fragments
     if True in is_overlap_list:
 
         # Indices for getting patches
@@ -363,19 +359,18 @@ def fuse_images_highres(images, masks):
                     fill_val = np.median(patch, axis=0)
                     final_image_edit[x, y, :] = fill_val
 
-    # Clipping may be necessary for areas where more than 2 quadrants overlap
+    # Clipping may be necessary for areas where more than 2 fragments overlap
     final_image_edit = np.clip(final_image_edit, 0, 255).astype("uint8")
 
     # Set 0 values to nan for plotting in blend summary.
-    gradient_values = [i for i in gradients.values()]
-    if gradient_values:
-        final_grad = gradient_values[0]
+    if len(list(gradients.values())) > 0:
+        final_grad = list(gradients.values())[0]
         final_grad[final_grad == 0] = np.nan
-        angle = bbox[2]
         valid_cnt = True
     else:
         final_grad = np.full(final_image_edit.shape, np.nan)
-        angle = 0
         valid_cnt = False
 
-    return final_image_edit, final_grad, overlapping_quadrants, angle, valid_cnt
+    overlapping_fragments = overlapping_fragments[0]
+
+    return final_image_edit, final_grad, overlapping_fragments, valid_cnt

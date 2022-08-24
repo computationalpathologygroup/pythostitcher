@@ -2,67 +2,69 @@ import os
 import logging
 
 
-def preprocess(quadrant_a, quadrant_b, quadrant_c, quadrant_d, parameters, log):
+def preprocess(fragments, parameters, log):
     """
-    Function to load and preprocess all the quadrant images. The preprocessing mainly
-    consists of resizing and saving the image at multiple resolutions.
+    Function to load and preprocess all the tissue fragment images. The preprocessing
+    mainly consists of resizing and saving the image at multiple resolutions.
 
     Input:
-    - Class of all four quadrants
+    - List of all fragments
     - Dict with parameters
+    - Logging object for logging
 
     Output:
-    - Quadrant class with all loaded images
+    - Fragment class with all loaded images
     """
 
-    res_dir = f"{parameters['results_dir']}/images/{quadrant_d.slice_idx}/{quadrant_d.res_name}"
+    res_dir = f"{parameters['results_dir']}/images/{parameters['slice_idx']}/{parameters['res_name']}"
     if not os.path.isdir(res_dir):
         os.mkdir(res_dir)
 
-    # Verify whether preprocessed quadrants are available
+    # Verify whether preprocessed fragments are available
     filepath = (
-        f"{parameters['results_dir']}/"
-        f"{quadrant_d.slice_idx}/"
-        f"{quadrant_d.res_name}/"
-        f"quadrant_{quadrant_d.quadrant_name}"
+        f"{parameters['results_dir']}/images/"
+        f"{parameters['slice_idx']}/"
+        f"{parameters['res_name']}/"
+        f"fragment_{fragments[-1].fragment_name}"
     )
     file_exists = os.path.isfile(filepath)
 
     # Preprocess all images if they are not yet available
     if not file_exists:
 
-        # Loop over all quadrants
-        quadrants = [quadrant_a, quadrant_b, quadrant_c, quadrant_d]
+        for f in fragments:
 
-        for q in quadrants:
-
-            # Read quadrant transformations
-            q.read_transforms()
+            # Read fragment transformations
+            f.read_transforms()
 
             # Read all original images
-            q.read_image()
+            f.read_image()
 
             # Preprocess (resize+pad) gray images
-            q.preprocess_gray_image()
+            f.preprocess_gray_image()
 
             # Preprocess (resize+pad) colour images
-            q.preprocess_colour_image()
+            f.preprocess_colour_image()
 
             # Segment tissue. This basically loads in the stored segmentations
-            q.segment_tissue()
+            f.segment_tissue()
 
             # Apply mask to both gray and colour image
-            q.apply_masks()
+            f.apply_masks()
 
-            # Save the quadrant class for later use
-            q.save_quadrant()
+            # Save the fragment class for later use
+            f.save_fragment()
 
-        log.critical(
+        log.log(
+            parameters["my_level"],
             f" - preprocessing resolution {parameters['resolutions'][parameters['iteration']]}"
         )
 
     # Else nothing, images will be loaded in the next step in the optimize stitch function
     else:
-        pass
+        log.log(
+            parameters["my_level"],
+            f" - already preprocessed resolution {parameters['resolutions'][parameters['iteration']]}"
+        )
 
     return

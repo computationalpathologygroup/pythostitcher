@@ -43,21 +43,21 @@ def map_tform_low_res(parameters):
 
     new_initial_tform = dict()
 
-    # Apply conversion ratio for all quadrants. Each transformation matrix is organised
+    # Apply conversion ratio for all fragments. Each transformation matrix is organised
     # as follows:
     # [translation_x (int), translation_y (int), angle (float),
     # center to rotate around (tuple), output_shape (tuple)]
-    for quadrant in parameters["filenames"].keys():
+    for fragment in parameters["fragment_names"]:
 
-        new_center = [int(np.round(ratio * t)) for t in initial_tform[quadrant][3]]
+        new_center = [int(np.round(ratio * t)) for t in initial_tform[fragment][3]]
         new_center = tuple(new_center)
-        new_outshape = [int(np.round(ratio * t)) for t in initial_tform[quadrant][4]]
+        new_outshape = [int(np.round(ratio * t)) for t in initial_tform[fragment][4]]
         new_outshape = tuple(new_outshape)
 
-        new_initial_tform[quadrant] = [
-            int(np.round(initial_tform[quadrant][0] * ratio)),
-            int(np.round(initial_tform[quadrant][1] * ratio)),
-            np.round(initial_tform[quadrant][2], 1),
+        new_initial_tform[fragment] = [
+            int(np.round(initial_tform[fragment][0] * ratio)),
+            int(np.round(initial_tform[fragment][1] * ratio)),
+            np.round(initial_tform[fragment][2], 1),
             new_center,
             new_outshape,
         ]

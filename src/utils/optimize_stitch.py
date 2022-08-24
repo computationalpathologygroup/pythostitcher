@@ -13,32 +13,27 @@ from .fuse_images_lowres import fuse_images_lowres
 
 def optimize_stitch(parameters, log):
     """
-    Function to optimize the stitching between quadrants. This will consist of the
+    Function to optimize the stitching between fragments. This will consist of the
     following steps:
-    1. Compute the smallest bounding box around the quadrant
-    2. Rotate the quadrant as a first step towards alignment
-    3. Globally align the quadrants such that they share the same coordinate system
-    4. Identify cornerpoints in the quadrant and extract relevant edges
+    1. Compute the smallest bounding box around the fragment
+    2. Rotate the fragment as a first step towards alignment
+    3. Globally align the fragment such that they share the same coordinate system
+    4. Identify cornerpoints in the fragment and extract relevant edges
     5. Compute a Theil-Sen line through the edges as a robust approximation of the edge
-    6. Use a genetic algorithm to "stitch" the quadrants together
+    6. Use a genetic algorithm to "stitch" the fragments together
 
     Input:
     - Dictionary with parameters
-    - Boolean value whether to plot intermediate results
+    - Logging object
 
     Output:
     - Final stitched image
     """
 
-    # Make some directories for saving results
     current_res_name = get_resname(parameters["resolutions"][parameters["iteration"]])
-
     dirpath_tform = f"{parameters['results_dir']}/tform"
-    dirpath_images = f"{parameters['results_dir']}/images"
-    dirpath_ga_progression = f"{dirpath_images}/ga_progression"
-    dirpath_ga_iteration = f"{dirpath_images}/ga_result_per_iteration"
 
-    dirpath_quadrants = (
+    dir_fragments = (
         f"{parameters['results_dir']}/images/{parameters['slice_idx']}/"
         f"{current_res_name}"
     )
@@ -51,72 +46,62 @@ def optimize_stitch(parameters, log):
     if not file_exists:
 
         start_time = time.time()
+        fragment_info = dict()
 
-        # Load previously saved quadrants
-        with open(f"{dirpath_quadrants}/quadrant_UL", "rb") as loadfile:
-            quadrant_a = pickle.load(loadfile)
-        with open(f"{dirpath_quadrants}/quadrant_UR", "rb") as loadfile:
-            quadrant_b = pickle.load(loadfile)
-        with open(f"{dirpath_quadrants}/quadrant_LL", "rb") as loadfile:
-            quadrant_c = pickle.load(loadfile)
-        with open(f"{dirpath_quadrants}/quadrant_LR", "rb") as loadfile:
-            quadrant_d = pickle.load(loadfile)
+        for fragment in parameters["fragment_names"]:
 
-        # Save quadrants in list for easier handling of class methods
-        quadrants = [quadrant_a, quadrant_b, quadrant_c, quadrant_d]
+            with open(f"{dir_fragments}/fragment_{fragment}", "rb") as f:
+                fragment_info_file = pickle.load(f)
+            fragment_info[str(fragment)] = fragment_info_file
+            f.close()
+
+        fragments = list(fragment_info.values())
 
         # Load images
-        log.critical(" - loading images...")
-        for q in quadrants:
-            q.load_images()
+        log.log(parameters["my_level"], " - loading images...")
+        for f in fragments:
+            f.load_images()
 
-        # Get center of the quadrant
-        for q in quadrants:
-            q.get_image_center()
+        # Get center of the fragment
+        for f in fragments:
+            f.get_image_center()
 
         # Perform initialization at the lowest resolution
         if parameters["iteration"] == 0:
 
             # Get bounding box based on the tissue mask
-            for q in quadrants:
-                q.get_bbox_corners(image=q.mask)
+            for f in fragments:
+                f.get_bbox_corners(image=f.mask)
 
             # Get the initial transform consisting of rotation and cropping
-            for q in quadrants:
-                q.get_initial_transform()
+            for f in fragments:
+                f.get_initial_transform()
 
             # Plot the rotation result as a visual check
-            plot_rotation_result(
-                quadrant_a=quadrant_a,
-                quadrant_b=quadrant_b,
-                quadrant_c=quadrant_c,
-                quadrant_d=quadrant_d,
-                parameters=parameters
-            )
+            plot_rotation_result(fragments=fragments, parameters=parameters)
 
-            # Compute local transformation to align horizontal pieces. Input for this
-            # method is the horizontal neighbour of this quadrant
-            complementary_quadrants = [quadrant_b, quadrant_a, quadrant_d, quadrant_c]
-            for q1, q2 in zip(quadrants, complementary_quadrants):
-                q1.get_tformed_images_local(quadrant=q2)
+            # Irrespective of number of fragments, we always need to compute an initial
+            # pairwise transformation. In case of 2 fragments, this is also the final
+            # initialization. In case of 4 fragments, we also need to compute an additional
+            # pairwise transformation of the two formed pairs
+            for f in fragments:
+                f.get_tformed_images_pair(fragments=fragments)
 
-            # Compute global transformation to align all pieces. Input for this method
-            # is one of the vertical neighbours of this quadrant
-            complementary_quadrants = [quadrant_c, quadrant_c, quadrant_a, quadrant_a]
-            for q1, q2 in zip(quadrants, complementary_quadrants):
-                q1.get_tformed_images_global(quadrant=q2)
+            if parameters["n_fragments"] == 4:
+                for f in fragments:
+                    f.get_tformed_images_total(fragments=fragments)
 
             # Get final tform params for plotting later on
             initial_tform = dict()
-            for q in quadrants:
-                total_x = q.crop_trans_x + q.pad_trans_x + q.trans_x
-                total_y = q.crop_trans_y + q.pad_trans_y + q.trans_y
-                initial_tform[q.quadrant_name] = [
+            for f in fragments:
+                total_x = f.crop_trans_x + f.pad_trans_x + f.trans_x
+                total_y = f.crop_trans_y + f.pad_trans_y + f.trans_y
+                initial_tform[f.fragment_name] = [
                     total_x,
                     total_y,
-                    q.angle,
-                    q.image_center_pre,
-                    q.outshape,
+                    f.angle,
+                    f.image_center_pre,
+                    f.output_shape,
                 ]
 
             np.save(
@@ -128,84 +113,69 @@ def optimize_stitch(parameters, log):
             initial_tform = map_tform_low_res(parameters)
 
         # Apply transformation to the original images
-        for q in quadrants:
-            q.get_tformed_images(tform=initial_tform[q.quadrant_name])
+        for f in fragments:
+            f.get_tformed_images(tform=initial_tform[f.fragment_name])
 
-        parameters["image_centers"] = [
-            q.image_center_peri for q in quadrants
-        ]  # required in cost function later on
+        # Required for cost function
+        parameters["image_centers"] = [f.image_center_peri for f in fragments]
 
         # Plot transformation result
-        plot_transformation_result(
-            quadrant_a=quadrant_a,
-            quadrant_b=quadrant_b,
-            quadrant_c=quadrant_c,
-            quadrant_d=quadrant_d,
-            parameters=parameters,
-        )
+        plot_transformation_result(fragments=fragments, parameters=parameters)
 
-        # Get edges from quadrants
-        log.critical(f" - extracting edges from images...")
-        for q in quadrants:
-            q.get_edges()
+        # Get edges from fragments
+        log.log(parameters["my_level"], f" - extracting edges from images...")
+        for f in fragments:
+            f.get_edges()
 
         # Compute Theil Sen lines through edges
-        log.critical(" - computing Theil-Sen estimation of edge...")
-        for q in quadrants:
-            q.fit_theilsen_lines()
+        log.log(parameters["my_level"], " - computing Theil-Sen estimation of edge...")
+        for f in fragments:
+            f.fit_theilsen_lines()
 
         # Plot all acquired Theil-Sen lines
-        plot_theilsen_result(
-            quadrant_a=quadrant_a,
-            quadrant_b=quadrant_b,
-            quadrant_c=quadrant_c,
-            quadrant_d=quadrant_d,
-            parameters=parameters,
-        )
+        plot_theilsen_result(fragments=fragments, parameters=parameters)
 
         # Optimization with genetic algorithm
-        log.critical(" - computing reconstruction with genetic algorithm...")
-        parameters["output_shape"] = quadrant_a.tform_image.shape
+        log.log(parameters["my_level"], " - computing reconstruction with genetic algorithm...")
+        parameters["output_shape"] = fragments[0].tform_image.shape
 
         ga_dict = genetic_algorithm(
-            quadrant_a=quadrant_a,
-            quadrant_b=quadrant_b,
-            quadrant_c=quadrant_c,
-            quadrant_d=quadrant_d,
+            fragments=fragments,
             parameters=parameters,
             initial_tform=initial_tform,
         )
         np.save(parameters["filepath_tform"], ga_dict)
 
-        # Get final transformed image per quadrant
+        # Get final transformed image per fragment
         all_images = []
-        for q in quadrants:
-            final_tform = ga_dict[q.quadrant_name]
-            q.final_image = warp_image(
-                src=q.colour_image_original,
+        for f in fragments:
+            final_tform = ga_dict[f.fragment_name]
+            f.final_image = warp_image(
+                src=f.colour_image_original,
                 center=final_tform[3],
                 rotation=final_tform[2],
                 translation=final_tform[:2],
                 output_shape=final_tform[4],
             )
-            all_images.append(q.final_image)
+            all_images.append(f.final_image)
 
         # Get final fused image, correct for the rotation and display it
-        final_image = fuse_images_lowres(images=all_images)
-        final_image = adjust_final_rotation(image=final_image)
+        final_image = fuse_images_lowres(images=all_images, parameters=parameters)
+        # final_image = adjust_final_rotation(image=final_image)
         plot_ga_result(final_image=final_image, parameters=parameters)
 
         # Provide verbose on computation time
         end_time = time.time()
         current_res = parameters["resolutions"][parameters["iteration"]]
         sec = np.round(end_time - start_time, 1)
-        log.critical(
-            f" > time to optimize patient {parameters['patient_idx']} at "
+        log.log(
+            parameters["my_level"],
+            f" > time to optimize "
             f"resolution {current_res}: {sec} seconds\n"
         )
 
     else:
-        log.critical(" - already optimized this resolution!")
+        log.log(parameters["my_level"], " - already optimized this resolution!\n")
 
     # At final resolution provide some extra visualizations
     if parameters["iteration"] == 3:
@@ -215,5 +185,14 @@ def optimize_stitch(parameters, log):
 
         # Plot the fitness trajectory over the multiple resolutions
         plot_ga_multires(parameters)
+
+        # Save all fragments and their info
+        if not os.path.isfile(f"{parameters['results_dir']}/fragments/parameters"):
+            for f in fragments:
+                with open(f"{parameters['results_dir']}/fragments/{f.fragment_name}", "wb") as savefile:
+                    pickle.dump(f, savefile)
+
+            with open(f"{parameters['results_dir']}/fragments/parameters", "wb") as savefile:
+                pickle.dump(parameters, savefile)
 
     return

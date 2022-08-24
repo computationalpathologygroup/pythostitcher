@@ -1,11 +1,12 @@
 import numpy as np
 import cv2
 import copy
+import itertools
 
 
-def fuse_images_lowres(images):
+def fuse_images_lowres(images, parameters):
     """
-    Custom function to merge overlapping quadrants into a visually appealing combined
+    Custom function to merge overlapping fragments into a visually appealing combined
     image using alpha blending. This is accomplished by the following steps:
 	    1. Find areas of overlap
 	    2. Compute bounding box around overlap to estimate its direction
@@ -13,21 +14,17 @@ def fuse_images_lowres(images):
 	    4. Use alpha blending to blend the region of overlap
     """
 
-    im_a, im_b, im_c, im_d = images
-
     # Simple threshold to get tissue masks
-    mask_a = (np.mean(im_a, axis=-1) > 0) * 1
-    mask_b = (np.mean(im_b, axis=-1) > 0) * 1
-    mask_c = (np.mean(im_c, axis=-1) > 0) * 1
-    mask_d = (np.mean(im_d, axis=-1) > 0) * 1
+    masks = [(np.mean(im, axis=-1) > 0) * 1 for im in images]
 
-    # Get plausible overlapping quadrants
-    quadrant_names = ["A", "B", "C", "D"]
-    combinations = ["AB", "AC", "BD", "CD"]
+    # Get plausible overlapping fragments
+    fragment_names = parameters["fragment_names"]
+    combinations = itertools.combinations(fragment_names, 2)
+    # combinations = ["AB", "AC", "BD", "CD"]
 
     # Create some lists for iterating
-    image_list = [im_a, im_b, im_c, im_d]
-    mask_list = [mask_a, mask_b, mask_c, mask_d]
+    image_list = copy.deepcopy(images)
+    mask_list = copy.deepcopy(masks)
     total_mask = np.sum(mask_list, axis=0)
     all_contours = []
 
@@ -41,7 +38,7 @@ def fuse_images_lowres(images):
     bounding_boxes = []
 
     # Make dict such that images are callable by letter later on
-    for name, im, mask in zip(quadrant_names, image_list, mask_list):
+    for name, im, mask in zip(fragment_names, image_list, mask_list):
         images[name] = im
         masks[name] = mask
 
@@ -54,6 +51,12 @@ def fuse_images_lowres(images):
         # Get quadrant names
         q1_name = combi[0]
         q2_name = combi[1]
+
+        # Check if overlap is between horizontally or vertically aligned quadrants
+        hor_combo = [["ul", "ur"], ["ll", "lr"], ["left", "right"]]
+        is_horizontal = any([sorted([q1_name, q2_name]) == i for i in hor_combo])
+        ver_combo = [["ll", "ul"], ["lr", "ur"], ["bottom", "top"]]
+        is_vertical = any([sorted([q1_name, q2_name]) == i for i in ver_combo])
 
         # Get quadrant images and masks
         q1_image = images[q1_name]
@@ -103,11 +106,7 @@ def fuse_images_lowres(images):
                     # Prepopulate gradient field
                     gradient_2d = np.zeros_like(q1_mask).astype("float")
 
-                    # Check if overlap is between horizontally or vertically aligned
-                    # quadrants
-                    is_horizontal = (sorted([q1_name, q2_name]) == ["A", "B"]) or (
-                        (sorted([q1_name, q2_name]) == ["C", "D"])
-                    )
+                    # If quadrants overlap horizontally
                     if is_horizontal:
 
                         # See comment in line 105. With angles closer to 90 than to 0 we
@@ -153,11 +152,7 @@ def fuse_images_lowres(images):
                         )
                         masked_gradient_rev = gradient_2d_warp_rev * overlap
 
-                    # Check if overlap is between horizontally or vertically aligned
-                    # quadrants
-                    is_vertical = (sorted([q1_name, q2_name]) == ["A", "C"]) or (
-                        (sorted([q1_name, q2_name]) == ["B", "D"])
-                    )
+                    # If quadrants overlap vertically
                     if is_vertical:
 
                         # See comment in line 105. With angles closer to 90 than to 0

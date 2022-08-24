@@ -9,102 +9,87 @@ from .fuse_images_lowres import fuse_images_lowres
 from .get_resname import get_resname
 
 
-def plot_rotation_result(quadrant_a, quadrant_b, quadrant_c, quadrant_d, parameters):
+def plot_rotation_result(fragments, parameters):
     """
-    Custom function to plot the result of the automatic rotation of all quadrants.
+    Custom function to plot the result of the automatic rotation of all fragments.
 
     Input:
-        - All quadrants
+        - All fragments
 
     Output:
         - Figure displaying the rotation
     """
 
     # Get pad values for every image
-    max_shape = np.max(
-        [
-            quadrant_a.mask.shape,
-            quadrant_b.mask.shape,
-            quadrant_c.mask.shape,
-            quadrant_d.mask.shape,
-        ],
-        axis=0,
-    )
-    quadrants = [quadrant_a, quadrant_b, quadrant_c, quadrant_d]
-    pad_mask = [((max_shape - q.mask.shape) / 2).astype(int) for q in quadrants]
-    pad_rot_mask = [((max_shape - q.rot_mask.shape) / 2).astype(int) for q in quadrants]
+    fragment_shapes = [f.mask.shape for f in fragments]
+    max_shape = np.max(fragment_shapes, axis=0)
+    pad_mask = [((max_shape - f.mask.shape) / 2).astype(int) for f in fragments]
+    pad_rot_mask = [((max_shape - f.rot_mask.shape) / 2).astype(int) for f in fragments]
 
     # Apply padding
     padded_mask = [
-        np.pad(q.mask, [[p[0], p[0]], [p[1], p[1]]])
-        for p, q in zip(pad_mask, quadrants)
+        np.pad(f.mask, [[p[0], p[0]], [p[1], p[1]]])
+        for p, f in zip(pad_mask, fragments)
     ]
     padded_rot_mask = [
-        np.pad(q.rot_mask, [[p[0], p[0]], [p[1], p[1]]])
-        for p, q in zip(pad_rot_mask, quadrants)
+        np.pad(f.rot_mask, [[p[0], p[0]], [p[1], p[1]]])
+        for p, f in zip(pad_rot_mask, fragments)
     ]
 
-    # Get x/y values of bounding box around quadrant
+    # Get x/y values of bounding box around fragment
     corners_x = [
-        [c[0] + p[1] for c in q.bbox_corners] + [q.bbox_corners[0][0] + p[1]]
-        for p, q in zip(pad_mask, quadrants)
+        [c[0] + p[1] for c in f.bbox_corners] + [f.bbox_corners[0][0] + p[1]]
+        for p, f in zip(pad_mask, fragments)
     ]
     corners_y = [
-        [c[1] + p[0] for c in q.bbox_corners] + [q.bbox_corners[0][1] + p[0]]
-        for p, q in zip(pad_mask, quadrants)
+        [c[1] + p[0] for c in f.bbox_corners] + [f.bbox_corners[0][1] + p[0]]
+        for p, f in zip(pad_mask, fragments)
     ]
 
     # Plot rotation result
-    plt.figure(figsize=(6, 12))
-    plt.suptitle("Quadrants before and after \nautomatic rotation", fontsize=20)
+    plt.figure(figsize=(6, len(fragments)*3))
+    plt.suptitle("Fragments before and after \nautomatic rotation", fontsize=20)
 
-    for c, (pad, p_mask, p_rmask, c_x, c_y, q) in enumerate(
-        zip(pad_mask, padded_mask, padded_rot_mask, corners_x, corners_y, quadrants), 1
+    for c, (pad, p_mask, p_rmask, c_x, c_y, f) in enumerate(
+        zip(pad_mask, padded_mask, padded_rot_mask, corners_x, corners_y, fragments), 1
     ):
-        plt.subplot(4, 2, (c * 2) - 1)
+        plt.subplot(parameters["n_fragments"], 2, (c * 2) - 1)
         plt.axis("off")
-        plt.title(q.quadrant_name, fontsize=16)
+        plt.title(f.fragment_name, fontsize=16)
         plt.imshow(p_mask, cmap="gray")
         plt.scatter(
-            q.mask_corner_a[0] + pad[1],
-            q.mask_corner_a[1] + pad[0],
+            f.mask_corner_a[0] + pad[1],
+            f.mask_corner_a[1] + pad[0],
             facecolor="r",
             s=100,
         )
         plt.plot(c_x, c_y, linewidth=4, c="r")
-        plt.subplot(4, 2, c * 2)
+        plt.subplot(parameters["n_fragments"], 2, c * 2)
         plt.axis("off")
-        plt.title(q.quadrant_name, fontsize=16)
+        plt.title(f.fragment_name, fontsize=16)
         plt.imshow(p_rmask, cmap="gray")
-    plt.savefig(f"{parameters['results_dir']}/images/rotation_result.png")
+    plt.savefig(f"{parameters['results_dir']}/images/debug/rotation_result.png")
     plt.close()
 
     return
 
 
-def plot_transformation_result(
-    quadrant_a, quadrant_b, quadrant_c, quadrant_d, parameters
-):
+def plot_transformation_result(fragments, parameters):
     """
     Custom function to plot the result of the initial transformation to globally
-    align the quadrants.
+    align the fragments.
 
     Input:
-        - All quadrants
+        - All fragments
         - Dict with parameters
 
     Output:
-        - Figure displaying the aligned quadrants
+        - Figure displaying the aligned fragments
     """
 
-    # Merge all individual quadrant images into one final image
-    images = [
-        quadrant_a.colour_image,
-        quadrant_b.colour_image,
-        quadrant_c.colour_image,
-        quadrant_d.colour_image,
-    ]
-    result = fuse_images_lowres(images=images)
+    # Merge all individual fragments images into one final image
+    images = [f.colour_image for f in fragments]
+    result = fuse_images_lowres(images=images, parameters=parameters)
 
     current_res = parameters["resolutions"][parameters["iteration"]]
 
@@ -122,27 +107,24 @@ def plot_transformation_result(
     return
 
 
-def plot_theilsen_result(quadrant_a, quadrant_b, quadrant_c, quadrant_d, parameters):
+def plot_theilsen_result(fragments, parameters):
     """
     Custom function to plot the result of the Theil-Sen line approximation of the
-    quadrants' edges.
+    fragments' edges.
 
     Input:
-        - All quadrants
+        - All fragments
         - Dict with parameters
 
     Output:
-        - Figure displaying the Theil-Sen lines for each quadrant
+        - Figure displaying the Theil-Sen lines for each fragment
     """
 
+    current_res_name = get_resname(parameters["resolutions"][parameters["iteration"]])
+
     # Combine all images
-    images = [
-        quadrant_a.colour_image,
-        quadrant_b.colour_image,
-        quadrant_c.colour_image,
-        quadrant_d.colour_image,
-    ]
-    combi_image = fuse_images_lowres(images=images)
+    images = [f.colour_image for f in fragments]
+    combi_image = fuse_images_lowres(images=images, parameters=parameters)
 
     # Set some plotting parameters
     ratio = parameters["resolution_scaling"][parameters["iteration"]]
@@ -155,329 +137,170 @@ def plot_theilsen_result(quadrant_a, quadrant_b, quadrant_c, quadrant_d, paramet
         f"\n before genetic algorithm"
     )
     plt.imshow(combi_image, cmap="gray")
-    plt.plot(
-        quadrant_a.v_edge_theilsen_endpoints[:, 0],
-        quadrant_a.v_edge_theilsen_endpoints[:, 1],
-        linewidth=2,
-        color="g",
-    )
-    plt.plot(
-        quadrant_a.h_edge_theilsen_endpoints[:, 0],
-        quadrant_a.h_edge_theilsen_endpoints[:, 1],
-        linewidth=2,
-        color="b",
-    )
-    plt.plot(
-        quadrant_b.v_edge_theilsen_endpoints[:, 0],
-        quadrant_b.v_edge_theilsen_endpoints[:, 1],
-        linewidth=2,
-        color="g",
-    )
-    plt.plot(
-        quadrant_b.h_edge_theilsen_endpoints[:, 0],
-        quadrant_b.h_edge_theilsen_endpoints[:, 1],
-        linewidth=2,
-        color="b",
-    )
-    plt.plot(
-        quadrant_c.v_edge_theilsen_endpoints[:, 0],
-        quadrant_c.v_edge_theilsen_endpoints[:, 1],
-        linewidth=2,
-        color="g",
-    )
-    plt.plot(
-        quadrant_c.h_edge_theilsen_endpoints[:, 0],
-        quadrant_c.h_edge_theilsen_endpoints[:, 1],
-        linewidth=2,
-        color="b",
-    )
-    plt.plot(
-        quadrant_d.v_edge_theilsen_endpoints[:, 0],
-        quadrant_d.v_edge_theilsen_endpoints[:, 1],
-        linewidth=2,
-        color="g",
-    )
-    plt.plot(
-        quadrant_d.h_edge_theilsen_endpoints[:, 0],
-        quadrant_d.h_edge_theilsen_endpoints[:, 1],
-        linewidth=2,
-        color="b",
-    )
-
-    plt.scatter(
-        quadrant_a.v_edge_theilsen_endpoints[:, 0],
-        quadrant_a.v_edge_theilsen_endpoints[:, 1],
-        marker="*",
-        s=ms,
-        color="g",
-    )
-    plt.scatter(
-        quadrant_a.h_edge_theilsen_endpoints[:, 0],
-        quadrant_a.h_edge_theilsen_endpoints[:, 1],
-        marker="+",
-        s=ms,
-        color="b",
-    )
-    plt.scatter(
-        quadrant_b.v_edge_theilsen_endpoints[:, 0],
-        quadrant_b.v_edge_theilsen_endpoints[:, 1],
-        marker="*",
-        s=ms,
-        color="g",
-    )
-    plt.scatter(
-        quadrant_b.h_edge_theilsen_endpoints[:, 0],
-        quadrant_b.h_edge_theilsen_endpoints[:, 1],
-        marker="+",
-        s=ms,
-        color="b",
-    )
-    plt.scatter(
-        quadrant_c.v_edge_theilsen_endpoints[:, 0],
-        quadrant_c.v_edge_theilsen_endpoints[:, 1],
-        marker="*",
-        s=ms,
-        color="g",
-    )
-    plt.scatter(
-        quadrant_c.h_edge_theilsen_endpoints[:, 0],
-        quadrant_c.h_edge_theilsen_endpoints[:, 1],
-        marker="+",
-        s=ms,
-        color="b",
-    )
-    plt.scatter(
-        quadrant_d.v_edge_theilsen_endpoints[:, 0],
-        quadrant_d.v_edge_theilsen_endpoints[:, 1],
-        marker="*",
-        s=ms,
-        color="g",
-    )
-    plt.scatter(
-        quadrant_d.h_edge_theilsen_endpoints[:, 0],
-        quadrant_d.h_edge_theilsen_endpoints[:, 1],
-        marker="+",
-        s=ms,
-        color="b",
-    )
-    plt.legend(["v edge", "h edge"])
+    for f in fragments:
+        if hasattr(f, "v_edge_theilsen_endpoints"):
+            plt.plot(
+                f.v_edge_theilsen_endpoints[:, 0],
+                f.v_edge_theilsen_endpoints[:, 1],
+                linewidth=2,
+                color="g",
+            )
+            plt.scatter(
+                f.v_edge_theilsen_endpoints[:, 0],
+                f.v_edge_theilsen_endpoints[:, 1],
+                marker="*",
+                s=ms,
+                color="g",
+                label="_nolegend_"
+            )
+        if hasattr(f, "h_edge_theilsen_endpoints"):
+            plt.plot(
+                f.h_edge_theilsen_endpoints[:, 0],
+                f.h_edge_theilsen_endpoints[:, 1],
+                linewidth=2,
+                color="b",
+            )
+            plt.scatter(
+                f.h_edge_theilsen_endpoints[:, 0],
+                f.h_edge_theilsen_endpoints[:, 1],
+                marker="+",
+                s=ms,
+                color="b",
+                label="_nolegend_"
+            )
+    plt.savefig(f"{parameters['results_dir']}/images/debug/theilsen_estimate_{current_res_name}.png")
     plt.close()
 
     return
 
 
-def plot_rotated_bbox(quadrant_a, quadrant_b, quadrant_c, quadrant_d):
+def plot_rotated_bbox(fragments, parameters):
     """
     Custom function to plot the bounding box points after the box has been rotated.
     This basically offers a sanity check to verify that the corner points have been
     rotated correctly.
 
     Input:
-        - All quadrants
+        - All fragments
+        - Parameter dict
 
     Output:
         - Figure displaying the rotated bounding box points
     """
 
-    # X and y coordinates of the bounding box
-    scat_x = [
-        quadrant_a.bbox_corner_a[0],
-        quadrant_a.bbox_corner_b[0],
-        quadrant_a.bbox_corner_c[0],
-        quadrant_a.bbox_corner_d[0],
-    ]
-    scat_y = [
-        quadrant_a.bbox_corner_a[1],
-        quadrant_a.bbox_corner_b[1],
-        quadrant_a.bbox_corner_c[1],
-        quadrant_a.bbox_corner_d[1],
-    ]
-
-    plt.figure()
-    plt.title("Quadrant A")
-    plt.imshow(quadrant_a.tform_image, cmap="gray")
-    plt.scatter(scat_x, scat_y, s=25, c="r")
-    plt.close()
+    current_res_name = get_resname(parameters["resolutions"][parameters["iteration"]])
 
     # X and y coordinates of the bounding box
-    scat_x = [
-        quadrant_b.bbox_corner_a[0],
-        quadrant_b.bbox_corner_b[0],
-        quadrant_b.bbox_corner_c[0],
-        quadrant_b.bbox_corner_d[0],
-    ]
-    scat_y = [
-        quadrant_b.bbox_corner_a[1],
-        quadrant_b.bbox_corner_b[1],
-        quadrant_b.bbox_corner_c[1],
-        quadrant_b.bbox_corner_d[1],
-    ]
-
     plt.figure()
-    plt.title("Quadrant B")
-    plt.imshow(quadrant_b.tform_image, cmap="gray")
-    plt.scatter(scat_x, scat_y, s=25, c="r")
-    plt.close()
+    plt.title("Rotated bunding box points")
 
-    # X and y coordinates of the bounding box
-    scat_x = [
-        quadrant_c.bbox_corner_a[0],
-        quadrant_c.bbox_corner_b[0],
-        quadrant_c.bbox_corner_c[0],
-        quadrant_c.bbox_corner_d[0],
-    ]
-    scat_y = [
-        quadrant_c.bbox_corner_a[1],
-        quadrant_c.bbox_corner_b[1],
-        quadrant_c.bbox_corner_c[1],
-        quadrant_c.bbox_corner_d[1],
-    ]
-
-    plt.figure()
-    plt.title("Quadrant C")
-    plt.imshow(quadrant_c.tform_image, cmap="gray")
-    plt.scatter(scat_x, scat_y, s=25, c="r")
-    plt.close()
-
-    # X and y coordinates of the bounding box
-    scat_x = [
-        quadrant_d.bbox_corner_a[0],
-        quadrant_d.bbox_corner_b[0],
-        quadrant_d.bbox_corner_c[0],
-        quadrant_d.bbox_corner_d[0],
-    ]
-    scat_y = [
-        quadrant_d.bbox_corner_a[1],
-        quadrant_d.bbox_corner_b[1],
-        quadrant_d.bbox_corner_c[1],
-        quadrant_d.bbox_corner_d[1],
-    ]
-
-    plt.figure()
-    plt.title("Quadrant D")
-    plt.imshow(quadrant_d.tform_image, cmap="gray")
-    plt.scatter(scat_x, scat_y, s=25, c="r")
+    for c, f in enumerate(fragments):
+        scat_x = [
+            f.bbox_corner_a[0],
+            f.bbox_corner_b[0],
+            f.bbox_corner_c[0],
+            f.bbox_corner_d[0],
+        ]
+        scat_y = [
+            f.bbox_corner_a[1],
+            f.bbox_corner_b[1],
+            f.bbox_corner_c[1],
+            f.bbox_corner_d[1],
+        ]
+        plt.subplot(parameters["n_fragments"], 2, c+1)
+        plt.imshow(f.tform_image, cmap="gray")
+        plt.scatter(scat_x, scat_y, s=25, c="r")
+    plt.savefig(f"{parameters['results_dir']}/images/debug/rotation_bbox_{current_res_name}.png")
     plt.close()
 
     return
 
 
-def plot_tformed_edges(quadrant_a, quadrant_b, quadrant_c, quadrant_d):
+def plot_tformed_edges(fragments, parameters):
     """
     Custom function to plot the transformed edges before inputting them into the
     genetic algorithm. This mainly serves as a sanity check while debugging.
 
     Input:
-        - All quadrants
+        - All fragments
 
     Output:
         - Figure displaying the transformed edges
     """
 
+    current_res_name = get_resname(parameters["resolutions"][parameters["iteration"]])
+
     plt.figure()
     plt.title("Transformed edges")
-    plt.plot(quadrant_a.h_edge[:, 0], quadrant_a.h_edge[:, 1], c="b")
-    plt.plot(quadrant_a.v_edge[:, 0], quadrant_a.v_edge[:, 1], c="g")
-    plt.plot(quadrant_b.h_edge_tform[:, 0], quadrant_b.h_edge_tform[:, 1], c="b")
-    plt.plot(quadrant_b.v_edge_tform[:, 0], quadrant_b.v_edge_tform[:, 1], c="g")
-    plt.plot(quadrant_c.h_edge_tform[:, 0], quadrant_c.h_edge_tform[:, 1], c="b")
-    plt.plot(quadrant_c.v_edge_tform[:, 0], quadrant_c.v_edge_tform[:, 1], c="g")
-    plt.plot(quadrant_d.h_edge_tform[:, 0], quadrant_d.h_edge_tform[:, 1], c="b")
-    plt.plot(quadrant_d.v_edge_tform[:, 0], quadrant_d.v_edge_tform[:, 1], c="g")
+    for f in fragments:
+        if hasattr(f, "h_edge_tform"):
+            plt.plot(f.h_edge[:, 0], f.h_edge[:, 1], c="b")
+        if hasattr(f, "v_edge_tform"):
+            plt.plot(f.v_edge[:, 0], f.v_edge[:, 1], c="g")
     plt.legend(["Hor", "Ver"])
+    plt.savefig(f"{parameters['results_dir']}/images/debug/tformed_edges_inputGA_{current_res_name}.png")
     plt.close()
 
     return
 
 
-def plot_tformed_theilsen_lines(quadrant_a, quadrant_b, quadrant_c, quadrant_d):
+def plot_tformed_theilsen_lines(fragments, parameters):
     """
     Custom function to plot the transformed Theilsen lines before inputting them
     into the genetic algorithm. This function is analogous to the plot_tformed_edges
     function and serves as a sanity check during debugging.
 
     Input:
-        - All quadrants
+        - All fragments
 
     Output:
         - Figure displaying the transformed Theil-Sen lines
     """
 
+    current_res_name = get_resname(parameters["resolutions"][parameters["iteration"]])
+
     plt.figure()
     plt.title("Transformed Theil-Sen lines")
-    plt.plot(quadrant_a.h_edge_theilsen[:, 0], quadrant_a.h_edge_theilsen[:, 1], c="b")
-    plt.plot(quadrant_a.v_edge_theilsen[:, 0], quadrant_a.v_edge_theilsen[:, 1], c="g")
-    plt.plot(
-        quadrant_b.h_edge_theilsen_tform[:, 0],
-        quadrant_b.h_edge_theilsen_tform[:, 1],
-        c="b",
-    )
-    plt.plot(
-        quadrant_b.v_edge_theilsen_tform[:, 0],
-        quadrant_b.v_edge_theilsen_tform[:, 1],
-        c="g",
-    )
-    plt.plot(
-        quadrant_c.h_edge_theilsen_tform[:, 0],
-        quadrant_c.h_edge_theilsen_tform[:, 1],
-        c="b",
-    )
-    plt.plot(
-        quadrant_c.v_edge_theilsen_tform[:, 0],
-        quadrant_c.v_edge_theilsen_tform[:, 1],
-        c="g",
-    )
-    plt.plot(
-        quadrant_d.h_edge_theilsen_tform[:, 0],
-        quadrant_d.h_edge_theilsen_tform[:, 1],
-        c="b",
-    )
-    plt.plot(
-        quadrant_d.v_edge_theilsen_tform[:, 0],
-        quadrant_d.v_edge_theilsen_tform[:, 1],
-        c="g",
-    )
+    for f in fragments:
+        if hasattr(f, "h_edge_theilsen"):
+            plt.plot(f.h_edge_theilsen_tform[:, 0], f.h_edge_theilsen_tform[:, 1], c="b")
+        if hasattr(f, "v_edge_theilsen"):
+            plt.plot(f.v_edge_theilsen_tform[:, 0], f.v_edge_theilsen_tform[:, 1], c="g")
     plt.legend(["Hor", "Ver"])
+    plt.savefig(f"{parameters['results_dir']}/images/debug/theilsenlines_inputGA_{current_res_name}.png")
     plt.close()
 
     return
 
 
-def plot_ga_tform(quadrant_a, quadrant_b, quadrant_c, quadrant_d):
+def plot_ga_tform(fragments, parameters):
     """
     Custom function to show the transformation of the Theil-Sen lines which was found
     by the genetic algorithm.
 
     Input:
-        - All quadrants
+        - All fragments
 
     Output:
         - Figure displaying the transformed Theil-Sen lines by only taking into account
           the optimal transformation found by the genetic algorithm.
     """
 
+    current_res_name = get_resname(parameters["resolutions"][parameters["iteration"]])
+
     plt.figure()
     plt.subplot(121)
     plt.title("Theil-Sen lines before GA tform")
-    plt.plot(quadrant_a.h_edge_theilsen_coords, linewidth=3, color="r")
-    plt.plot(quadrant_a.v_edge_theilsen_coords, linewidth=3, color="r")
-    plt.plot(quadrant_b.h_edge_theilsen_coords, linewidth=3, color="r")
-    plt.plot(quadrant_b.v_edge_theilsen_coords, linewidth=3, color="r")
-    plt.plot(quadrant_c.h_edge_theilsen_coords, linewidth=3, color="r")
-    plt.plot(quadrant_c.v_edge_theilsen_coords, linewidth=3, color="r")
-    plt.plot(quadrant_d.h_edge_theilsen_coords, linewidth=3, color="r")
-    plt.plot(quadrant_d.v_edge_theilsen_coords, linewidth=3, color="r")
+    for f in fragments:
+        plt.plot(f.h_edge_theilsen_coords, linewidth=3, color="b")
+        plt.plot(f.v_edge_theilsen_coords, linewidth=3, color="g")
 
     plt.subplot(122)
     plt.title("Theil-Sen lines after GA tform")
-    plt.plot(quadrant_a.h_edge_theilsen_tform, linewidth=3, color="g")
-    plt.plot(quadrant_a.v_edge_theilsen_tform, linewidth=3, color="g")
-    plt.plot(quadrant_b.h_edge_theilsen_tform, linewidth=3, color="g")
-    plt.plot(quadrant_b.v_edge_theilsen_tform, linewidth=3, color="g")
-    plt.plot(quadrant_c.h_edge_theilsen_tform, linewidth=3, color="g")
-    plt.plot(quadrant_c.v_edge_theilsen_tform, linewidth=3, color="g")
-    plt.plot(quadrant_d.h_edge_theilsen_tform, linewidth=3, color="g")
-    plt.plot(quadrant_d.v_edge_theilsen_tform, linewidth=3, color="g")
+    for f in fragments:
+        plt.plot(f.h_edge_theilsen_tform, linewidth=3, color="b")
+        plt.plot(f.v_edge_theilsen_tform, linewidth=3, color="g")
+    plt.savefig(f"{parameters['results_dir']}/images/debug/theilsenlines_outputGA_{current_res_name}.png")
     plt.close()
 
     return
@@ -485,11 +308,11 @@ def plot_ga_tform(quadrant_a, quadrant_b, quadrant_c, quadrant_d):
 
 def plot_ga_result(final_image, parameters):
     """
-    Plotting function to plot the transformation of the quadrants which was found
+    Plotting function to plot the transformation of the fragments which was found
     by the genetic algorithm.
 
     Input:
-        - All quadrants
+        - All fragments
         - Dict with parameters
         - Final transformation from genetic algorithm
 
@@ -582,8 +405,8 @@ def plot_sampled_patches(total_im, patch_indices_x, patch_indices_y, ts_lines):
 
 def plot_overlap_cost(im, relative_overlap):
     """
-    Custom function to plot the overlap between the quadrants. Currently the overlap
-    between the quadrants is visualized as a rather gray area, this could of course be
+    Custom function to plot the overlap between the fragments. Currently the overlap
+    between the fragments is visualized as a rather gray area, this could of course be
     visualized more explicitly.
 
     Input:
@@ -591,12 +414,12 @@ def plot_overlap_cost(im, relative_overlap):
         - Percentual overlap
 
     Output:
-        - Figure displaying the overlap between the quadrants
+        - Figure displaying the overlap between the fragments
     """
 
     plt.figure()
     plt.title(
-        f"Visualization of overlapping quadrants {np.round(relative_overlap*100, 1)}%"
+        f"Visualization of overlapping fragments {np.round(relative_overlap*100, 1)}%"
     )
     plt.imshow(im, cmap="gray")
     plt.close()

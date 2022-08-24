@@ -33,9 +33,8 @@ def adjust_final_rotation(image):
     angle = copy.deepcopy(bbox[2])
     if angle > 45:
         angle = 90 - angle
-
-    else:
-        angle = -angle
+    # else:
+    #     angle = -angle
 
     # Get center of contour
     moment = cv2.moments(cnt)
