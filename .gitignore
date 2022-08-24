@@ -15,9 +15,9 @@ src/preprocessing/prepare_data_oesophagus.py
 *.xlsx
 */.idea/*
 algorithm_analysis/
-.idea
 
 # Distribution / packaging
+
 __pycache__/
 .Python
 build/
