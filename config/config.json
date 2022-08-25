@@ -1,0 +1,47 @@
+{
+  	"valid_fragments": [
+		"ul",
+       	"ur",
+        	"ll",
+       	"lr",
+        	"left",
+        	"right",
+        	"top",
+        	"bottom"
+	],
+
+    "complementary_fragments_pair": {
+        	"ul":"ur",
+        	"ur":"ul",
+        	"ll":"lr",
+        	"lr":"ll",
+        	"left":"right",
+        	"right":"left",
+        	"top":"bottom",
+        	"bottom":"top"
+      },
+
+    "complementary_fragments_total": {
+        	"ul":"ll",
+        	"ur":"ll",
+        	"ll":"ul",
+        	"lr":"ul"
+      },
+
+	"horizontal_combinations": [
+		["ul", "ur"],
+		["ul", "lr"],
+		["ll", "ur"],
+		["ll", "lr"],
+		["left", "right"]
+	],
+
+	"vertical_combinations": [
+        	["ul", "ll"],
+        	["ul", "lr"],
+        	["ur", "ll"],
+        	["ur", "lr"],
+        	["top", "bottom"]
+	]
+
+}
