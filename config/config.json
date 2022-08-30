@@ -2,31 +2,31 @@
   	"valid_fragments": [
 		"ul",
        	"ur",
-        	"ll",
+		"ll",
        	"lr",
-        	"left",
-        	"right",
-        	"top",
-        	"bottom"
+		"left",
+		"right",
+		"top",
+		"bottom"
 	],
 
     "complementary_fragments_pair": {
-        	"ul":"ur",
-        	"ur":"ul",
-        	"ll":"lr",
-        	"lr":"ll",
-        	"left":"right",
-        	"right":"left",
-        	"top":"bottom",
-        	"bottom":"top"
-      },
+		"ul":"ur",
+		"ur":"ul",
+		"ll":"lr",
+		"lr":"ll",
+		"left":"right",
+		"right":"left",
+		"top":"bottom",
+		"bottom":"top"
+	},
 
     "complementary_fragments_total": {
-        	"ul":"ll",
-        	"ur":"ll",
-        	"ll":"ul",
-        	"lr":"ul"
-      },
+		"ul":"ll",
+		"ur":"ll",
+		"ll":"ul",
+		"lr":"ul"
+	},
 
 	"horizontal_combinations": [
 		["ul", "ur"],
@@ -37,11 +37,10 @@
 	],
 
 	"vertical_combinations": [
-        	["ul", "ll"],
-        	["ul", "lr"],
-        	["ur", "ll"],
-        	["ur", "lr"],
-        	["top", "bottom"]
+		["ul", "ll"],
+		["ul", "lr"],
+		["ur", "ll"],
+		["ur", "lr"],
+		["top", "bottom"]
 	]
-
 }
