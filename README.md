@@ -17,14 +17,15 @@ The input for Pythostitcher consists of either two or four images which are labe
 
 ## User instructions
 You can try out Pythostitcher yourself on the sample data available from <a href="https://doi.org/10.5281/zenodo.7002505"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.7002505.svg" alt="DOI"></a>. This sample data includes two prostatectomy cases with four fragments and one oesophagectomy case with two fragments. After downloading the data, place each case in the respective 'tissue directory' and ensure that the data is now structured as follows:
- - pythostitcher
-	 - src
-	 - sample_data
-		 - prostate
-			 - P000001
-			 - P000002
-		 - oesophagus
-			 - P000001
+	
+	pythostitcher/ 
+	├── src
+	├── sample_data
+    │     └── prostate
+	│        ├── P000001
+	│        └── P000002
+    │     └── oesophagus
+    │         └── P000001
 
             
 You can run PythoStitcher through the command line using:
