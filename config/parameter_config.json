@@ -1,0 +1,48 @@
+{
+	"resolutions": [0.05, 0.15, 0.45, 1],
+	
+	"image_level": 7,
+	"pad_fraction": 0.5,
+	"slice_idx": "slice_0",
+	"my_level": 45,
+	
+	"n_solutions": 20,
+	"n_generations": [200, 150, 100, 100],
+	"n_parents": 3,
+	"n_mating": 6,
+	"p_crossover": 0.5,
+	"crossover_type": "scattered",
+	"p_mutation": 0.25,
+	"mutation_type": "random",
+	"parent_selection": "rank",
+
+	"resolution_scaling": [1, 2, 10, 20],
+	"nbins": 16,
+	"hist_sizes": [4, 8, 20, 80],
+	"outer_point_weight": 0.5,
+	"overlap_weight": 100,
+	"distance_scaling_hor_required": true,
+	"distance_scaling_ver_required": true,
+
+	"translation_range": [0.05, 0.025, 0.0083, 0.0083],
+	"angle_range": [10, 10, 5, 5],
+	"GA_fitness": ["None"],
+
+	"weights_fragment_classifier": "./model_weights/fragment_classifier/best_weights.hdf5",
+	"alignment_score": "jigsawnet",
+	"max_expand_threshold": 25,
+	"bg_color": [0, 0, 0],
+
+	"weights_jigsawnet": "./model_weights/JigsawCNN_checkpoint",
+	"JSN_Hyperparameters": {
+		"width": 160,
+		"height": 160,
+		"depth": 3,
+		"batch_size": 64,
+		"weight_decay": 1e-4,
+		"learning_rate": 1e-4,
+		"total_training_step": 30000,
+		"learner_num": 5
+	}
+
+}

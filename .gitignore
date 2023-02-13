@@ -9,11 +9,11 @@ __pycache__/
 # Local stuff
 info.txt
 results/
-Dockerfile
 src/preprocessing/prepare_data_oesophagus.py
 *.docx
 *.xlsx
-*/.idea/*
+.idea
+*/.idea/
 algorithm_analysis/
 
 # Distribution / packaging

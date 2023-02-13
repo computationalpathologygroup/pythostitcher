@@ -1,0 +1,1 @@
+The weights for JigsawNet were too large to be put on Github. Therefore, these weights will come packaged with the Docker container to run PythoStitcher.

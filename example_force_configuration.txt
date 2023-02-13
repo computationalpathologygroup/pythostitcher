@@ -1,0 +1,2 @@
+image1:left
+image2:right
