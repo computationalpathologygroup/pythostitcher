@@ -21,7 +21,7 @@ After preprocessing the input images, Pythostitcher will perform an automated st
 ## Usage instructions
 It is highly recommended to run PythoStitcher as a Docker container, since PythoStitcher uses [PyVips](https://github.com/libvips/pyvips) and the backend from [ASAP](https://github.com/computationalpathologygroup/ASAP), which both can not be readily pip installed. The Docker container comes prepackaged with these libraries and should run out-of-the-box. 
 
-You can try out Pythostitcher yourself on the sample data available from <a href="https://doi.org/10.5281/zenodo.7002505"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.7002505.svg" alt="DOI"></a>. This sample data includes two prostatectomy cases with four fragments and one oesophagectomy case with two fragments. After downloading the data, place each case in the respective 'tissue directory' and ensure that the data is now structured as follows. If you want to enforce the location of each fragment in the final reconstruction, be sure to include a force_configuration.txt file in each patient directory. See the example_force_configuration.txt file on how to format this.  
+You can try out Pythostitcher yourself on the sample data available from <a href="https://zenodo.org/record/7636102"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.7636102.svg" alt="DOI"></a>. This sample data includes two prostatectomy cases, one case with four fragments and one case with two fragments. After downloading the data, save it somewhere on your disk and provide the path to this directory as an argument to the PythoStitcher container. If you want to enforce the location of each fragment in the final reconstruction, be sure to include a force_configuration.txt file in each patient directory. See the example_force_configuration.txt file on how to format this.  
 	
 	pythostitcher/ 
 	├── src
@@ -35,7 +35,7 @@ You can try out Pythostitcher yourself on the sample data available from <a href
             
 After preparing the input data in the aforementioned format, you can run PythoStitcher through the command line using:
 
-    python3 main.py --data_dir {/path/to/sample_data/} --save_dir {/your/custom/path/} --patient {patient_idx} 
+    python3 main.py --data_dir "/path/to/sample_data/" --save_dir "/your/custom/path/" --patient "patient_idx"
 where *data_dir* refers to the directory with your input data, *save_dir* refers to the location to save the result and *patient* refers to one of the cases in the data directory. Example line to obtain the result for patient P000001 from the prostate dataset:
 
     python3 main.py --data_dir "~/pythostitcher/sample_data" --save_dir "~/pythostitcher/results" --patient "P000001"
