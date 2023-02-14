@@ -27,12 +27,12 @@ You can try out Pythostitcher yourself on your data or on the sample data availa
 	├── src
 	├── sample_data
 	│   └── P000001
-	|	   └── raw images
+	|      └── raw images
 	|         ├── image1
-	|	      └── image2
-	|	   └── raw masks
+	|	    └── image2
+	|	 └── raw masks
 	|         ├── image1
-	|	      └── image2
+	|	    └── image2
 	│      └── force_config.txt [OPTIONAL]
 	│   └── P000002
 	etc.
