@@ -214,7 +214,7 @@ def SingleTest(checkpoint_root, K, net, is_training=False):
         sess_init_op = tf.group(tf.compat.v1.global_variables_initializer(),
                                 tf.compat.v1.local_variables_initializer())
         sess.run(sess_init_op)
-        saver.restore(sess, tf.train.latest_checkpoint(f"./{check_point}"))
+        saver.restore(sess, tf.train.latest_checkpoint(check_point))
         sessions.append(sess)
 
     # Inference on JigsawNet. Note how this is only performed with batch_size=1. Perhaps

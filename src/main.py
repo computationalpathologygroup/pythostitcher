@@ -1,37 +1,43 @@
-import os
-os.environ["VIPS_CONCURRENCY"] = "20"
 import argparse
-import logging
 import json
+import logging
+import os
 import pathlib
 
-from preprocessing_utils.prepare_data import prepare_data
 from assembly_utils.detect_configuration import detect_configuration
-from pythostitcher_utils.preprocess import preprocess
-from pythostitcher_utils.optimize_stitch import optimize_stitch
+from preprocessing_utils.prepare_data import prepare_data
 from pythostitcher_utils.fragment_class import Fragment
-from pythostitcher_utils.get_resname import get_resname
 from pythostitcher_utils.full_resolution import generate_full_res
+from pythostitcher_utils.get_resname import get_resname
+from pythostitcher_utils.optimize_stitch import optimize_stitch
+from pythostitcher_utils.preprocess import preprocess
+
+os.environ["VIPS_CONCURRENCY"] = "20"
 
 
-def load_parameter_configuration(data_dir, save_dir, patient_idx):
+def load_parameter_configuration(data_dir, save_dir, output_res):
     """
     Convenience function to load all the PythoStitcher parameters and pack them up
     in a dictionary for later use.
     """
 
     # Verify its existence
-    config_file = pathlib.Path("./config/parameter_config.json")
+    config_file = pathlib.Path().absolute().parent.joinpath("config/parameter_config.json")
     assert config_file.exists(), "parameter config file not found"
 
     # Load main parameter config
     with open(config_file) as f:
         parameters = json.load(f)
 
+    # Convert model weight paths to absolute paths
+    parameters["weights_fragment_classifier"] = pathlib.Path().absolute().parent.joinpath(parameters["weights_fragment_classifier"])
+    parameters["weights_jigsawnet"] = pathlib.Path().absolute().parent.joinpath(parameters["weights_jigsawnet"])
+
     # Insert parsed arguments
     parameters["data_dir"] = data_dir
     parameters["save_dir"] = save_dir
-    parameters["patient_idx"] = patient_idx
+    parameters["patient_idx"] = data_dir.name
+    parameters["output_res"] = output_res
     parameters["fragment_names"] = [i.name for i in data_dir.joinpath("raw_images").iterdir() if i.is_dir()]
     parameters["n_fragments"] = len(parameters["fragment_names"])
     parameters["resolution_scaling"] = [i/parameters["resolutions"][0] for i in parameters["resolutions"]]
@@ -69,32 +75,43 @@ def collect_arguments():
         description="Stitch prostate histopathology images into a pseudo whole-mount image"
     )
     parser.add_argument(
-        "--datadir", required=True, help="General data directory with all patients"
+        "--datadir",
+        required=True,
+        type=pathlib.Path,
+        help="Path to the case to stitch"
     )
     parser.add_argument(
-        "--savedir", required=True, help="Directory to save the results"
+        "--savedir",
+        required=True,
+        type=pathlib.Path,
+        help="Directory to save the results"
     )
     parser.add_argument(
-        "--patient", required=True, help="Patient to process"
+        "--resolution",
+        required=True,
+        default=0.25,
+        type=float,
+        help="Output resolution (µm/pixel) of the reconstructed image. Should be roughly "
+             "in range of 0.25-20."
     )
     args = parser.parse_args()
 
     # Extract arguments
-    patient_idx = args.patient
-    data_dir = pathlib.Path(args.datadir).joinpath(patient_idx)
-    save_dir = pathlib.Path(args.savedir).joinpath(patient_idx)
+    data_dir = pathlib.Path(args.datadir)
+    save_dir = pathlib.Path(args.savedir).joinpath(data_dir.name)
+    resolution = args.resolution
 
-    assert pathlib.Path(args.datadir).is_dir(), "provided data directory doesn't exist"
-    assert data_dir.is_dir(), "provided patient could not be found in data directory"
+    assert data_dir.is_dir(), "provided patient directory doesn't exist"
     assert data_dir.joinpath("raw_images").is_dir(), "patient has no 'raw_images' directory"
     assert len(list(data_dir.joinpath("raw_images").iterdir())) > 0, "no images found in 'raw_images' directory"
+    assert resolution > 0, "output resolution cannot be negative"
 
     print(f"\nRunning job with following parameters:"
-          f"\n - Data dir: {args.datadir}"
+          f"\n - Data dir: {data_dir}"
           f"\n - Save dir: {save_dir}"
-          f"\n - Patient: {patient_idx}")
+          f"\n - Output resolution: {resolution} µm/pixel\n")
 
-    return data_dir, save_dir, patient_idx
+    return data_dir, save_dir, resolution
 
 
 def main():
@@ -115,7 +132,7 @@ def main():
     /data
         /{Patient_identifier}
             /raw_images
-                {fragment_name}.mrxs
+                {fragment_name}.mrxs§
                 {fragment_name}.mrxs
             /raw_masks
                 {fragment_name}.tif
@@ -126,8 +143,8 @@ def main():
 
     ### ARGUMENT CONFIGURATION ###
     # Collect arguments
-    data_dir, save_dir, patient_idx = collect_arguments()
-    parameters = load_parameter_configuration(data_dir, save_dir, patient_idx)
+    data_dir, save_dir, output_res = collect_arguments()
+    parameters = load_parameter_configuration(data_dir, save_dir, output_res)
 
     # Initiate logging file
     logfile = save_dir.joinpath("pythostitcher_log.log")
@@ -144,9 +161,10 @@ def main():
     log = logging.getLogger("pythostitcher")
 
     parameters["log"] = log
-    parameters["log"].log(parameters["my_level"], f"Running job with following parameters:"
-                                    f"\n - Data dir: {parameters['data_dir']}"
-                                    f"\n - Save dir: {parameters['save_dir']}\n")
+    parameters["log"].log(parameters["my_level"], f"Running job with following parameters:")
+    parameters["log"].log(parameters["my_level"], f" - Data dir: {parameters['data_dir']}")
+    parameters["log"].log(parameters["my_level"], f" - Save dir: {parameters['save_dir']}")
+    parameters["log"].log(parameters["my_level"], f" - Output resolution: {parameters['output_res']}\n")
 
     if not data_dir.joinpath("raw_masks").is_dir():
         parameters["log"].log(
@@ -155,7 +173,8 @@ def main():
             f"PythoStitcher with pregenerated tissuemasks, please put these files in "
             f"[{data_dir.joinpath('raw_masks')}]. If no tissuemasks are supplied, "
             f"PythoStitcher will use a generic tissue segmentation which may not perform "
-            f"as well as the AI-generated masks.")
+            f"as well as the AI-generated masks. In addition, PythoStitcher will not "
+            f"be able to generate the full resolution end result.")
 
     ### MAIN PYTHOSTITCHER #s##
     # Preprocess data
@@ -182,7 +201,7 @@ def main():
             fragments = []
             for im_path, fragment_name in sol.items():
                 fragments.append(Fragment(
-                    im_path = im_path,
+                    im_path=im_path,
                     fragment_name=fragment_name,
                     kwargs=parameters)
                 )
@@ -198,7 +217,7 @@ def main():
 
         parameters["log"].log(
             parameters["my_level"],
-            f"Succesfully stitched solution {count_sol}"
+            f"### Succesfully stitched solution {count_sol} ###\n"
         )
 
     return

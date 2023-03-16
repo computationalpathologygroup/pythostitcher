@@ -129,20 +129,21 @@ def fuse_images_highres(images, masks):
     names = list(images.keys())
     combinations = itertools.combinations(names, 2)
 
+    # Possible combination pairs
     hor_combinations = [
-		["ul", "ur"],
-		["ul", "lr"],
-		["ll", "ur"],
-		["ll", "lr"],
-		["left", "right"]
-	]
+        ["ul", "ur"],
+        ["ul", "lr"],
+        ["ll", "ur"],
+        ["ll", "lr"],
+        ["left", "right"]
+    ]
     ver_combinations = [
-		["ul", "ll"],
-		["ul", "lr"],
-		["ur", "ll"],
-		["ur", "lr"],
-		["top", "bottom"]
-	]
+        ["ul", "ll"],
+        ["ul", "lr"],
+        ["ur", "ll"],
+        ["ur", "lr"],
+        ["top", "bottom"]
+    ]
 
     # Create some lists for iterating
     total_mask = np.sum(list(masks.values()), axis=0).astype("uint8")
