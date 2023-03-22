@@ -291,30 +291,6 @@ class FullResImage:
         return
 
 
-def image_eval_handler(result_image, progress):
-    """
-    Function to display progress of pyvips operation.
-
-    Inputs
-        - Pyvips instance
-        - Progress instance
-
-    Outputs
-        - Progress prompt in log
-    """
-
-    global savelog_image
-
-    percent = int(np.round(progress.percent))
-    if percent % 10 == 0 and percent not in savelog_image:
-        handler_log.log(35, f" - progress {progress.percent}%")
-        savelog_image.append(percent)
-
-    time.sleep(1)
-
-    return
-
-
 def generate_full_res(parameters, log):
     """
     Function to generate the final full resolution stitching results.
@@ -364,13 +340,18 @@ def generate_full_res(parameters, log):
 
     # Save temp .tif version of mask for later use in blending
     parameters["tif_mask_path"] = str(parameters["sol_save_dir"].joinpath("highres", "temp_mask.tif"))
-    # result_mask.write_to_file(
-    #     tif_mask_path,
-    #     tile=True,
-    #     compression="lzw",
-    #     bigtiff=True,
-    #     pyramid=True,
-    # )
+    log.log(parameters["my_level"], f"Saving temporary mask at {parameters['output_res']} µm/pixel")
+    start = time.time()
+    result_mask.write_to_file(
+        parameters["tif_mask_path"],
+        tile=True,
+        compression="lzw",
+        bigtiff=True,
+        pyramid=True,
+    )
+    log.log(
+        parameters["my_level"], f" > finished in {int(np.ceil((time.time()-start)/60))} mins!\n"
+    )
 
     # Perform blending in areas of overlap
     log.log(parameters["my_level"], "Blending areas of overlap")
@@ -380,10 +361,8 @@ def generate_full_res(parameters, log):
     log.log(parameters["my_level"], f" > finished in {comp_time} mins!\n")
 
     # Save final result
-    log.log(parameters["my_level"], f"Saving high resolution result at {parameters['output_res']} µm/pixel")
+    log.log(parameters["my_level"], f"Saving blended end result at {parameters['output_res']} µm/pixel")
     start = time.time()
-    result_image.set_progress(True)
-    result_image.signal_connect("eval", image_eval_handler)
     result_image.write_to_file(
         str(parameters["sol_save_dir"].joinpath("highres", f"stitched_image_{parameters['output_res']}_micron.tif")),
         tile=True,

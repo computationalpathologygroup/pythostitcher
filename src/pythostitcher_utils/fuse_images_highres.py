@@ -23,19 +23,19 @@ def is_valid_contour(cnt):
     cnt = np.squeeze(cnt)
 
     # Criterium contour length
-    if len(cnt) < 50:
+    if len(cnt) < 10:
         return False
 
     # Criterium domain
     xcoords = cnt[:, 0]
     ycoords = cnt[:, 1]
 
-    if (len(np.unique(xcoords)) < 20) or (len(np.unique(ycoords)) < 20):
+    if (len(np.unique(xcoords)) < 5) or (len(np.unique(ycoords)) < 5):
         return False
 
     # Criterium contour area
     area = cv2.contourArea(cnt)
-    if area < 500:
+    if area < 100:
         return False
 
     return True
@@ -300,7 +300,7 @@ def fuse_images_highres(images, masks):
     all_nonoverlap = np.sum(list(nonoverlap.values()), axis=0).astype("uint8")
 
     # Sum all overlapping parts relative to their gradient
-    if True in is_overlap_list:
+    if any(is_overlap_list):
         grad_fragments = [images[str(j[0])] for j in gradients.keys()]
         all_overlap = np.sum(
             [
@@ -317,7 +317,7 @@ def fuse_images_highres(images, masks):
     final_image_edit = copy.deepcopy(final_image)
 
     # Check if there was any overlap between fragments
-    if True in is_overlap_list:
+    if any(is_overlap_list):
 
         # Indices for getting patches
         p1, p2 = int(np.floor(patch_size_mean / 2)), int(np.ceil(patch_size_mean / 2))

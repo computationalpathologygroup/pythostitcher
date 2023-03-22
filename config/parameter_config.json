@@ -28,12 +28,12 @@
 	"angle_range": [10, 10, 5, 5],
 	"GA_fitness": ["None"],
 
-	"weights_fragment_classifier": "./model_weights/fragment_classifier/best_weights.hdf5",
+	"weights_fragment_classifier": "model_weights/fragment_classifier/best_weights.hdf5",
 	"alignment_score": "jigsawnet",
 	"max_expand_threshold": 25,
 	"bg_color": [0, 0, 0],
 
-	"weights_jigsawnet": "./model_weights/JigsawCNN_checkpoint",
+	"weights_jigsawnet": "model_weights/JigsawCNN_checkpoint",
 	"JSN_Hyperparameters": {
 		"width": 160,
 		"height": 160,
