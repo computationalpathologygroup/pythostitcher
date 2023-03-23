@@ -130,20 +130,8 @@ def fuse_images_highres(images, masks):
     combinations = itertools.combinations(names, 2)
 
     # Possible combination pairs
-    hor_combinations = [
-        ["ul", "ur"],
-        ["ul", "lr"],
-        ["ll", "ur"],
-        ["ll", "lr"],
-        ["left", "right"]
-    ]
-    ver_combinations = [
-        ["ul", "ll"],
-        ["ul", "lr"],
-        ["ur", "ll"],
-        ["ur", "lr"],
-        ["top", "bottom"]
-    ]
+    hor_combinations = [["ul", "ur"], ["ul", "lr"], ["ll", "ur"], ["ll", "lr"], ["left", "right"]]
+    ver_combinations = [["ul", "ll"], ["ul", "lr"], ["ur", "ll"], ["ur", "lr"], ["top", "bottom"]]
 
     # Create some lists for iterating
     total_mask = np.sum(list(masks.values()), axis=0).astype("uint8")
@@ -214,9 +202,7 @@ def fuse_images_highres(images, masks):
             overlap_pad = (overlap_pad * 255).astype("uint8")
 
             # Get contour of overlap
-            cnt, _ = cv2.findContours(
-                overlap_pad, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE,
-            )
+            cnt, _ = cv2.findContours(overlap_pad, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE,)
 
             # There are nearly always multiple contours, some existing of only a few
             # points which we don't want to include in gradient blending. Hence, we
@@ -280,11 +266,7 @@ def fuse_images_highres(images, masks):
 
                 elif is_vertical:
                     all_grad, all_grad_rev = get_gradients(
-                        bbox=bbox,
-                        q1_mask=q1_mask,
-                        overlap=overlap,
-                        direction="vertical",
-                        pad=pad,
+                        bbox=bbox, q1_mask=q1_mask, overlap=overlap, direction="vertical", pad=pad,
                     )
 
                 # Save the gradients
@@ -350,23 +332,13 @@ def fuse_images_highres(images, masks):
                     # Get lower and upper bounds for the patch. Avoid potential negative
                     # indexing or indexing out of bounds.
                     x_lb = x - p1 if x - p1 > 0 else 0
-                    x_ub = (
-                        x + p2
-                        if x + p2 < final_image.shape[0]
-                        else final_image.shape[0] - 1
-                    )
+                    x_ub = x + p2 if x + p2 < final_image.shape[0] else final_image.shape[0] - 1
                     y_lb = y - p1 if y - p1 > 0 else 0
-                    y_ub = (
-                        y + p2
-                        if y + p2 < final_image.shape[1]
-                        else final_image.shape[1] - 1
-                    )
+                    y_ub = y + p2 if y + p2 < final_image.shape[1] else final_image.shape[1] - 1
 
                     # Extract patch, compute median pixel value and insert in image
                     patch = final_image[x_lb:x_ub, y_lb:y_ub, :]
-                    patch = patch.reshape(
-                        int(patch.shape[0] * patch.shape[1]), patch.shape[2]
-                    )
+                    patch = patch.reshape(int(patch.shape[0] * patch.shape[1]), patch.shape[2])
                     fill_val = np.median(patch, axis=0)
                     final_image_edit[x, y, :] = fill_val
 

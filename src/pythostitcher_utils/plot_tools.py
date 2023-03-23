@@ -28,12 +28,10 @@ def plot_rotation_result(fragments, parameters):
 
     # Apply padding
     padded_mask = [
-        np.pad(f.mask, [[p[0], p[0]], [p[1], p[1]]])
-        for p, f in zip(pad_mask, fragments)
+        np.pad(f.mask, [[p[0], p[0]], [p[1], p[1]]]) for p, f in zip(pad_mask, fragments)
     ]
     padded_rot_mask = [
-        np.pad(f.rot_mask, [[p[0], p[0]], [p[1], p[1]]])
-        for p, f in zip(pad_rot_mask, fragments)
+        np.pad(f.rot_mask, [[p[0], p[0]], [p[1], p[1]]]) for p, f in zip(pad_rot_mask, fragments)
     ]
 
     # Get x/y values of bounding box around fragment
@@ -47,7 +45,7 @@ def plot_rotation_result(fragments, parameters):
     ]
 
     # Plot rotation result
-    plt.figure(figsize=(6, len(fragments)*3))
+    plt.figure(figsize=(6, len(fragments) * 3))
     plt.suptitle("Fragments before and after \nautomatic rotation", fontsize=20)
 
     for c, (pad, p_mask, p_rmask, c_x, c_y, f) in enumerate(
@@ -58,10 +56,7 @@ def plot_rotation_result(fragments, parameters):
         plt.title(f.final_orientation, fontsize=16)
         plt.imshow(p_mask, cmap="gray")
         plt.scatter(
-            f.mask_corner_a[0] + pad[1],
-            f.mask_corner_a[1] + pad[0],
-            facecolor="r",
-            s=100,
+            f.mask_corner_a[0] + pad[1], f.mask_corner_a[1] + pad[0], facecolor="r", s=100,
         )
         plt.plot(c_x, c_y, linewidth=4, c="r")
         plt.subplot(parameters["n_fragments"], 2, c * 2)
@@ -98,10 +93,7 @@ def plot_transformation_result(fragments, parameters):
     plt.title(f"Initial alignment at resolution {current_res}")
     plt.imshow(result, cmap="gray")
     if parameters["iteration"] == 0:
-        plt.savefig(
-            f"{parameters['sol_save_dir']}/images/"
-            f"ga_progression/initial_alignment.png"
-        )
+        plt.savefig(f"{parameters['sol_save_dir']}/images/" f"ga_progression/initial_alignment.png")
     plt.close()
 
     return
@@ -151,7 +143,7 @@ def plot_theilsen_result(fragments, parameters):
                 marker="*",
                 s=ms,
                 color="g",
-                label="_nolegend_"
+                label="_nolegend_",
             )
         if hasattr(f, "h_edge_theilsen_endpoints"):
             plt.plot(
@@ -166,9 +158,11 @@ def plot_theilsen_result(fragments, parameters):
                 marker="+",
                 s=ms,
                 color="b",
-                label="_nolegend_"
+                label="_nolegend_",
             )
-    plt.savefig(f"{parameters['sol_save_dir']}/images/debug/theilsen_estimate_{current_res_name}.png")
+    plt.savefig(
+        f"{parameters['sol_save_dir']}/images/debug/theilsen_estimate_{current_res_name}.png"
+    )
     plt.close()
 
     return
@@ -207,7 +201,7 @@ def plot_rotated_bbox(fragments, parameters):
             f.bbox_corner_c[1],
             f.bbox_corner_d[1],
         ]
-        plt.subplot(parameters["n_fragments"], 2, c+1)
+        plt.subplot(parameters["n_fragments"], 2, c + 1)
         plt.imshow(f.tform_image, cmap="gray")
         plt.scatter(scat_x, scat_y, s=25, c="r")
     plt.savefig(f"{parameters['sol_save_dir']}/images/debug/rotation_bbox_{current_res_name}.png")
@@ -238,7 +232,9 @@ def plot_tformed_edges(fragments, parameters):
         if hasattr(f, "v_edge_tform"):
             plt.plot(f.v_edge[:, 0], f.v_edge[:, 1], c="g")
     plt.legend(["Hor", "Ver"])
-    plt.savefig(f"{parameters['sol_save_dir']}/images/debug/tformed_edges_inputGA_{current_res_name}.png")
+    plt.savefig(
+        f"{parameters['sol_save_dir']}/images/debug/tformed_edges_inputGA_{current_res_name}.png"
+    )
     plt.close()
 
     return
@@ -267,7 +263,9 @@ def plot_tformed_theilsen_lines(fragments, parameters):
         if hasattr(f, "v_edge_theilsen"):
             plt.plot(f.v_edge_theilsen_tform[:, 0], f.v_edge_theilsen_tform[:, 1], c="g")
     plt.legend(["Hor", "Ver"])
-    plt.savefig(f"{parameters['sol_save_dir']}/images/debug/theilsenlines_inputGA_{current_res_name}.png")
+    plt.savefig(
+        f"{parameters['sol_save_dir']}/images/debug/theilsenlines_inputGA_{current_res_name}.png"
+    )
     plt.close()
 
     return
@@ -300,7 +298,9 @@ def plot_ga_tform(fragments, parameters):
     for f in fragments:
         plt.plot(f.h_edge_theilsen_tform, linewidth=3, color="b")
         plt.plot(f.v_edge_theilsen_tform, linewidth=3, color="g")
-    plt.savefig(f"{parameters['sol_save_dir']}/images/debug/theilsenlines_outputGA_{current_res_name}.png")
+    plt.savefig(
+        f"{parameters['sol_save_dir']}/images/debug/theilsenlines_outputGA_{current_res_name}.png"
+    )
     plt.close()
 
     return
@@ -330,8 +330,7 @@ def plot_ga_result(final_image, parameters):
     )
     plt.imshow(final_image)
     plt.savefig(
-        f"{parameters['sol_save_dir']}/images/ga_progression/"
-        f"ga_result_{current_res_name}.png"
+        f"{parameters['sol_save_dir']}/images/ga_progression/" f"ga_result_{current_res_name}.png"
     )
     plt.close()
 
@@ -353,12 +352,8 @@ def make_tform_gif(parameters):
     """
 
     # Make gif of the transformation
-    imsavedir = (
-        f"{parameters['sol_save_dir']}/images/ga_progression/"
-    )
-    gifsavedir = (
-        f"{parameters['sol_save_dir']}/images/tform_progression.gif"
-    )
+    imsavedir = f"{parameters['sol_save_dir']}/images/ga_progression/"
+    gifsavedir = f"{parameters['sol_save_dir']}/images/tform_progression.gif"
 
     all_images = glob.glob(imsavedir + "/*")
     all_images = sorted(all_images, key=lambda t: os.stat(t).st_mtime)
@@ -418,9 +413,7 @@ def plot_overlap_cost(im, relative_overlap):
     """
 
     plt.figure()
-    plt.title(
-        f"Visualization of overlapping fragments {np.round(relative_overlap*100, 1)}%"
-    )
+    plt.title(f"Visualization of overlapping fragments {np.round(relative_overlap*100, 1)}%")
     plt.imshow(im, cmap="gray")
     plt.close()
 

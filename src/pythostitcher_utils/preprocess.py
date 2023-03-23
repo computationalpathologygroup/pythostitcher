@@ -1,4 +1,3 @@
-
 def preprocess(fragments, parameters):
     """
     Function to load and preprocess all the tissue fragment images. The preprocessing
@@ -22,7 +21,9 @@ def preprocess(fragments, parameters):
         parameters["sol_save_dir"].joinpath("images", "debug"),
         parameters["sol_save_dir"].joinpath("images", "ga_progression"),
         parameters["sol_save_dir"].joinpath("images", "ga_result_per_iteration"),
-        parameters["sol_save_dir"].joinpath("images", parameters["slice_idx"], parameters["res_name"]),
+        parameters["sol_save_dir"].joinpath(
+            "images", parameters["slice_idx"], parameters["res_name"]
+        ),
     ]
     for d in new_dirs:
         if not d.is_dir():

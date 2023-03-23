@@ -9,7 +9,9 @@ def run_pairwise_alignment(parameters):
     """
 
     # Get all fragment filenames
-    fragment_names = sorted([i.name for i in parameters["save_dir"].joinpath("preprocessed_images").iterdir()])
+    fragment_names = sorted(
+        [i.name for i in parameters["save_dir"].joinpath("preprocessed_images").iterdir()]
+    )
     assert len(fragment_names) > 0, "no fragments were found in the given directory"
 
     # Insert some more variables
@@ -17,7 +19,9 @@ def run_pairwise_alignment(parameters):
     parameters["pa_resolution"] = [0.1]
 
     # Create fragment list .txt file
-    with open(parameters["save_dir"].joinpath("configuration_detection", "fragment_list.txt"), "w") as f:
+    with open(
+        parameters["save_dir"].joinpath("configuration_detection", "fragment_list.txt"), "w"
+    ) as f:
         for name in fragment_names:
             f.write(f"{name}\n")
 
@@ -26,7 +30,7 @@ def run_pairwise_alignment(parameters):
         f.write("0 0 0")
 
     # Get fragment classifier model
-    classifier = Classifier(weights = parameters["weights_fragment_classifier"])
+    classifier = Classifier(weights=parameters["weights_fragment_classifier"])
     classifier.build_model()
     parameters["fragment_classifier"] = classifier
 

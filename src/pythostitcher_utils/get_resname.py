@@ -10,9 +10,7 @@ def get_resname(res):
         - Resolution name
     """
 
-    assert (
-        res <= 1
-    ), "resolution fraction must be equal to or smaller than the original image"
+    assert res <= 1, "resolution fraction must be equal to or smaller than the original image"
 
     resname = "res" + str(int(res * 1000)).zfill(4)
 

@@ -21,9 +21,7 @@ def adjust_final_rotation(image):
     mask = (image.astype("uint8")[:, :, 0] > 0) * 255
 
     # Get largest contour
-    cnt, _ = cv2.findContours(
-        mask.astype("uint8"), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE
-    )
+    cnt, _ = cv2.findContours(mask.astype("uint8"), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
     cnt = np.squeeze(max(cnt, key=cv2.contourArea))
 
     # Compute bounding box around contour
@@ -33,8 +31,6 @@ def adjust_final_rotation(image):
     angle = copy.deepcopy(bbox[2])
     if angle > 45:
         angle = 90 - angle
-    # else:
-    #     angle = -angle
 
     # Get center of contour
     moment = cv2.moments(cnt)

@@ -1,12 +1,17 @@
 import numpy as np
 import copy
-
 import tensorflow as tf
+
 from keras import layers
 from tensorflow.keras.applications import EfficientNetB0
 
 
-class Classifier():
+class Classifier:
+    """
+    Helper class to build the fragment classifier ensemble model. Although this is not
+    technically an ensemble in the sense of multiple models, we use the average
+    prediction of 8 versions (flips and rotations) of the same image.
+    """
 
     def __init__(self, weights):
 
@@ -21,11 +26,7 @@ class Classifier():
         # Create base model
         inputs = layers.Input(shape=(self.model_size, self.model_size, 3))
 
-        self.model = EfficientNetB0(
-            include_top = False,
-            input_tensor = inputs,
-            weights = None
-        )
+        self.model = EfficientNetB0(include_top=False, input_tensor=inputs, weights=None)
 
         # Add classification head
         x = layers.GlobalAveragePooling2D(name="avg_pool")(self.model.output)
@@ -87,7 +88,7 @@ class Classifier():
             rot_label = copy.copy(label)
 
         # Transform label due to rotation
-        rot_factor = int(rot/90)
+        rot_factor = int(rot / 90)
         final_label = all_labels[rot_label - rot_factor - 1]
 
         return final_label

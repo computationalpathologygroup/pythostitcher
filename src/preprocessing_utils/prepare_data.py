@@ -5,6 +5,13 @@ import matplotlib.pyplot as plt
 
 
 class Processor:
+    """
+    This class will help with preprocessing your data in PythoStitcher. You don't need
+    to execute this script yourself, PythoStitcher will automatically perform the
+    preprocessing. If this script throws any error, double check that your data:
+        - is in .tif or .mrxs format
+        - has multiple resolution layers (pyramidal)
+    """
     def __init__(self, image_file, mask_file, save_dir, level, count):
 
         assert isinstance(level, int), "level must be an integer"
@@ -55,9 +62,7 @@ class Processor:
             # Process image and threshold for initial mask creation
             img_hsv = cv2.cvtColor(self.image, cv2.COLOR_RGB2HSV)
             img_med = cv2.medianBlur(img_hsv[:, :, 1], 7)
-            _, self.mask = cv2.threshold(
-                img_med, 0, 255, cv2.THRESH_OTSU + cv2.THRESH_BINARY
-            )
+            _, self.mask = cv2.threshold(img_med, 0, 255, cv2.THRESH_OTSU + cv2.THRESH_BINARY)
 
             # Close some holes
             kernel = cv2.getStructuringElement(shape=cv2.MORPH_ELLIPSE, ksize=(10, 10))
@@ -87,15 +92,11 @@ class Processor:
 
         # Closing operation to close some holes on the mask border
         kernel = cv2.getStructuringElement(shape=cv2.MORPH_ELLIPSE, ksize=(10, 10))
-        self.mask = cv2.morphologyEx(
-            src=self.mask, op=cv2.MORPH_CLOSE, kernel=kernel, iterations=2
-        )
+        self.mask = cv2.morphologyEx(src=self.mask, op=cv2.MORPH_CLOSE, kernel=kernel, iterations=2)
 
         # Flood fill to remove holes inside mask. The floodfill mask is required by opencv
         seedpoint = (0, 0)
-        floodfill_mask = np.zeros(
-            (self.mask.shape[0] + 2, self.mask.shape[1] + 2)
-        ).astype("uint8")
+        floodfill_mask = np.zeros((self.mask.shape[0] + 2, self.mask.shape[1] + 2)).astype("uint8")
         _, _, self.mask, _ = cv2.floodFill(self.mask, floodfill_mask, seedpoint, 255)
         self.mask = self.mask[1:-1, 1:-1]
         self.mask = 1 - self.mask
@@ -143,7 +144,9 @@ def prepare_data(parameters):
     parameters["log"].log(parameters["my_level"], "Preprocessing raw images...")
 
     # Get all image files
-    image_files = sorted([i for i in parameters["data_dir"].joinpath("raw_images").iterdir() if i.match("*.mrxs")])
+    image_files = sorted(
+        [i for i in parameters["data_dir"].joinpath("raw_images").iterdir() if i.match("*.mrxs")]
+    )
 
     # Get mask files if these are provided
     masks_provided = parameters["data_dir"].joinpath("raw_masks").is_dir()
@@ -162,7 +165,7 @@ def prepare_data(parameters):
             mask_file=mask,
             save_dir=parameters["save_dir"],
             level=parameters["image_level"],
-            count=c
+            count=c,
         )
         data_processor.load()
         data_processor.postprocess()

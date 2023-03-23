@@ -68,12 +68,10 @@ def genetic_algorithm(fragments, parameters, initial_tform):
     a_range = parameters["angle_range"][parameters["iteration"]]
     angles = [False, False, True] * num_fragments
     lb = [
-        int(x - a_range) if is_angle else int(x - t_range)
-        for x, is_angle in zip(ga_tform, angles)
+        int(x - a_range) if is_angle else int(x - t_range) for x, is_angle in zip(ga_tform, angles)
     ]
     ub = [
-        int(x + a_range) if is_angle else int(x + t_range)
-        for x, is_angle in zip(ga_tform, angles)
+        int(x + a_range) if is_angle else int(x + t_range) for x, is_angle in zip(ga_tform, angles)
     ]
     param_range = [
         np.arange(lower, upper, step=0.1) if a else np.arange(lower, upper, step=1)
@@ -133,9 +131,9 @@ def genetic_algorithm(fragments, parameters, initial_tform):
     sol_tforms = []
     for c, f in enumerate(global_fragments):
         sol = [
-            *solution[c*3:c*3+3],
+            *solution[c * 3 : c * 3 + 3],
             f.image_center_peri,
-            global_init_tform[f.final_orientation][4]
+            global_init_tform[f.final_orientation][4],
         ]
         sol_tforms.append(sol)
 
@@ -143,8 +141,8 @@ def genetic_algorithm(fragments, parameters, initial_tform):
     combo_tforms = []
     for f, s in zip(global_fragments, sol_tforms):
         sol = [
-            *[a+b for a, b in zip(global_init_tform[f.final_orientation][:3], s)],
-            *global_init_tform[f.final_orientation][3:]
+            *[a + b for a, b in zip(global_init_tform[f.final_orientation][:3], s)],
+            *global_init_tform[f.final_orientation][3:],
         ]
         combo_tforms.append(sol)
 
@@ -186,17 +184,15 @@ def fitness_func(solution, solution_idx):
     global global_fragments, global_parameters, distance_scaling
 
     # General cost function global_parameters
-    global_parameters["center_of_mass"] = np.mean(
-        global_parameters["image_centers"], axis=0
-    )
+    global_parameters["center_of_mass"] = np.mean(global_parameters["image_centers"], axis=0)
 
     # Get individual fragment solutions
     sol_tforms = []
     for c, f in enumerate(global_fragments):
         sol = [
-            *solution[c*3:c*3+3],
+            *solution[c * 3 : c * 3 + 3],
             f.image_center_peri,
-            global_init_tform[f.final_orientation][4]
+            global_init_tform[f.final_orientation][4],
         ]
         sol_tforms.append(sol)
 
@@ -204,39 +200,38 @@ def fitness_func(solution, solution_idx):
     combo_tforms = []
     for f, s in zip(global_fragments, sol_tforms):
         com = [
-            *[a+b for a, b in zip(global_init_tform[f.final_orientation][:3], s)],
-            *global_init_tform[f.final_orientation][3:]
+            *[a + b for a, b in zip(global_init_tform[f.final_orientation][:3], s)],
+            *global_init_tform[f.final_orientation][3:],
         ]
         combo_tforms.append(com)
 
     # Apply combo transform to several attributes
-    # tform_fragments = []
     for c, vars in enumerate(zip(global_fragments, sol_tforms, combo_tforms)):
         f, sol, combo = vars
         frag = apply_new_transform(fragment=f, sol_tform=sol, combo_tform=combo, tform_image=False)
         global_fragments[c] = frag
 
-    # global_fragments = copy.deepcopy(tform_fragments)
-
-    """
+    ### EXPERIMENTAL - if you want to, you can use these additional cost functions. In my
+    ### personal experiments I have not found these to significantly improve performance,
+    ### but they do come at an increased computational cost. If you want to, you can use
+    ### them though.
     # Cost function that penalizes dissimilar histograms along the edge of neighbouring fragments
-    histogram_cost = hist_cost_function(
-        quadrant_a=global_quadrant_a,
-        quadrant_b=global_quadrant_b,
-        quadrant_c=global_quadrant_c,
-        quadrant_d=global_quadrant_d,
-        parameters=global_parameters,
-        plot=False
-    )
+    # histogram_cost = hist_cost_function(
+    #     quadrant_a=global_quadrant_a,
+    #     quadrant_b=global_quadrant_b,
+    #     quadrant_c=global_quadrant_c,
+    #     quadrant_d=global_quadrant_d,
+    #     parameters=global_parameters,
+    #     plot=False
+    # )
     
     # Cost function that penalizes a high degree of overlap between fragments
-    overlap_cost = overlap_cost_function(
-        quadrant_a=global_quadrant_a,
-        quadrant_b=global_quadrant_b,
-        quadrant_c=global_quadrant_c,
-        quadrant_d=global_quadrant_d,
-    )
-    """
+    # overlap_cost = overlap_cost_function(
+    #     quadrant_a=global_quadrant_a,
+    #     quadrant_b=global_quadrant_b,
+    #     quadrant_c=global_quadrant_c,
+    #     quadrant_d=global_quadrant_d,
+    # )
 
     # Cost function that penalizes a large distance between endpoints of fragments
     distance_cost = distance_cost_function(fragments=global_fragments)
@@ -313,9 +308,7 @@ def apply_new_transform(fragment, sol_tform, combo_tform, tform_image):
     return fragment
 
 
-def hist_cost_function(
-    quadrant_a, quadrant_b, quadrant_c, quadrant_d, parameters, plot=False
-):
+def hist_cost_function(quadrant_a, quadrant_b, quadrant_c, quadrant_d, parameters, plot=False):
     """
     Custom function which penalizes dissimilarity between histograms of patches
     alongside a stitching edge. This function loops over all edges and will extract
@@ -354,9 +347,7 @@ def hist_cost_function(
     for quadrant in quadrants:
 
         # Set the points along horizontal edge to sample
-        sample_idx = np.arange(
-            0, len(quadrant.h_edge_theilsen_tform), step=step_size
-        ).astype(int)
+        sample_idx = np.arange(0, len(quadrant.h_edge_theilsen_tform), step=step_size).astype(int)
         sample_locs = quadrant.h_edge_theilsen_tform[sample_idx].astype(int)
 
         # Create indices of patches on sample points
@@ -369,12 +360,10 @@ def hist_cost_function(
 
         # Extract patches from the total image
         patches_upper = [
-            total_im[xmin:xmax, ymin:ymax]
-            for xmin, xmax, ymin, ymax in patch_idxs_upper
+            total_im[xmin:xmax, ymin:ymax] for xmin, xmax, ymin, ymax in patch_idxs_upper
         ]
         patches_lower = [
-            total_im[xmin:xmax, ymin:ymax]
-            for xmin, xmax, ymin, ymax in patch_idxs_lower
+            total_im[xmin:xmax, ymin:ymax] for xmin, xmax, ymin, ymax in patch_idxs_lower
         ]
 
         # Compute histogram for each patch. By setting the lower range to 0.01 we exclude
@@ -389,34 +378,26 @@ def hist_cost_function(
         # Compute probability density function for each histogram. Set this to zero if the
         # histogram does not contain any tissue pixels.
         prob_dens_upper = [
-            h[0] / np.sum(h[0]) if np.sum(h[0]) != 0 else np.zeros(nbins)
-            for h in histograms_upper
+            h[0] / np.sum(h[0]) if np.sum(h[0]) != 0 else np.zeros(nbins) for h in histograms_upper
         ]
         prob_dens_lower = [
-            h[0] / np.sum(h[0]) if np.sum(h[0]) != 0 else np.zeros(nbins)
-            for h in histograms_lower
+            h[0] / np.sum(h[0]) if np.sum(h[0]) != 0 else np.zeros(nbins) for h in histograms_lower
         ]
 
         # Compute difference between probability density function. For probability density
         # functions of an empty patch we set the cost to the maximum value of 2.
         summed_diff = [
-            2
-            if (np.sum(prob1) == 0 and np.sum(prob2) == 0)
-            else np.sum(np.abs(prob1 - prob2))
+            2 if (np.sum(prob1) == 0 and np.sum(prob2) == 0) else np.sum(np.abs(prob1 - prob2))
             for prob1, prob2 in zip(prob_dens_upper, prob_dens_lower)
         ]
         histogram_costs.append(np.mean(summed_diff))
 
         # Repeat for vertical edge. Set the points along vertical edge to sample
-        sample_idx = np.arange(
-            0, len(quadrant.v_edge_theilsen_tform), step=step_size
-        ).astype(int)
+        sample_idx = np.arange(0, len(quadrant.v_edge_theilsen_tform), step=step_size).astype(int)
         sample_locs = quadrant.v_edge_theilsen_tform[sample_idx].astype(int)
 
         # Create indices of patches on sample points
-        patch_idxs_left = [
-            [x - hist_size, x, y - step_size, y + step_size] for x, y in sample_locs
-        ]
+        patch_idxs_left = [[x - hist_size, x, y - step_size, y + step_size] for x, y in sample_locs]
         patch_idxs_right = [
             [x, x + hist_size, y - step_size, y + step_size] for x, y in sample_locs
         ]
@@ -426,8 +407,7 @@ def hist_cost_function(
             total_im[xmin:xmax, ymin:ymax] for xmin, xmax, ymin, ymax in patch_idxs_left
         ]
         patches_right = [
-            total_im[xmin:xmax, ymin:ymax]
-            for xmin, xmax, ymin, ymax in patch_idxs_right
+            total_im[xmin:xmax, ymin:ymax] for xmin, xmax, ymin, ymax in patch_idxs_right
         ]
 
         # Compute histogram for each patch. By setting the lower range to 0.01 we exclude
@@ -442,20 +422,16 @@ def hist_cost_function(
         # Compute probability density function for each histogram. Set this to zero if
         # the histogram does not contain any tissue pixels.
         prob_dens_left = [
-            h[0] / np.sum(h[0]) if np.sum(h[0]) != 0 else np.zeros(nbins)
-            for h in histograms_left
+            h[0] / np.sum(h[0]) if np.sum(h[0]) != 0 else np.zeros(nbins) for h in histograms_left
         ]
         prob_dens_right = [
-            h[0] / np.sum(h[0]) if np.sum(h[0]) != 0 else np.zeros(nbins)
-            for h in histograms_right
+            h[0] / np.sum(h[0]) if np.sum(h[0]) != 0 else np.zeros(nbins) for h in histograms_right
         ]
 
         # Compute difference between probability density function. For probability density
         # functions of an empty patch we set the cost to the maximum value of 2.
         summed_diff = [
-            2
-            if (np.sum(prob1) == 0 and np.sum(prob2) == 0)
-            else np.sum(np.abs(prob1 - prob2))
+            2 if (np.sum(prob1) == 0 and np.sum(prob2) == 0) else np.sum(np.abs(prob1 - prob2))
             for prob1, prob2 in zip(prob_dens_left, prob_dens_right)
         ]
         histogram_costs.append(np.mean(summed_diff))
@@ -466,12 +442,8 @@ def hist_cost_function(
                 [patch_idxs_upper, patch_idxs_lower, patch_idxs_left, patch_idxs_right],
                 ["upper", "lower", "left", "right"],
             ):
-                xvals = np.array(
-                    [[x1, x1, x2, x2, x1] for x1, x2, _, _ in patch_idx]
-                ).ravel()
-                yvals = np.array(
-                    [[y1, y2, y2, y1, y1] for _, _, y1, y2 in patch_idx]
-                ).ravel()
+                xvals = np.array([[x1, x1, x2, x2, x1] for x1, x2, _, _ in patch_idx]).ravel()
+                yvals = np.array([[y1, y2, y2, y1, y1] for _, _, y1, y2 in patch_idx]).ravel()
                 patch_indices_x[f"{quadrant.quadrant_name}_{s}"] = xvals
                 patch_indices_y[f"{quadrant.quadrant_name}_{s}"] = yvals
 
@@ -571,16 +543,18 @@ def distance_cost_function(fragments):
             vline_pairs = [copy.deepcopy(fragments)]
 
     elif global_parameters["n_fragments"] == 4:
-            hline_pairs = [[fragments[names.index("ul")], fragments[names.index("ll")]],
-                           [fragments[names.index("ur")], fragments[names.index("lr")]]]
-            vline_pairs = [[fragments[names.index("ul")], fragments[names.index("ur")]],
-                           [fragments[names.index("ll")], fragments[names.index("lr")]]]
+        hline_pairs = [
+            [fragments[names.index("ul")], fragments[names.index("ll")]],
+            [fragments[names.index("ur")], fragments[names.index("lr")]],
+        ]
+        vline_pairs = [
+            [fragments[names.index("ul")], fragments[names.index("ur")]],
+            [fragments[names.index("ll")], fragments[names.index("lr")]],
+        ]
 
     # Distance scaling parameters
     distance_costs = []
-    res_scaling = global_parameters["resolution_scaling"][
-        global_parameters["iteration"]
-    ]
+    res_scaling = global_parameters["resolution_scaling"][global_parameters["iteration"]]
 
     # Keys for saving the scaling factor related to the inner point norm and the outer
     # point norm from the endpoints of the theilsen lines.
@@ -777,8 +751,6 @@ def distance_cost_function(fragments):
             # Get resolution specific scaling factor
             scaling_inner = distance_scaling[vkey_inner] * res_scaling
             scaling_outer = distance_scaling[vkey_outer] * res_scaling
-            # scaling_inner = 1
-            # scaling_outer = 1
 
             # Compute edge_distance_costs as sum of distances
             inner_point_weight = 1 - global_parameters["outer_point_weight"]
@@ -831,9 +803,9 @@ def plot_best_sol_per_gen(ga):
         sol_tforms = []
         for c, f in enumerate(global_fragments):
             sol = [
-                *solution[c * 3:c * 3 + 3],
+                *solution[c * 3 : c * 3 + 3],
                 f.image_center_peri,
-                global_init_tform[f.final_orientation][4]
+                global_init_tform[f.final_orientation][4],
             ]
             sol_tforms.append(sol)
 
@@ -842,7 +814,7 @@ def plot_best_sol_per_gen(ga):
         for f, s in zip(global_fragments, sol_tforms):
             sol = [
                 *[a + b for a, b in zip(global_init_tform[f.final_orientation][:3], s)],
-                *global_init_tform[f.final_orientation][3:]
+                *global_init_tform[f.final_orientation][3:],
             ]
             combo_tforms.append(sol)
 
@@ -850,8 +822,9 @@ def plot_best_sol_per_gen(ga):
         new_fragments = []
         for c, vars in enumerate(zip(global_fragments, sol_tforms, combo_tforms)):
             f, sol, combo = vars
-            frag = apply_new_transform(fragment=f, sol_tform=sol, combo_tform=combo,
-                                       tform_image=True)
+            frag = apply_new_transform(
+                fragment=f, sol_tform=sol, combo_tform=combo, tform_image=True
+            )
             new_fragments.append(frag)
         global_fragments = copy.deepcopy(new_fragments)
 
@@ -866,15 +839,11 @@ def plot_best_sol_per_gen(ga):
             / global_parameters["resolutions"][0]
         )
         ms = np.sqrt(2500 * np.sqrt(ratio))
-        res = get_resname(
-            global_parameters["resolutions"][global_parameters["iteration"]]
-        )
+        res = get_resname(global_parameters["resolutions"][global_parameters["iteration"]])
 
         # Make figure
         plt.figure()
-        plt.title(
-            f"Best result at generation {gen}/{num_gen}: fitness = {np.round(fitness, 2)}"
-        )
+        plt.title(f"Best result at generation {gen}/{num_gen}: fitness = {np.round(fitness, 2)}")
         plt.imshow(total_im, cmap="gray")
         for f in global_fragments:
             if hasattr(f, "v_edge_theilsen_endpoints_tform"):

@@ -30,14 +30,16 @@ def optimize_stitch(parameters):
     - Final stitched image
     """
 
-    parameters["log"].log(parameters["my_level"], f"Optimizing stitch at resolution {parameters['resolutions'][parameters['iteration']]}")
+    parameters["log"].log(
+        parameters["my_level"],
+        f"Optimizing stitch at resolution {parameters['resolutions'][parameters['iteration']]}",
+    )
 
     current_res_name = get_resname(parameters["resolutions"][parameters["iteration"]])
     dirpath_tform = f"{parameters['sol_save_dir']}/tform"
 
     dir_fragments = (
-        f"{parameters['sol_save_dir']}/images/{parameters['slice_idx']}/"
-        f"{current_res_name}"
+        f"{parameters['sol_save_dir']}/images/{parameters['slice_idx']}/" f"{current_res_name}"
     )
 
     # Check if optimized tform already exists
@@ -106,9 +108,7 @@ def optimize_stitch(parameters):
                     f.output_shape,
                 ]
 
-            np.save(
-                f"{dirpath_tform}/{current_res_name}_tform_initial.npy", initial_tform
-            )
+            np.save(f"{dirpath_tform}/{current_res_name}_tform_initial.npy", initial_tform)
 
         # If initial transformation already exists, load and upsample it.
         elif parameters["iteration"] > 0:
@@ -130,7 +130,9 @@ def optimize_stitch(parameters):
             f.get_edges()
 
         # Compute Theil Sen lines through edges
-        parameters["log"].log(parameters["my_level"], " - computing Theil-Sen estimation of edge...")
+        parameters["log"].log(
+            parameters["my_level"], " - computing Theil-Sen estimation of edge..."
+        )
         for f in fragments:
             f.fit_theilsen_lines()
 
@@ -138,13 +140,13 @@ def optimize_stitch(parameters):
         plot_theilsen_result(fragments=fragments, parameters=parameters)
 
         # Optimization with genetic algorithm
-        parameters["log"].log(parameters["my_level"], " - computing reconstruction with genetic algorithm...")
+        parameters["log"].log(
+            parameters["my_level"], " - computing reconstruction with genetic algorithm..."
+        )
         parameters["output_shape"] = fragments[0].tform_image.shape
 
         ga_dict = genetic_algorithm(
-            fragments=fragments,
-            parameters=parameters,
-            initial_tform=initial_tform,
+            fragments=fragments, parameters=parameters, initial_tform=initial_tform,
         )
         np.save(parameters["filepath_tform"], ga_dict)
 
@@ -172,18 +174,19 @@ def optimize_stitch(parameters):
         sec = np.round(end_time - start_time, 1)
         parameters["log"].log(
             parameters["my_level"],
-            f" > time to optimize "
-            f"resolution {current_res}: {sec} seconds\n"
+            f" > time to optimize " f"resolution {current_res}: {sec} seconds\n",
         )
 
         # At final resolution provide some extra visualizations
         if parameters["iteration"] == 3:
 
             # Save the final result
-            r, c = np.nonzero((final_image[:, :, 0]>3)*1)
+            r, c = np.nonzero((final_image[:, :, 0] > 3) * 1)
             cv2.imwrite(
                 f"{parameters['sol_save_dir']}/images/GA_endresult.png",
-                cv2.cvtColor(final_image[np.min(r):np.max(r), np.min(c):np.max(c), :], cv2.COLOR_RGB2BGR)
+                cv2.cvtColor(
+                    final_image[np.min(r) : np.max(r), np.min(c) : np.max(c), :], cv2.COLOR_RGB2BGR
+                ),
             )
 
             # Make a gif of the tform result
@@ -192,17 +195,7 @@ def optimize_stitch(parameters):
             # Plot the fitness trajectory over the multiple resolutions
             plot_ga_multires(parameters)
 
-            # Save all fragments and their info
-            # if not os.path.isfile(f"{parameters['sol_save_dir']}/fragments/parameters"):
-            #     for f in fragments:
-            #         with open(f"{parameters['sol_save_dir']}/fragments/{f.final_orientation}", "wb") as savefile:
-            #             pickle.dump(f, savefile)
-            #
-            #     with open(f"{parameters['sol_save_dir']}/fragments/parameters", "wb") as savefile:
-            #         pickle.dump(parameters, savefile)
-
     else:
         parameters["log"].log(parameters["my_level"], " - already optimized this resolution!\n")
-
 
     return

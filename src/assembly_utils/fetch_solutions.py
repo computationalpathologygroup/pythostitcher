@@ -6,7 +6,9 @@ def fetch_solutions(parameters):
     Function to fetch the solution of the fragment configuration for cases with 4 fragments.
     """
 
-    with open(parameters["save_dir"].joinpath("configuration_detection", "location_solution.txt"), "r") as f:
+    with open(
+        parameters["save_dir"].joinpath("configuration_detection", "location_solution.txt"), "r"
+    ) as f:
         # Read content and process
         contents = f.readlines()
         contents = [i.rstrip("\n") for i in contents]
@@ -18,7 +20,13 @@ def fetch_solutions(parameters):
 
         # Gather all solutions
         final_solutions = []
-        original_filenames = sorted([i.name for i in parameters["data_dir"].joinpath("raw_images").iterdir() if not i.is_dir()])
+        original_filenames = sorted(
+            [
+                i.name
+                for i in parameters["data_dir"].joinpath("raw_images").iterdir()
+                if not i.is_dir()
+            ]
+        )
 
         # Only save 3 best results
         for c, idx in enumerate(sort_idx[:3]):
@@ -33,6 +41,8 @@ def fetch_solutions(parameters):
 
             final_solutions.append(temp_sol)
 
-    parameters["log"].log(parameters["my_level"], f"Examining {len(final_solutions)} best solutions...\n")
+    parameters["log"].log(
+        parameters["my_level"], f"Examining {len(final_solutions)} best solutions...\n"
+    )
 
     return final_solutions

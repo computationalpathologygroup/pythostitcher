@@ -76,26 +76,28 @@ class FullResImage:
         # Obtain the resolution (µm/pixel) for each level
         n_levels = self.raw_image.getNumberOfLevels()
         ds_per_level = [self.raw_image.getLevelDownsample(i) for i in range(n_levels)]
-        res_per_level = [self.raw_image.getSpacing()[0]*scale for i, scale in zip(range(n_levels), ds_per_level)]
+        res_per_level = [
+            self.raw_image.getSpacing()[0] * scale
+            for i, scale in zip(range(n_levels), ds_per_level)
+        ]
 
         # Get the optimal level based on the desired output resolution
-        self.output_level = np.argmin([(i - self.output_res)**2 for i in res_per_level])
+        self.output_level = np.argmin([(i - self.output_res) ** 2 for i in res_per_level])
 
-        assert self.output_level <= self.ps_level, \
-            f"Resolution level of the output image must be lower than the PythoStitcher " \
-            f"resolution level. Provided utput level is {self.output_level}, while " \
+        assert self.output_level <= self.ps_level, (
+            f"Resolution level of the output image must be lower than the PythoStitcher "
+            f"resolution level. Provided utput level is {self.output_level}, while "
             f"PythoStitcher level is {self.ps_level}. Please increase the output resolution."
+        )
 
         # Get image on this optimal output level
         if self.raw_image_path.suffix == ".mrxs":
             self.outputres_image = pyvips.Image.new_from_file(
-                str(self.raw_image_path),
-                level=self.output_level
+                str(self.raw_image_path), level=self.output_level
             )
         elif self.raw_image_path.suffix == ".tif":
             self.outputres_image = pyvips.Image.new_from_file(
-                str(self.raw_image_path),
-                page=self.output_level
+                str(self.raw_image_path), page=self.output_level
             )
         else:
             raise ValueError("currently we only support mrxs and tif files")
@@ -107,17 +109,14 @@ class FullResImage:
         )
 
         # Get scaling factor raw mask and final output resolution
-        self.scaling_ps2outputres = 2**(self.ps_level - self.output_level) / self.last_res
+        self.scaling_ps2outputres = 2 ** (self.ps_level - self.output_level) / self.last_res
 
         # Dimension of final stitching result
-        self.target_dims = [
-            int(i * self.scaling_ps2outputres) for i in self.ps_mask.shape
-        ]
+        self.target_dims = [int(i * self.scaling_ps2outputres) for i in self.ps_mask.shape]
 
         # Get the optimal transformation obtained with the genetic algorithm
         self.ps_tform = np.load(
-            f"{self.save_dir}/tform/{self.res_name}_tform_final.npy",
-            allow_pickle=True,
+            f"{self.save_dir}/tform/{self.res_name}_tform_final.npy", allow_pickle=True,
         ).item()
 
         # Upsample it to use it for the final image
@@ -125,12 +124,8 @@ class FullResImage:
             int(self.ps_tform[self.orientation][0] * self.scaling_ps2outputres),
             int(self.ps_tform[self.orientation][1] * self.scaling_ps2outputres),
             np.round(self.ps_tform[self.orientation][2], 1),
-            tuple(
-                [int(i * self.scaling_ps2outputres) for i in self.ps_tform[self.orientation][3]]
-            ),
-            tuple(
-                [int(i * self.scaling_ps2outputres) for i in self.ps_tform[self.orientation][4]]
-            ),
+            tuple([int(i * self.scaling_ps2outputres) for i in self.ps_tform[self.orientation][3]]),
+            tuple([int(i * self.scaling_ps2outputres) for i in self.ps_tform[self.orientation][4]]),
         ]
 
         return
@@ -143,8 +138,10 @@ class FullResImage:
         # Get mask which is closest to 4k image. This is an empirical trade-off
         # between feasible image processing with opencv and mask resolution
         best_mask_output_dims = 4000
-        all_mask_dims = [self.raw_mask.getLevelDimensions(i) for i in range(self.raw_mask.getNumberOfLevels())]
-        mask_ds_level = np.argmin([(i[0]-best_mask_output_dims)**2 for i in all_mask_dims])
+        all_mask_dims = [
+            self.raw_mask.getLevelDimensions(i) for i in range(self.raw_mask.getNumberOfLevels())
+        ]
+        mask_ds_level = np.argmin([(i[0] - best_mask_output_dims) ** 2 for i in all_mask_dims])
 
         original_mask = self.raw_mask.getUCharPatch(
             startX=0,
@@ -185,21 +182,18 @@ class FullResImage:
 
         # Flood fill to remove holes inside mask
         seedpoint = (0, 0)
-        floodfill_mask = np.zeros(
-            (original_mask.shape[0] + 2, original_mask.shape[1] + 2)
-        ).astype("uint8")
-        _, _, original_mask, _ = cv2.floodFill(
-            original_mask, floodfill_mask, seedpoint, 255
+        floodfill_mask = np.zeros((original_mask.shape[0] + 2, original_mask.shape[1] + 2)).astype(
+            "uint8"
         )
+        _, _, original_mask, _ = cv2.floodFill(original_mask, floodfill_mask, seedpoint, 255)
         original_mask = (
-            1 - original_mask[temp_pad+1:-(temp_pad+1), temp_pad+1:-(temp_pad+1)]
+            1 - original_mask[temp_pad + 1 : -(temp_pad + 1), temp_pad + 1 : -(temp_pad + 1)]
         )
 
         # Get nonzero indices and crop
         self.r_idx, self.c_idx = np.nonzero(original_mask)
         original_mask = original_mask[
-            np.min(self.r_idx) : np.max(self.r_idx),
-            np.min(self.c_idx) : np.max(self.c_idx),
+            np.min(self.r_idx) : np.max(self.r_idx), np.min(self.c_idx) : np.max(self.c_idx),
         ]
 
         # Convert to pyvips array
@@ -212,7 +206,7 @@ class FullResImage:
 
         self.outputres_mask = self.outputres_mask.resize(self.scaling_mask2outputres)
 
-        self.outputres_mask = self.outputres_mask.rotate(-self.rot_k*90)
+        self.outputres_mask = self.outputres_mask.rotate(-self.rot_k * 90)
 
         # Pad image with zeros
         self.outputres_mask = self.outputres_mask.gravity(
@@ -246,7 +240,7 @@ class FullResImage:
         self.outputres_image = self.outputres_image.crop(cmin, rmin, width, height)
 
         # Rotate image
-        self.outputres_image = self.outputres_image.rotate(-self.rot_k*90)
+        self.outputres_image = self.outputres_image.rotate(-self.rot_k * 90)
 
         # Pad image with zeros
         self.outputres_image = self.outputres_image.gravity(
@@ -339,15 +333,13 @@ def generate_full_res(parameters, log):
         result_mask = result_mask.cast("uchar", shift=False)
 
     # Save temp .tif version of mask for later use in blending
-    parameters["tif_mask_path"] = str(parameters["sol_save_dir"].joinpath("highres", "temp_mask.tif"))
+    parameters["tif_mask_path"] = str(
+        parameters["sol_save_dir"].joinpath("highres", "temp_mask.tif")
+    )
     log.log(parameters["my_level"], f"Saving temporary mask at {parameters['output_res']} µm/pixel")
     start = time.time()
     result_mask.write_to_file(
-        parameters["tif_mask_path"],
-        tile=True,
-        compression="lzw",
-        bigtiff=True,
-        pyramid=True,
+        parameters["tif_mask_path"], tile=True, compression="lzw", bigtiff=True, pyramid=True,
     )
     log.log(
         parameters["my_level"], f" > finished in {int(np.ceil((time.time()-start)/60))} mins!\n"
@@ -361,10 +353,16 @@ def generate_full_res(parameters, log):
     log.log(parameters["my_level"], f" > finished in {comp_time} mins!\n")
 
     # Save final result
-    log.log(parameters["my_level"], f"Saving blended end result at {parameters['output_res']} µm/pixel")
+    log.log(
+        parameters["my_level"], f"Saving blended end result at {parameters['output_res']} µm/pixel"
+    )
     start = time.time()
     result_image.write_to_file(
-        str(parameters["sol_save_dir"].joinpath("highres", f"stitched_image_{parameters['output_res']}_micron.tif")),
+        str(
+            parameters["sol_save_dir"].joinpath(
+                "highres", f"stitched_image_{parameters['output_res']}_micron.tif"
+            )
+        ),
         tile=True,
         compression="jpeg",
         bigtiff=True,

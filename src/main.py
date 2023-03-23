@@ -30,27 +30,40 @@ def load_parameter_configuration(data_dir, save_dir, output_res):
         parameters = json.load(f)
 
     # Convert model weight paths to absolute paths
-    parameters["weights_fragment_classifier"] = pathlib.Path().absolute().parent.joinpath(parameters["weights_fragment_classifier"])
-    parameters["weights_jigsawnet"] = pathlib.Path().absolute().parent.joinpath(parameters["weights_jigsawnet"])
+    parameters["weights_fragment_classifier"] = (
+        pathlib.Path().absolute().parent.joinpath(parameters["weights_fragment_classifier"])
+    )
+    parameters["weights_jigsawnet"] = (
+        pathlib.Path().absolute().parent.joinpath(parameters["weights_jigsawnet"])
+    )
 
     # Insert parsed arguments
     parameters["data_dir"] = data_dir
     parameters["save_dir"] = save_dir
     parameters["patient_idx"] = data_dir.name
     parameters["output_res"] = output_res
-    parameters["fragment_names"] = [i.name for i in data_dir.joinpath("raw_images").iterdir() if i.is_dir()]
+    parameters["fragment_names"] = [
+        i.name for i in data_dir.joinpath("raw_images").iterdir() if i.is_dir()
+    ]
     parameters["n_fragments"] = len(parameters["fragment_names"])
-    parameters["resolution_scaling"] = [i/parameters["resolutions"][0] for i in parameters["resolutions"]]
+    parameters["resolution_scaling"] = [
+        i / parameters["resolutions"][0] for i in parameters["resolutions"]
+    ]
 
-    parameters["raw_image_names"] = sorted([i.name for i in data_dir.joinpath("raw_images").iterdir() if not i.is_dir()])
+    parameters["raw_image_names"] = sorted(
+        [i.name for i in data_dir.joinpath("raw_images").iterdir() if not i.is_dir()]
+    )
     if data_dir.joinpath("raw_masks").is_dir():
-        parameters["raw_mask_names"] = sorted([i.name for i in data_dir.joinpath("raw_masks").iterdir()])
+        parameters["raw_mask_names"] = sorted(
+            [i.name for i in data_dir.joinpath("raw_masks").iterdir()]
+        )
     else:
         parameters["raw_mask_names"] = [None] * len(parameters["raw_image_names"])
 
     # Some assertions
-    assert parameters["n_fragments"] in [2, 4], \
-        "pythostitcher only supports stitching 2/4 fragments"
+    assert parameters["n_fragments"] in [
+        2, 4,
+    ], "pythostitcher only supports stitching 2/4 fragments"
 
     # Make directories for later saving
     dirnames = [
@@ -75,16 +88,10 @@ def collect_arguments():
         description="Stitch prostate histopathology images into a pseudo whole-mount image"
     )
     parser.add_argument(
-        "--datadir",
-        required=True,
-        type=pathlib.Path,
-        help="Path to the case to stitch"
+        "--datadir", required=True, type=pathlib.Path, help="Path to the case to stitch"
     )
     parser.add_argument(
-        "--savedir",
-        required=True,
-        type=pathlib.Path,
-        help="Directory to save the results"
+        "--savedir", required=True, type=pathlib.Path, help="Directory to save the results",
     )
     parser.add_argument(
         "--resolution",
@@ -92,7 +99,7 @@ def collect_arguments():
         default=0.25,
         type=float,
         help="Output resolution (µm/pixel) of the reconstructed image. Should be roughly "
-             "in range of 0.25-20."
+        "in range of 0.25-20.",
     )
     args = parser.parse_args()
 
@@ -103,13 +110,17 @@ def collect_arguments():
 
     assert data_dir.is_dir(), "provided patient directory doesn't exist"
     assert data_dir.joinpath("raw_images").is_dir(), "patient has no 'raw_images' directory"
-    assert len(list(data_dir.joinpath("raw_images").iterdir())) > 0, "no images found in 'raw_images' directory"
+    assert (
+        len(list(data_dir.joinpath("raw_images").iterdir())) > 0
+    ), "no images found in 'raw_images' directory"
     assert resolution > 0, "output resolution cannot be negative"
 
-    print(f"\nRunning job with following parameters:"
-          f"\n - Data dir: {data_dir}"
-          f"\n - Save dir: {save_dir}"
-          f"\n - Output resolution: {resolution} µm/pixel\n")
+    print(
+        f"\nRunning job with following parameters:"
+        f"\n - Data dir: {data_dir}"
+        f"\n - Save dir: {save_dir}"
+        f"\n - Output resolution: {resolution} µm/pixel\n"
+    )
 
     return data_dir, save_dir, resolution
 
@@ -164,7 +175,9 @@ def main():
     parameters["log"].log(parameters["my_level"], f"Running job with following parameters:")
     parameters["log"].log(parameters["my_level"], f" - Data dir: {parameters['data_dir']}")
     parameters["log"].log(parameters["my_level"], f" - Save dir: {parameters['save_dir']}")
-    parameters["log"].log(parameters["my_level"], f" - Output resolution: {parameters['output_res']}\n")
+    parameters["log"].log(
+        parameters["my_level"], f" - Output resolution: {parameters['output_res']}\n"
+    )
 
     if not data_dir.joinpath("raw_masks").is_dir():
         parameters["log"].log(
@@ -174,7 +187,8 @@ def main():
             f"[{data_dir.joinpath('raw_masks')}]. If no tissuemasks are supplied, "
             f"PythoStitcher will use a generic tissue segmentation which may not perform "
             f"as well as the AI-generated masks. In addition, PythoStitcher will not "
-            f"be able to generate the full resolution end result.")
+            f"be able to generate the full resolution end result.",
+        )
 
     ### MAIN PYTHOSTITCHER #s##
     # Preprocess data
@@ -200,10 +214,8 @@ def main():
 
             fragments = []
             for im_path, fragment_name in sol.items():
-                fragments.append(Fragment(
-                    im_path=im_path,
-                    fragment_name=fragment_name,
-                    kwargs=parameters)
+                fragments.append(
+                    Fragment(im_path=im_path, fragment_name=fragment_name, kwargs=parameters)
                 )
 
             # Preprocess all images to a usable format for PythoStitcher
@@ -216,8 +228,7 @@ def main():
         generate_full_res(parameters=parameters, log=log)
 
         parameters["log"].log(
-            parameters["my_level"],
-            f"### Succesfully stitched solution {count_sol} ###\n"
+            parameters["my_level"], f"### Succesfully stitched solution {count_sol} ###\n",
         )
 
     return

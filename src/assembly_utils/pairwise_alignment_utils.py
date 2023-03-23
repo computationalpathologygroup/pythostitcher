@@ -21,10 +21,12 @@ class Fragment:
 
     def __init__(self, kwargs):
         self.all_fragment_names = kwargs["fragment_names"]
-        self.all_temp_fragment_names = [f"fragment_{str(i).zfill(4)}.png" for i in range(1, len(self.all_fragment_names)+1)]
+        self.all_temp_fragment_names = [
+            f"fragment_{str(i).zfill(4)}.png" for i in range(1, len(self.all_fragment_names) + 1)
+        ]
         self.fragment_name = kwargs["fragment_name"]
         self.num_fragments = kwargs["n_fragments"]
-        self.fragment_name_idx = int(self.fragment_name.split("_")[-1].rstrip(".png"))-1
+        self.fragment_name_idx = int(self.fragment_name.split("_")[-1].rstrip(".png")) - 1
 
         self.save_dir = kwargs["save_dir"]
         self.data_dir = kwargs["data_dir"]
@@ -69,30 +71,34 @@ class Fragment:
         """
 
         # Get largest image size of all fragments
-        temp_masks = [cv2.imread(str(self.save_dir.joinpath(f"preprocessed_masks/{f}"))) for f in self.all_temp_fragment_names]
+        temp_masks = [
+            cv2.imread(str(self.save_dir.joinpath(f"preprocessed_masks/{f}")))
+            for f in self.all_temp_fragment_names
+        ]
         max_shape = np.max([m.shape[:2] for m in temp_masks])
 
         # Use this to pad the image to a square - this is required for later
-        xpad = (max_shape - self.mask.shape[0])/2
-        ypad = (max_shape - self.mask.shape[1])/2
+        xpad = (max_shape - self.mask.shape[0]) / 2
+        ypad = (max_shape - self.mask.shape[1]) / 2
 
         self.original_image = np.pad(
             self.original_image,
-            [[int(np.floor(xpad)), int(np.ceil(xpad))],
-            [int(np.floor(ypad)), int(np.ceil(ypad))],
-            [0, 0]],
-            constant_values = 255
+            [
+                [int(np.floor(xpad)), int(np.ceil(xpad))],
+                [int(np.floor(ypad)), int(np.ceil(ypad))],
+                [0, 0],
+            ],
+            constant_values=255,
         )
         self.mask = np.pad(
             self.mask,
-            [[int(np.floor(xpad)), int(np.ceil(xpad))],
-            [int(np.floor(ypad)), int(np.ceil(ypad))]],
-            constant_values = 0
+            [[int(np.floor(xpad)), int(np.ceil(xpad))], [int(np.floor(ypad)), int(np.ceil(ypad))]],
+            constant_values=0,
         )
 
         # Get 'offset' rotation of the image
         cnt, _ = cv2.findContours(
-            (self.mask*255).astype("uint8"), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE
+            (self.mask * 255).astype("uint8"), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE
         )
         cnt = np.squeeze(max(cnt, key=cv2.contourArea))
         bbox = cv2.minAreaRect(cnt)
@@ -100,17 +106,18 @@ class Fragment:
         # Rotate the images such that the stitch edges are approximately perpendicular to
         # the XY-axis. The fragment classifier was also trained on these images.
         center = np.mean(cnt, axis=0)
-        angle = bbox[2] if bbox[2]<45 else bbox[2]-90
+        angle = bbox[2] if bbox[2] < 45 else bbox[2] - 90
         rot_mat = cv2.getRotationMatrix2D(center=center, angle=angle, scale=1)
-        self.original_image = cv2.warpAffine(self.original_image, rot_mat, self.original_image.shape[:-1])
+        self.original_image = cv2.warpAffine(
+            self.original_image, rot_mat, self.original_image.shape[:-1]
+        )
         self.original_image[np.all(self.original_image == 0, axis=2)] = [255, 255, 255]
         self.mask = cv2.warpAffine(self.mask, rot_mat, self.mask.shape)
 
         # Make smaller version for classifier
         if self.num_fragments == 4:
             self.model_image = cv2.resize(
-                self.original_image,
-                (self.classifier.model_size, self.classifier.model_size)
+                self.original_image, (self.classifier.model_size, self.classifier.model_size)
             )
 
         return
@@ -140,12 +147,9 @@ class Fragment:
 
             # Put batch of images in datagenerator for fast inference
             stacked_images = np.vstack(tform_images)
-            datagen = ImageDataGenerator().flow(
-                x = stacked_images,
-                shuffle=False,
-            )
+            datagen = ImageDataGenerator().flow(x=stacked_images, shuffle=False,)
             pred = self.classifier.model.predict(datagen)
-            pred = np.argmax(pred, axis = 1) + 1
+            pred = np.argmax(pred, axis=1) + 1
             pred = pred.tolist()
 
             # Convert back to original label without flipping/rotating
@@ -167,12 +171,12 @@ class Fragment:
         """
 
         # Save image
-        self.original_image = self.mask[:, :, np.newaxis]/255 * self.original_image
+        self.original_image = self.mask[:, :, np.newaxis] / 255 * self.original_image
         self.original_image = self.original_image.astype("uint8")
 
         cv2.imwrite(
             str(self.save_dir.joinpath("configuration_detection", self.fragment_name)),
-            cv2.cvtColor(self.original_image, cv2.COLOR_RGB2BGR)
+            cv2.cvtColor(self.original_image, cv2.COLOR_RGB2BGR),
         )
 
         return
@@ -190,7 +194,7 @@ class Fragment:
         ### Step 1 ###
         # Obtain contour from mask
         self.cnt, _ = cv2.findContours(
-            (self.mask*255).astype("uint8"), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE
+            (self.mask * 255).astype("uint8"), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE
         )
         self.cnt = np.squeeze(max(self.cnt, key=cv2.contourArea))
         self.cnt = self.cnt[::-1]
@@ -211,9 +215,11 @@ class Fragment:
         # Expand the bbox in size but with same center point. Using this larger bbox
         # for determining stitch edges has shown to be a bit more robust against outliers
         # in the contour.
-        expansion = bbox_center/2
-        expand_direction = np.array([list(i<0) for i in bbox_corner_dist])
-        bbox_corners_expansion = (expand_direction == True) * expansion + (expand_direction == False) * -expansion
+        expansion = bbox_center / 2
+        expand_direction = np.array([list(i < 0) for i in bbox_corner_dist])
+        bbox_corners_expansion = (expand_direction == True) * expansion + (
+            expand_direction == False
+        ) * -expansion
         new_bbox_corners = bbox_corners + bbox_corners_expansion
 
         ### Step 3 ###
@@ -226,21 +232,24 @@ class Fragment:
 
         ### Step 4 ###
         # Identify upper left corner as point closest to origin
-        ul_cnt_corner_idx = np.argmin(np.sum(self.cnt_corners, axis=1)**2)
+        ul_cnt_corner_idx = np.argmin(np.sum(self.cnt_corners, axis=1) ** 2)
         cnt_fragments = []
 
         # Step 4a - scenario with 2 fragments
         if self.num_fragments == 2:
 
             # Compute distance from contour corners to surrounding bbox
-            dist_cnt_corner_to_bbox = np.min(distance.cdist(self.cnt_corners, new_bbox_corners),
-                                             axis=1)
+            dist_cnt_corner_to_bbox = np.min(
+                distance.cdist(self.cnt_corners, new_bbox_corners), axis=1
+            )
             dist_cnt_corner_to_bbox_loop = np.hstack([dist_cnt_corner_to_bbox] * 2)
 
             # Get the pair of contour corners with largest distance to bounding box, this should
             # be the outer point of the contour. Stitch edge is then located opposite.
-            dist_per_cnt_corner_pair = [dist_cnt_corner_to_bbox_loop[i] ** 2 + \
-                                        dist_cnt_corner_to_bbox_loop[i + 1] ** 2 for i in range(4)]
+            dist_per_cnt_corner_pair = [
+                dist_cnt_corner_to_bbox_loop[i] ** 2 + dist_cnt_corner_to_bbox_loop[i + 1] ** 2
+                for i in range(4)
+            ]
             max_dist_corner_idx = np.argmax(dist_per_cnt_corner_pair)
 
             # Get location and indices of these contour corners
@@ -268,7 +277,8 @@ class Fragment:
             for i in range(2):
                 # Get starting point and end point of a stitch edge
                 start_corner = self.cnt_corners_loop[
-                    ul_cnt_corner_idx + self.stitch_edge_label - 1 + i]
+                    ul_cnt_corner_idx + self.stitch_edge_label - 1 + i
+                ]
                 end_corner = self.cnt_corners_loop[ul_cnt_corner_idx + self.stitch_edge_label + i]
 
                 start_idx = np.argmax((self.cnt_rdp == start_corner).all(axis=1))
@@ -289,13 +299,7 @@ class Fragment:
         Function to save the image orientation such that it matches the other fragment.
         """
 
-        #
-        complementary_config = {
-            "top": "bottom",
-            "right" : "left",
-            "bottom": "top",
-            "left" : "right"
-        }
+        complementary_config = {"top": "bottom", "right": "left", "bottom": "top", "left": "right"}
         clockwise_config = list(complementary_config.keys())
 
         # Determine the configuration of the fragment
@@ -309,7 +313,9 @@ class Fragment:
             config = "top" if avg_y < center[1] else "bottom"
 
         # Write location solution txt file. We use this later to load in the fragments
-        location_solution = self.save_dir.joinpath("configuration_detection", "location_solution.txt")
+        location_solution = self.save_dir.joinpath(
+            "configuration_detection", "location_solution.txt"
+        )
 
         # In case of a forced configuration, take this into account and rotate the images
         # accordingly.
@@ -319,13 +325,13 @@ class Fragment:
             required_config_idx = clockwise_config.index(required_config)
             config_idx = clockwise_config.index(config)
             idx_diff = required_config_idx - config_idx
-            self.rot_k = idx_diff if idx_diff>0 else idx_diff+4
+            self.rot_k = idx_diff if idx_diff > 0 else idx_diff + 4
 
             # Save rotated images
             self.original_image = np.rot90(self.original_image, k=self.rot_k, axes=(1, 0))
             cv2.imwrite(
                 str(self.save_dir.joinpath("configuration_detection", self.fragment_name)),
-                cv2.cvtColor(self.original_image, cv2.COLOR_RGB2BGR)
+                cv2.cvtColor(self.original_image, cv2.COLOR_RGB2BGR),
             )
 
             # Save forced configuration in file
@@ -360,7 +366,7 @@ class Fragment:
                 required_config_idx = clockwise_config.index(required_config)
                 config_idx = clockwise_config.index(config)
                 idx_diff = required_config_idx - config_idx
-                self.rot_k = idx_diff if idx_diff>0 else idx_diff+4
+                self.rot_k = idx_diff if idx_diff > 0 else idx_diff + 4
 
                 # Save new configuration of fragment
                 with open(location_solution, "a") as f:
@@ -370,7 +376,7 @@ class Fragment:
                 self.original_image = np.rot90(self.original_image, k=self.rot_k, axes=(1, 0))
                 cv2.imwrite(
                     str(self.save_dir.joinpath("configuration_detection", self.fragment_name)),
-                    cv2.cvtColor(self.original_image, cv2.COLOR_RGB2BGR)
+                    cv2.cvtColor(self.original_image, cv2.COLOR_RGB2BGR),
                 )
 
         return
@@ -389,7 +395,7 @@ def sort_counterclockwise(points):
 
     # Get center of points
     center_x, center_y = np.mean(points, axis=0)
-    angles = [math.atan2(y - center_y, x - center_x) for x,y in points]
+    angles = [math.atan2(y - center_y, x - center_x) for x, y in points]
     counterclockwise_indices = sorted(range(len(points)), key=lambda i: angles[i])
     counterclockwise_points = np.array([points[i] for i in counterclockwise_indices])
 
@@ -411,11 +417,11 @@ def interpolate_contour(contour):
     for i in range(len(contour) - 1):
 
         # Get x and y values to interpolate on
-        xvals = np.array([contour[i, 0], contour[i+1, 0]]).astype("int")
-        yvals = np.array([contour[i, 1], contour[i+1, 1]]).astype("int")
+        xvals = np.array([contour[i, 0], contour[i + 1, 0]]).astype("int")
+        yvals = np.array([contour[i, 1], contour[i + 1, 1]]).astype("int")
 
         # Create steps of size 1
-        max_dif = np.max([np.abs(xvals[1]-xvals[0]), np.abs(yvals[1]-yvals[0])])
+        max_dif = np.max([np.abs(xvals[1] - xvals[0]), np.abs(yvals[1] - yvals[0])])
         new_xvals = np.linspace(xvals[0], xvals[1], num=max_dif).astype("int")
         new_yvals = np.linspace(yvals[0], yvals[1], num=max_dif).astype("int")
 
@@ -574,12 +580,17 @@ def FusionImage(src, dst, transform, bg_color=[0, 0, 0]):
     offset_col = -min_col
 
     offset_transform = np.float32([[1, 0, offset_col], [0, 1, offset_row]])
-    point_dst_transform = np.matmul(np.array([[1, 0, offset_row], [0, 1, offset_col], [0, 0, 1]]),
-                              transform)
+    point_dst_transform = np.matmul(
+        np.array([[1, 0, offset_row], [0, 1, offset_col], [0, 0, 1]]), transform
+    )
 
     # convert row, col to opencv x,y
-    img_dst_transform = np.float32([[point_dst_transform[0, 0], point_dst_transform[1, 0], point_dst_transform[1, 2]],
-                                [point_dst_transform[0, 1], point_dst_transform[1, 1], point_dst_transform[0, 2]]])
+    img_dst_transform = np.float32(
+        [
+            [point_dst_transform[0, 0], point_dst_transform[1, 0], point_dst_transform[1, 2]],
+            [point_dst_transform[0, 1], point_dst_transform[1, 1], point_dst_transform[0, 2]],
+        ]
+    )
 
     src_transformed = cv2.warpAffine(src, offset_transform, (max_col - min_col, max_row - min_row))
     dst_transformed = cv2.warpAffine(dst, img_dst_transform, (max_col - min_col, max_row - min_row))
@@ -594,7 +605,9 @@ def FusionImage(src, dst, transform, bg_color=[0, 0, 0]):
     c = c.reshape((c.shape[0], c.shape[1]))
     non_overlap_indices = np.where(c)
     if len(np.where(b)[0]) == 0:
-        assert False and "no valid pixels in transformed dst image, please check the transform process"
+        assert (
+            False and "no valid pixels in transformed dst image, please check the transform process"
+        )
     else:
         overlap_ratio = 1 - len(non_overlap_indices[0]) / len(np.where(b)[0])
 
@@ -603,7 +616,14 @@ def FusionImage(src, dst, transform, bg_color=[0, 0, 0]):
     src_transformed[bg_indices] = dst_transformed[bg_indices]
 
     offset_transform_matrix = np.float32([[1, 0, offset_row], [0, 1, offset_col], [0, 0, 1]])
-    return [src_transformed, point_dst_transform, overlap_ratio, offset_transform_matrix, src_mask_transformed, dst_mask_transformed]
+    return [
+        src_transformed,
+        point_dst_transform,
+        overlap_ratio,
+        offset_transform_matrix,
+        src_mask_transformed,
+        dst_mask_transformed,
+    ]
 
 
 def check_aligned_pairs_per_fragment_combo(fragments, parameters, result_dict):
@@ -624,7 +644,7 @@ def check_aligned_pairs_per_fragment_combo(fragments, parameters, result_dict):
     # Make square image
     for mask, im, line_a, line_b in zip(raw_masks, raw_images, raw_lines_a, raw_lines_b):
         r, c = np.nonzero(mask)
-        im = im[np.min(r):np.max(r), np.min(c):np.max(c), :]
+        im = im[np.min(r) : np.max(r), np.min(c) : np.max(c), :]
 
         pad = int(0.1 * im.shape[0])
         shape_diff = im.shape[0] - im.shape[1]
@@ -651,37 +671,55 @@ def check_aligned_pairs_per_fragment_combo(fragments, parameters, result_dict):
         lines_b.append(line_b)
 
     # Visualize
-    plt.figure(figsize=(len(images)*2, len(images)*2 + 2))
-    plt.suptitle(f"Matching pairs for '{fragments[0].fragment_name}' and \n"
-                 f"'{fragments[1].fragment_name}' \n", fontsize=16, fontweight="bold")
+    plt.figure(figsize=(len(images) * 2, len(images) * 2 + 2))
+    plt.suptitle(
+        f"Matching pairs for '{fragments[0].fragment_name}' and \n"
+        f"'{fragments[1].fragment_name}' \n",
+        fontsize=16,
+        fontweight="bold",
+    )
     n_images = int(np.sqrt(len(images)))
     for count, vars in enumerate(zip(keys, images, lines_a, lines_b, scores)):
 
         key, im, line_a, line_b, score = vars
-        plt.subplot(n_images, n_images, count+1)
+        plt.subplot(n_images, n_images, count + 1)
         plt.title(f"Combo: '{key}', score: {np.round(score, 2)}", fontsize=14)
         plt.imshow(im)
 
         # Plot the longer line first so it doesn't obscure the shorter line
-        line_a_dist = np.sqrt((line_a[0][0]-line_a[1][0])**2+(line_a[0][1]-line_a[1][1])**2)
-        line_b_dist = np.sqrt((line_b[0][0]-line_b[1][0])**2+(line_b[0][1]-line_b[1][1])**2)
+        line_a_dist = np.sqrt(
+            (line_a[0][0] - line_a[1][0]) ** 2 + (line_a[0][1] - line_a[1][1]) ** 2
+        )
+        line_b_dist = np.sqrt(
+            (line_b[0][0] - line_b[1][0]) ** 2 + (line_b[0][1] - line_b[1][1]) ** 2
+        )
         if line_a_dist > line_b_dist:
             plt.plot(np.array(line_a)[:, 0], np.array(line_a)[:, 1], c="r", linewidth=4)
             plt.plot(np.array(line_b)[:, 0], np.array(line_b)[:, 1], ":", c="b", linewidth=2)
-            plt.legend([
-                f"{fragments[0].fragment_name.split('.')[0]}",
-                f"{fragments[1].fragment_name.split('.')[0]}"
-            ])
+            plt.legend(
+                [
+                    f"{fragments[0].fragment_name.split('.')[0]}",
+                    f"{fragments[1].fragment_name.split('.')[0]}",
+                ]
+            )
         else:
             plt.plot(np.array(line_b)[:, 0], np.array(line_b)[:, 1], c="r", linewidth=4)
             plt.plot(np.array(line_a)[:, 0], np.array(line_a)[:, 1], ":", c="b", linewidth=2)
-            plt.legend([
-                f"{fragments[1].fragment_name.split('.')[0]}",
-                f"{fragments[0].fragment_name.split('.')[0]}"
-            ])
+            plt.legend(
+                [
+                    f"{fragments[1].fragment_name.split('.')[0]}",
+                    f"{fragments[0].fragment_name.split('.')[0]}",
+                ]
+            )
         plt.axis("off")
     plt.tight_layout()
-    plt.savefig(parameters["save_dir"].joinpath("configuration_detection", "checks", f"matches_{fragments[0].fragment_name.rstrip('.png')}_and_{fragments[1].fragment_name.rstrip('.png')}.png"))
+    plt.savefig(
+        parameters["save_dir"].joinpath(
+            "configuration_detection",
+            "checks",
+            f"matches_{fragments[0].fragment_name.rstrip('.png')}_and_{fragments[1].fragment_name.rstrip('.png')}.png",
+        )
+    )
     plt.close()
 
     return
@@ -692,12 +730,7 @@ def plot_stitch_edge_classification(fragments, parameters):
     Function to plot the result of the stitch edge classification model.
     """
 
-    label_to_name = {
-        "1": "UR",
-        "2": "LR",
-        "3": "LL",
-        "4": "UL"
-    }
+    label_to_name = {"1": "UR", "2": "LR", "3": "LL", "4": "UL"}
 
     plt.figure(figsize=(8, 8))
     plt.suptitle("Stitch edge classification result", fontsize=18)
@@ -709,11 +742,14 @@ def plot_stitch_edge_classification(fragments, parameters):
         plt.plot(f.cnt_fragments[1][:, 0], f.cnt_fragments[1][:, 1], c="r")
         plt.axis("off")
     plt.tight_layout()
-    plt.savefig(parameters["save_dir"].joinpath("configuration_detection", "fragment_classifier_results.png"))
+    plt.savefig(
+        parameters["save_dir"].joinpath(
+            "configuration_detection", "fragment_classifier_results.png"
+        )
+    )
     plt.close()
 
     return
-
 
 
 def explore_pairs(fragments, parameters):
@@ -781,7 +817,9 @@ def explore_pairs(fragments, parameters):
             if l1_initial_dx >= l1_initial_dy:
                 x_edge = np.array([i[0] for i in line1])
                 x_edge = x_edge[:, np.newaxis]
-                x = x_edge[:, ]
+                x = x_edge[
+                    :,
+                ]
                 y_edge = np.array([i[1] for i in line1])
 
                 # Fit coordinates
@@ -818,9 +856,10 @@ def explore_pairs(fragments, parameters):
 
             # Get center of mass and angle for computing tform
             # line1_com = np.mean(line1_ts, axis=0)
-            line1_com = np.array([(line1_ts[0, 0] + line1_ts[-1, 0])/2,
-                                  (line1_ts[0, 1] + line1_ts[-1, 1])/2])
-            line1_angle = np.round(((np.arctan(y_dif/x_dif+eps)/np.pi)*180), 1)
+            line1_com = np.array(
+                [(line1_ts[0, 0] + line1_ts[-1, 0]) / 2, (line1_ts[0, 1] + line1_ts[-1, 1]) / 2]
+            )
+            line1_angle = np.round(((np.arctan(y_dif / x_dif + eps) / np.pi) * 180), 1)
 
             # Get theil sen representation for line 2. Again, first check if the line is
             #  horizontal or vertical as this will determine how we handle x/y coords.
@@ -829,7 +868,9 @@ def explore_pairs(fragments, parameters):
             if l2_initial_dx >= l2_initial_dy:
                 x_edge = np.array([i[0] for i in line2])
                 x_edge = x_edge[:, np.newaxis]
-                x = x_edge[:, ]
+                x = x_edge[
+                    :,
+                ]
                 y_edge = np.array([i[1] for i in line2])
 
                 # Fit coordinates
@@ -865,8 +906,9 @@ def explore_pairs(fragments, parameters):
 
             # Get center of mass and angle for computing tform
             # line2_com = np.mean(line2_ts, axis=0)
-            line2_com = np.array([(line2_ts[0, 0] + line2_ts[-1, 0])/2,
-                                  (line2_ts[0, 1] + line2_ts[-1, 1])/2])
+            line2_com = np.array(
+                [(line2_ts[0, 0] + line2_ts[-1, 0]) / 2, (line2_ts[0, 1] + line2_ts[-1, 1]) / 2]
+            )
             line2_angle = np.round(((np.arctan(y_dif / x_dif) / np.pi) * 180), 1)
 
             # Warp line 2. Make sure to account for the translation induced by rotating
@@ -874,27 +916,18 @@ def explore_pairs(fragments, parameters):
             rotation = line1_angle - line2_angle
             raw_translation = line1_com - line2_com
             line2_com_after_rot, _ = warp_2d_points(
-                src=line2_com,
-                center=(0,0),
-                rotation=-rotation,
-                translation=(0,0)
+                src=line2_com, center=(0, 0), rotation=-rotation, translation=(0, 0)
             )
             line2_rot_comp = np.squeeze(line2_com_after_rot - line2_com)
             translation = raw_translation - line2_rot_comp
 
             line2_warp, rot_mat = warp_2d_points(
-                src=line2_ts,
-                center=(0, 0),
-                rotation=-rotation,
-                translation=translation
+                src=line2_ts, center=(0, 0), rotation=-rotation, translation=translation
             )
 
             # Warp image and mask
             b_fragment_mask_warp = warp_image(
-                src=b_fragment_mask,
-                center=(0, 0),
-                rotation=-rotation,
-                translation=translation,
+                src=b_fragment_mask, center=(0, 0), rotation=-rotation, translation=translation,
             )
 
             ### Step 1b - verify the transformation matrix ###
@@ -902,50 +935,54 @@ def explore_pairs(fragments, parameters):
             # indicate a wrong orientation of the matched contour. In this case we rotate
             # the image another 180 degrees since in this case the lines will also
             # perfectly match.
-            a_mask_area = np.sum(a_fragment_mask/255 == 1)
-            ab_mask_area = np.sum((a_fragment_mask/255 + b_fragment_mask_warp/255) == 2)
-            if ab_mask_area > int(0.2*a_mask_area):
+            a_mask_area = np.sum(a_fragment_mask / 255 == 1)
+            ab_mask_area = np.sum((a_fragment_mask / 255 + b_fragment_mask_warp / 255) == 2)
+            if ab_mask_area > int(0.2 * a_mask_area):
                 rotation = line1_angle - line2_angle + 180
                 line2_com_after_rot, _ = warp_2d_points(
-                    src=line2_com,
-                    center=(0, 0),
-                    rotation=-rotation,
-                    translation=(0, 0)
+                    src=line2_com, center=(0, 0), rotation=-rotation, translation=(0, 0)
                 )
                 line2_rot_comp = np.squeeze(line2_com_after_rot - line2_com)
                 translation = raw_translation - line2_rot_comp
 
                 line2_warp, rot_mat = warp_2d_points(
-                    src=line2_ts,
-                    center=(0, 0),
-                    rotation=-rotation,
-                    translation=translation
+                    src=line2_ts, center=(0, 0), rotation=-rotation, translation=translation
                 )
 
             b_fragment_cnt, _ = warp_2d_points(
-                src=b_fragment.cnt,
-                center=(0, 0),
-                rotation=-rotation,
-                translation=translation
+                src=b_fragment.cnt, center=(0, 0), rotation=-rotation, translation=translation
             )
 
             # Get transform. Swap some values because col/row inconsistencies
             dst_transform = np.float32(
-                [[rot_mat[0, 0], rot_mat[1, 0], rot_mat[1, 2]],
-                 [rot_mat[0, 1], rot_mat[1, 1], rot_mat[0, 2]],
-                 [0, 0, 1]]
+                [
+                    [rot_mat[0, 0], rot_mat[1, 0], rot_mat[1, 2]],
+                    [rot_mat[0, 1], rot_mat[1, 1], rot_mat[0, 2]],
+                    [0, 0, 1],
+                ]
             )
 
             # Fuse the images
-            fused_image, point_tform, overlap_ratio, offset_transform, src_mask, dst_mask = FusionImage(a_fragment_image, b_fragment_image, dst_transform)
-            fused_mask = ((fused_image != [0, 0, 0]).all(axis=2)*255).astype("uint8")
+            (
+                fused_image,
+                point_tform,
+                overlap_ratio,
+                offset_transform,
+                src_mask,
+                dst_mask,
+            ) = FusionImage(a_fragment_image, b_fragment_image, dst_transform)
+            fused_mask = ((fused_image != [0, 0, 0]).all(axis=2) * 255).astype("uint8")
 
             # Warp both lines to coordinates of fused image
-            line1_warp = np.matmul(offset_transform, np.vstack([line1_ts[:, ::-1].T, np.ones(len(line1_ts))]))
+            line1_warp = np.matmul(
+                offset_transform, np.vstack([line1_ts[:, ::-1].T, np.ones(len(line1_ts))])
+            )
             line1_warp = (line1_warp[:2, :].T).astype("int")
             line1_interp = interpolate_contour(line1_warp)
 
-            line2_warp = np.matmul(point_tform, np.vstack([line2_ts[:, ::-1].T, np.ones(len(line2_ts))]))
+            line2_warp = np.matmul(
+                point_tform, np.vstack([line2_ts[:, ::-1].T, np.ones(len(line2_ts))])
+            )
             line2_warp = (line2_warp[:2, :].T).astype("int")
             line2_warp_interp = interpolate_contour(line2_warp)
 
@@ -953,16 +990,18 @@ def explore_pairs(fragments, parameters):
             # Penalty component - Difference in contour lengths
             len_line1 = cv2.arcLength(curve=line1_warp, closed=False)
             len_line2 = cv2.arcLength(curve=line2_warp, closed=False)
-            fitness_len_ratio = 100 * ((np.min([len_line1, len_line2])/np.max([len_line1, len_line2]))**3)
+            fitness_len_ratio = 100 * (
+                (np.min([len_line1, len_line2]) / np.max([len_line1, len_line2])) ** 3
+            )
 
             # Penalty component - Overlap between masks
-            fitness_rel_overlap = 100 * (1 - overlap_ratio)**6
+            fitness_rel_overlap = 100 * (1 - overlap_ratio) ** 6
 
             # Penalty component - Hausdorff distance between contours
             hausdorff1, _, _ = distance.directed_hausdorff(line1_interp, line2_warp_interp)
             hausdorff2, _, _ = distance.directed_hausdorff(line2_warp_interp, line1_interp)
             max_hausdorff = np.max([hausdorff1, hausdorff2])
-            fitness_hausdorff = 1000/max_hausdorff
+            fitness_hausdorff = 1000 / max_hausdorff
 
             # Compute combined fitness. Clip to [0, 400] range to prevent outliers
             # from having too large of an influence.
@@ -974,11 +1013,11 @@ def explore_pairs(fragments, parameters):
             strel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10))
             src_mask_dil = cv2.dilate(src_mask, strel, iterations=10)
             dst_mask_dil = cv2.dilate(dst_mask, strel, iterations=10)
-            overlap_mask = (((src_mask_dil==255) & (dst_mask_dil==255))*255).astype("uint8")
+            overlap_mask = (((src_mask_dil == 255) & (dst_mask_dil == 255)) * 255).astype("uint8")
 
             # Create skeletonization as pseudo stitch line
             # overlap_skel = cv2.ximgproc.thinning(overlap_mask)
-            overlap_skel = skeletonize(overlap_mask/255)*1
+            overlap_skel = skeletonize(overlap_mask / 255) * 1
             r, c = np.nonzero(overlap_skel)
 
             # Convert skeletonization coordinates back to original image coordinates
@@ -1000,9 +1039,7 @@ def explore_pairs(fragments, parameters):
         ### Step 2 - visualize the resulting fragment pairs ###
         # Visualize results
         check_aligned_pairs_per_fragment_combo(
-            fragments = [a_fragment, b_fragment],
-            parameters = parameters,
-            result_dict = result_dict,
+            fragments=[a_fragment, b_fragment], parameters=parameters, result_dict=result_dict,
         )
 
         all_result_dicts.append(result_dict)
@@ -1030,14 +1067,11 @@ def explore_pairs(fragments, parameters):
                 file.write(f"{node_a} {node_b} {fitness} {rot_mat} line {stitch_line}\n")
 
     # Save file with stitch edge classification
-    label_to_name = {
-        "1": "UR",
-        "2": "LR",
-        "3": "LL",
-        "4": "UL"
-    }
+    label_to_name = {"1": "UR", "2": "LR", "3": "LL", "4": "UL"}
 
-    stitch_edge_file = parameters["save_dir"].joinpath("configuration_detection", "stitch_edges.txt")
+    stitch_edge_file = parameters["save_dir"].joinpath(
+        "configuration_detection", "stitch_edges.txt"
+    )
     with open(stitch_edge_file, "w") as file:
         for f in fragments:
             file.write(f"{f.fragment_name}:{label_to_name[str(f.stitch_edge_label)]}\n")

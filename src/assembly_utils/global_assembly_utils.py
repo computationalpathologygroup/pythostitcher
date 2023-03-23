@@ -39,14 +39,16 @@ class Assembler:
             "filtered_alignments.txt",
             "bg_color.txt",
             "fragment_list.txt",
-            "fragment_****.png"
+            "fragment_****.png",
         ]
 
         self.all_mandatory_files_present = all(
-            [any([i.match(f"*{j}") for i in self.available_files]) for j in self.mandatory_files])
+            [any([i.match(f"*{j}") for i in self.available_files]) for j in self.mandatory_files]
+        )
 
-        assert self.all_mandatory_files_present, \
-            f"> error: case {self.case_path} does not contain all required files"
+        assert (
+            self.all_mandatory_files_present
+        ), f"> error: case {self.case_path} does not contain all required files"
 
         return
 
@@ -80,18 +82,22 @@ class Assembler:
 
                 n_combinations = int(len(contents) / 4)
                 combinations_data = [contents[i * 4] for i in range(n_combinations)]
-                combinations_data = [i.replace("\t", " ").replace("\n", "") for i in combinations_data]
+                combinations_data = [
+                    i.replace("\t", " ").replace("\n", "") for i in combinations_data
+                ]
                 combinations_data = [i.rstrip(" 1") for i in combinations_data]
 
-                self.fa_tforms = [contents[i * 4 + 1:i * 4 + 4] for i in range(n_combinations)]
+                self.fa_tforms = [contents[i * 4 + 1 : i * 4 + 4] for i in range(n_combinations)]
                 self.fa_tforms = [[i.replace("\n", "") for i in tform] for tform in self.fa_tforms]
                 self.fa_tforms = [" ".join(tform) for tform in self.fa_tforms]
-                self.fa_tforms = [np.array([float(i) for i in tform.split(" ")]) for tform in self.fa_tforms]
+                self.fa_tforms = [
+                    np.array([float(i) for i in tform.split(" ")]) for tform in self.fa_tforms
+                ]
                 self.fa_tforms = [tform.reshape((3, 3)) for tform in self.fa_tforms]
 
                 self.fa_combinations = [i.split(" ")[:2] for i in combinations_data]
                 self.fa_combinations = [[int(i) for i in combo] for combo in self.fa_combinations]
-                self.fa_scores = [i.split(" ")[2] for i in  combinations_data]
+                self.fa_scores = [i.split(" ")[2] for i in combinations_data]
                 self.fa_scores = [float(i) for i in self.fa_scores]
 
         elif self.score_type == "pairwise_alignment":
@@ -103,12 +109,9 @@ class Assembler:
 
                 self.fa_combinations = [[int(i[0]), int(i[1])] for i in contents]
                 self.fa_scores = [int(i[2]) for i in contents]
-                self.fa_tforms = [np.array(list(map(float, i[3:12]))).reshape(3, 3) for i in contents]
-
-                # n_combinations = int(len(contents) / 4)
-                # combinations_data = [contents[i * 4] for i in range(n_combinations)]
-                # combinations_data = [i.replace("\t", " ").replace("\n", "") for i in combinations_data]
-                # combinations_data = [i.rstrip(" 1") for i in combinations_data]
+                self.fa_tforms = [
+                    np.array(list(map(float, i[3:12]))).reshape(3, 3) for i in contents
+                ]
 
         # Process stitch edge label file
         self.stitch_edge_dict = dict()
@@ -132,12 +135,21 @@ class Assembler:
         self.fragments = [cv2.cvtColor(i, cv2.COLOR_BGR2RGB) for i in self.fragments]
 
         # Compute masks and contours
-        self.masks = [(np.all(i != self.bg_color, axis=2) * 255).astype("uint8") for i in self.fragments]
-        self.masks_cnts = [np.squeeze(
-            max(cv2.findContours(i, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)[0], key=cv2.contourArea))
+        self.masks = [
+            (np.all(i != self.bg_color, axis=2) * 255).astype("uint8") for i in self.fragments
+        ]
+        self.masks_cnts = [
+            np.squeeze(
+                max(
+                    cv2.findContours(i, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)[0],
+                    key=cv2.contourArea,
+                )
+            )
             for i in self.masks
         ]
-        self.masks_cnts = [np.hstack([cnt[:, ::-1], np.ones((cnt.shape[0], 1))]) for cnt in self.masks_cnts]
+        self.masks_cnts = [
+            np.hstack([cnt[:, ::-1], np.ones((cnt.shape[0], 1))]) for cnt in self.masks_cnts
+        ]
 
         return
 
@@ -157,7 +169,7 @@ class Assembler:
             config_flat = np.array(config).ravel()
 
             # A configuration is only valid if each fragment is present twice
-            is_valid_config = all([np.sum(config_flat==i)==2 for i in range(n_fragments)])
+            is_valid_config = all([np.sum(config_flat == i) == 2 for i in range(n_fragments)])
             if is_valid_config:
                 self.valid_configurations.append(list(config))
 
@@ -195,11 +207,10 @@ class Assembler:
 
             # Get all possible combinations of taking 1 item from each list
             topn_idx_solutions = list(itertools.product(range(n_best), repeat=4))
-            self.topn_idx_solutions = [[pair1_topn_idx[i1],
-                                          pair2_topn_idx[i2],
-                                          pair3_topn_idx[i3],
-                                          pair4_topn_idx[i4]] for i1, i2, i3, i4 in
-                                         topn_idx_solutions]
+            self.topn_idx_solutions = [
+                [pair1_topn_idx[i1], pair2_topn_idx[i2], pair3_topn_idx[i3], pair4_topn_idx[i4]]
+                for i1, i2, i3, i4 in topn_idx_solutions
+            ]
 
             self.all_topn_idx_solutions.append(self.topn_idx_solutions)
 
@@ -207,7 +218,9 @@ class Assembler:
         self.all_topn_idx_solutions = np.vstack(self.all_topn_idx_solutions)
 
         # Sort all solutions based on score
-        self.all_topn_idx_scores = [np.sum([self.fa_scores[i] for i in s]) for s in self.all_topn_idx_solutions]
+        self.all_topn_idx_scores = [
+            np.sum([self.fa_scores[i] for i in s]) for s in self.all_topn_idx_solutions
+        ]
         self.all_topn_idx_sort_key = np.argsort(self.all_topn_idx_scores)[::-1]
 
         self.all_topn_sorted_solutions = np.take_along_axis(
@@ -266,8 +279,9 @@ class Assembler:
 
         # Sanity check to see if all tforms are used
         check_all_fragment_idx = list(self.frag_idx1_2) + [self.frag_idx3]
-        assert len(np.unique(check_all_fragment_idx)) == len(tforms), \
-            "error figuring out fragment configuration"
+        assert len(np.unique(check_all_fragment_idx)) == len(
+            tforms
+        ), "error figuring out fragment configuration"
 
         # Find the counterpart of the final piece. We might need to invert this tform
         # depending on its configuration.
@@ -312,22 +326,68 @@ class Assembler:
 
         self.point_tform_ref_to_1 = self.offset_tform_src @ self.tform_dict[str(self.frag_idx1)]
         self.point_tform_ref_to_2 = self.offset_tform_src @ self.tform_dict[str(self.frag_idx2)]
-        self.point_tform_ref_to_1_to_3 = self.point_tform_ref_to_1 @ self.tform_dict[str(self.frag_idx3)]
+        self.point_tform_ref_to_1_to_3 = (
+            self.point_tform_ref_to_1 @ self.tform_dict[str(self.frag_idx3)]
+        )
         self.point_tform_ref_to_2_to_3 = self.point_tform_ref_to_2 @ tforms[self.tform_idx_]
 
         # Required conversion between row/col to opencv x/y convention
         self.img_dst_tform1 = np.float32(
-            [[self.point_tform_ref_to_1[0, 0], self.point_tform_ref_to_1[1, 0], self.point_tform_ref_to_1[1, 2]],
-             [self.point_tform_ref_to_1[0, 1], self.point_tform_ref_to_1[1, 1], self.point_tform_ref_to_1[0, 2]]])
+            [
+                [
+                    self.point_tform_ref_to_1[0, 0],
+                    self.point_tform_ref_to_1[1, 0],
+                    self.point_tform_ref_to_1[1, 2],
+                ],
+                [
+                    self.point_tform_ref_to_1[0, 1],
+                    self.point_tform_ref_to_1[1, 1],
+                    self.point_tform_ref_to_1[0, 2],
+                ],
+            ]
+        )
         self.img_dst_tform2 = np.float32(
-            [[self.point_tform_ref_to_2[0, 0], self.point_tform_ref_to_2[1, 0], self.point_tform_ref_to_2[1, 2]],
-             [self.point_tform_ref_to_2[0, 1], self.point_tform_ref_to_2[1, 1], self.point_tform_ref_to_2[0, 2]]])
+            [
+                [
+                    self.point_tform_ref_to_2[0, 0],
+                    self.point_tform_ref_to_2[1, 0],
+                    self.point_tform_ref_to_2[1, 2],
+                ],
+                [
+                    self.point_tform_ref_to_2[0, 1],
+                    self.point_tform_ref_to_2[1, 1],
+                    self.point_tform_ref_to_2[0, 2],
+                ],
+            ]
+        )
         self.img_dst_tform3a = np.float32(
-            [[self.point_tform_ref_to_1_to_3[0, 0], self.point_tform_ref_to_1_to_3[1, 0], self.point_tform_ref_to_1_to_3[1, 2]],
-             [self.point_tform_ref_to_1_to_3[0, 1], self.point_tform_ref_to_1_to_3[1, 1], self.point_tform_ref_to_1_to_3[0, 2]]])
+            [
+                [
+                    self.point_tform_ref_to_1_to_3[0, 0],
+                    self.point_tform_ref_to_1_to_3[1, 0],
+                    self.point_tform_ref_to_1_to_3[1, 2],
+                ],
+                [
+                    self.point_tform_ref_to_1_to_3[0, 1],
+                    self.point_tform_ref_to_1_to_3[1, 1],
+                    self.point_tform_ref_to_1_to_3[0, 2],
+                ],
+            ]
+        )
         self.img_dst_tform3b = np.float32(
-            [[self.point_tform_ref_to_2_to_3[0, 0], self.point_tform_ref_to_2_to_3[1, 0], self.point_tform_ref_to_2_to_3[1, 2]],
-             [self.point_tform_ref_to_2_to_3[0, 1], self.point_tform_ref_to_2_to_3[1, 1], self.point_tform_ref_to_2_to_3[0, 2]]])
+            [
+                [
+                    self.point_tform_ref_to_2_to_3[0, 0],
+                    self.point_tform_ref_to_2_to_3[1, 0],
+                    self.point_tform_ref_to_2_to_3[1, 2],
+                ],
+                [
+                    self.point_tform_ref_to_2_to_3[0, 1],
+                    self.point_tform_ref_to_2_to_3[1, 1],
+                    self.point_tform_ref_to_2_to_3[0, 2],
+                ],
+            ]
+        )
 
         # Required to prevent math domain errors later due to very tiny disturbances
         self.img_dst_tform1 = np.round(self.img_dst_tform1, 4)
@@ -368,20 +428,40 @@ class Assembler:
         img3b_rot_steps = int(np.round(img3b_rot / 90))
 
         # Obtain old stitch edge labels per fragment
-        self.ref_img_old_label = self.stitch_edge_dict[f"fragment_{str(self.frag_idx_ref+1).zfill(4)}.png"]
-        self.img1_old_label = self.stitch_edge_dict[f"fragment_{str(self.frag_idx1+1).zfill(4)}.png"]
-        self.img2_old_label = self.stitch_edge_dict[f"fragment_{str(self.frag_idx2+1).zfill(4)}.png"]
-        self.img3a_old_label = self.stitch_edge_dict[f"fragment_{str(self.frag_idx3+1).zfill(4)}.png"]
-        self.img3b_old_label = self.stitch_edge_dict[f"fragment_{str(self.frag_idx3+1).zfill(4)}.png"]
+        self.ref_img_old_label = self.stitch_edge_dict[
+            f"fragment_{str(self.frag_idx_ref+1).zfill(4)}.png"
+        ]
+        self.img1_old_label = self.stitch_edge_dict[
+            f"fragment_{str(self.frag_idx1+1).zfill(4)}.png"
+        ]
+        self.img2_old_label = self.stitch_edge_dict[
+            f"fragment_{str(self.frag_idx2+1).zfill(4)}.png"
+        ]
+        self.img3a_old_label = self.stitch_edge_dict[
+            f"fragment_{str(self.frag_idx3+1).zfill(4)}.png"
+        ]
+        self.img3b_old_label = self.stitch_edge_dict[
+            f"fragment_{str(self.frag_idx3+1).zfill(4)}.png"
+        ]
 
         # Obtain new tformed stitch edge labels per fragment
         self.all_stitch_labels = ["UL", "UR", "LR", "LL"]
         self.ref_img_new_label = copy.copy(self.ref_img_old_label)
-        self.img1_new_label = self.all_stitch_labels[self.all_stitch_labels.index(self.img1_old_label)-img1_rot_steps]
-        self.img2_new_label = self.all_stitch_labels[self.all_stitch_labels.index(self.img2_old_label)-img2_rot_steps]
-        self.img3a_new_label = self.all_stitch_labels[self.all_stitch_labels.index(self.img3a_old_label)-img3a_rot_steps]
-        self.img3b_new_label = self.all_stitch_labels[self.all_stitch_labels.index(self.img3b_old_label)-img3b_rot_steps]
-        new_labels = set([self.ref_img_new_label, self.img1_new_label, self.img2_new_label, self.img3a_new_label])
+        self.img1_new_label = self.all_stitch_labels[
+            self.all_stitch_labels.index(self.img1_old_label) - img1_rot_steps
+        ]
+        self.img2_new_label = self.all_stitch_labels[
+            self.all_stitch_labels.index(self.img2_old_label) - img2_rot_steps
+        ]
+        self.img3a_new_label = self.all_stitch_labels[
+            self.all_stitch_labels.index(self.img3a_old_label) - img3a_rot_steps
+        ]
+        self.img3b_new_label = self.all_stitch_labels[
+            self.all_stitch_labels.index(self.img3b_old_label) - img3b_rot_steps
+        ]
+        new_labels = set(
+            [self.ref_img_new_label, self.img1_new_label, self.img2_new_label, self.img3a_new_label]
+        )
 
         # All labels must occur exactly once AND label of final piece must be consistent
         constraint_1 = (len(new_labels) == 4) and (self.img3a_new_label == self.img3b_new_label)
@@ -391,21 +471,20 @@ class Assembler:
         #########################################################
 
         # Final tform to close the loop
-        self.tform_loop = np.linalg.inv(self.point_tform_ref_to_2_to_3) @ self.point_tform_ref_to_1_to_3
-        self.tform_loop_v2 = self.point_tform_ref_to_1_to_3 @ np.linalg.inv(self.point_tform_ref_to_2_to_3)
+        self.tform_loop = (
+            np.linalg.inv(self.point_tform_ref_to_2_to_3) @ self.point_tform_ref_to_1_to_3
+        )
+        self.tform_loop_v2 = self.point_tform_ref_to_1_to_3 @ np.linalg.inv(
+            self.point_tform_ref_to_2_to_3
+        )
 
-        # Translation and rotation error
+        # Translation and rotation error. This metric is not really consistent and has some
+        # overlap with constraint 3. Might as well exclude this and just focus on constraint 3.
         t_err = np.sqrt(self.tform_loop[0, 2] ** 2 + self.tform_loop[1, 2] ** 2)
-        t_err_v2 = np.sqrt(self.tform_loop_v2[0, 2] ** 2 + self.tform_loop_v2[1, 2] ** 2)
         r_err = np.abs(math.degrees(math.acos(np.round(self.tform_loop[0, 0], 4))))
-        r_err_v2 = np.abs(math.degrees(math.acos(np.round(self.tform_loop_v2[0, 0], 4))))
 
         t_thres = 500
         r_thres = 20
-
-        # Upper limits of errors. This metric is not really consistent and has some overlap
-        # with constraint 3. Might as well exclude this and just focus on constraint 3.
-        constraint_2 = (r_err <= r_thres) and (t_err <= t_thres)
 
         ###################################################
         # CONSTRAINT no. 3 - minimum and maximum overlap
@@ -415,20 +494,32 @@ class Assembler:
         self.cnt_ref = self.offset_tform_src @ self.masks_cnts[self.frag_idx_ref].T
         self.cnt_ref_2d = np.array([self.cnt_ref[1, :], self.cnt_ref[0, :]]).T
 
-        self.cnt_idx1 = np.vstack([self.point_tform_ref_to_1, np.array([0, 0, 1])]) @ self.masks_cnts[self.frag_idx1].T
+        self.cnt_idx1 = (
+            np.vstack([self.point_tform_ref_to_1, np.array([0, 0, 1])])
+            @ self.masks_cnts[self.frag_idx1].T
+        )
         self.cnt_idx1_2d = np.array([self.cnt_idx1[1, :], self.cnt_idx1[0, :]]).T
 
-        self.cnt_idx2 = np.vstack([self.point_tform_ref_to_2, np.array([0, 0, 1])]) @ self.masks_cnts[self.frag_idx2].T
+        self.cnt_idx2 = (
+            np.vstack([self.point_tform_ref_to_2, np.array([0, 0, 1])])
+            @ self.masks_cnts[self.frag_idx2].T
+        )
         self.cnt_idx2_2d = np.array([self.cnt_idx2[1, :], self.cnt_idx2[0, :]]).T
 
-        self.cnt_idx3a = np.vstack([self.point_tform_ref_to_1_to_3, np.array([0, 0, 1])]) @ self.masks_cnts[self.frag_idx3].T
+        self.cnt_idx3a = (
+            np.vstack([self.point_tform_ref_to_1_to_3, np.array([0, 0, 1])])
+            @ self.masks_cnts[self.frag_idx3].T
+        )
         self.cnt_idx3a_2d = np.array([self.cnt_idx3a[1, :], self.cnt_idx3a[0, :]]).T
 
-        self.cnt_idx3b = np.vstack([self.point_tform_ref_to_2_to_3, np.array([0, 0, 1])]) @ self.masks_cnts[self.frag_idx3].T
+        self.cnt_idx3b = (
+            np.vstack([self.point_tform_ref_to_2_to_3, np.array([0, 0, 1])])
+            @ self.masks_cnts[self.frag_idx3].T
+        )
         self.cnt_idx3b_2d = np.array([self.cnt_idx3b[1, :], self.cnt_idx3b[0, :]]).T
 
         # Get averaged contour between 3a and 3b
-        self.cnt_idx3_2d = (self.cnt_idx3a_2d + self.cnt_idx3b_2d)/2
+        self.cnt_idx3_2d = (self.cnt_idx3a_2d + self.cnt_idx3b_2d) / 2
 
         # Convert to shapely polygon format
         self.cnt_ref_pol = Polygon(self.cnt_ref_2d)
@@ -440,15 +531,20 @@ class Assembler:
 
         # Compute overlap between relevant fragments
         frag12_overlap = (2 * self.cnt_idx1_pol.intersection(self.cnt_idx2_pol).area) / (
-                    self.cnt_idx1_pol.area + self.cnt_idx2_pol.area)
+            self.cnt_idx1_pol.area + self.cnt_idx2_pol.area
+        )
         frag13_overlap = (2 * self.cnt_ref_pol.intersection(self.cnt_idx3a_pol).area) / (
-                    self.cnt_ref_pol.area + self.cnt_idx3_pol.area)
+            self.cnt_ref_pol.area + self.cnt_idx3_pol.area
+        )
         frag33_overlap = (2 * self.cnt_idx3a_pol.intersection(self.cnt_idx3b_pol).area) / (
-                    self.cnt_idx3a_pol.area + self.cnt_idx3b_pol.area)
+            self.cnt_idx3a_pol.area + self.cnt_idx3b_pol.area
+        )
 
         # Fragment 1~2 and 1~3 cannot have overlap.
         overlap_thresh_max = 0.2
-        max_overlap_constraint = all([i < overlap_thresh_max for i in [frag12_overlap, frag13_overlap]])
+        max_overlap_constraint = all(
+            [i < overlap_thresh_max for i in [frag12_overlap, frag13_overlap]]
+        )
 
         # Fragment 3a and 3b must have overlap
         overlap_thresh_min = 0.5
@@ -458,19 +554,20 @@ class Assembler:
         # Final verdict. If true, perform full assembly. If false, move to next solution.
         self.feasible_assembly = all([constraint_1, constraint_3])
 
+        ### SANITY CHECK ###
         # if self.feasible_assembly:
-            # plt.figure(figsize=(8, 8))
-            # all_cnts = [self.cnt_ref_2d, self.cnt_idx1_2d, self.cnt_idx2_2d, self.cnt_idx3a_2d,
-            #             self.cnt_idx3b_2d]
-            # colours = ["b", "r", "r", "g", "g"]
-            # for col, cnt in zip(colours, all_cnts):
-            #     plt.title(
-            #         f"123 overlap: {frag12_overlap:.2f} & {frag13_overlap:.2f}\n33 overlap: {frag33_overlap:.2f}\nT_err: {t_err:.2f} & R_err: {r_err:.2f}")
-            #     plt.plot(cnt[:, 0], cnt[:, 1], c=col)
-            # # plt.plot(test[:, 0], test[:, 1], c="g", linewidth=4)
-            # plt.gca().invert_yaxis()
-            # plt.show()
-            # print("a")
+        # plt.figure(figsize=(8, 8))
+        # all_cnts = [self.cnt_ref_2d, self.cnt_idx1_2d, self.cnt_idx2_2d, self.cnt_idx3a_2d,
+        #             self.cnt_idx3b_2d]
+        # colours = ["b", "r", "r", "g", "g"]
+        # for col, cnt in zip(colours, all_cnts):
+        #     plt.title(
+        #         f"123 overlap: {frag12_overlap:.2f} & {frag13_overlap:.2f}\n33 overlap: {frag33_overlap:.2f}\nT_err: {t_err:.2f} & R_err: {r_err:.2f}")
+        #     plt.plot(cnt[:, 0], cnt[:, 1], c=col)
+        # # plt.plot(test[:, 0], test[:, 1], c="g", linewidth=4)
+        # plt.gca().invert_yaxis()
+        # plt.show()
+        # print("a")
 
         return
 
@@ -482,7 +579,12 @@ class Assembler:
 
         # Get horizontal and vertical stitch line per fragment
         all_contours = [self.cnt_ref_2d, self.cnt_idx1_2d, self.cnt_idx2_2d, self.cnt_idx3_2d]
-        self.all_labels = [self.ref_img_new_label, self.img1_new_label, self.img2_new_label, self.img3a_new_label]
+        self.all_labels = [
+            self.ref_img_new_label,
+            self.img1_new_label,
+            self.img2_new_label,
+            self.img3a_new_label,
+        ]
         all_names = ["ref", "1", "2", "3"]
         self.stitch_line_dict = dict()
 
@@ -529,7 +631,7 @@ class Assembler:
             # Resample horizontal line to 100 points for computational efficiency
             hline_x = cnt_fragments[hline_idx][:, 0]
             hline_y = cnt_fragments[hline_idx][:, 1]
-            sample_idx = np.linspace(0, len(hline_x)-1, 100).astype("int")
+            sample_idx = np.linspace(0, len(hline_x) - 1, 100).astype("int")
             hline_new_x = [hline_x[i] for i in sample_idx]
             hline_new_y = [hline_y[i] for i in sample_idx]
             hline_sampled = np.vstack([hline_new_x, hline_new_y]).T
@@ -537,7 +639,7 @@ class Assembler:
             # Resample vertical line to 100 points for computational efficiency
             vline_x = cnt_fragments[vline_idx][:, 0]
             vline_y = cnt_fragments[vline_idx][:, 1]
-            sample_idx = np.linspace(0, len(vline_y)-1, 100).astype("int")
+            sample_idx = np.linspace(0, len(vline_y) - 1, 100).astype("int")
             vline_new_x = [vline_x[i] for i in sample_idx]
             vline_new_y = [vline_y[i] for i in sample_idx]
             vline_sampled = np.vstack([vline_new_x, vline_new_y]).T
@@ -551,7 +653,7 @@ class Assembler:
 
         # Write results for each solution to text file
         location_solution = self.case_path.joinpath("location_solution.txt")
-        label2opposite = {"UR":"LL", "UL":"LR", "LR":"UL", "LL":"UR"}
+        label2opposite = {"UR": "LL", "UL": "LR", "LR": "UL", "LL": "UR"}
 
         if location_solution.exists():
             with open(location_solution, "r") as f:
@@ -578,14 +680,12 @@ class Assembler:
 
         return
 
-
     def compute_mse_stitch_line(self, location):
         """
         Helper function to compute the mean squared error between two stitch lines. The
         function takes into account the location where the final fragment is placed
         and average the metric for these locations.
         """
-
 
         # Get the labels, given the location. Note that the labels are related to the
         # location of the centerpoint of the fragment. Hence, for the stitch edge of the
@@ -595,9 +695,9 @@ class Assembler:
             "upper": ["LL", "LR"],
             "right": ["LL", "UL"],
             "lower": ["UR", "UL"],
-            "left": ["UR", "LR"]
+            "left": ["UR", "LR"],
         }
-        label2opposite = {"UR":"LL", "UL":"LR", "LR":"UL", "LL":"UR"}
+        label2opposite = {"UR": "LL", "UL": "LR", "LR": "UL", "LL": "UR"}
         labels = loc2label[str(location)]
 
         # Determine whether we need horizontal or vertical line pairs
@@ -610,8 +710,7 @@ class Assembler:
         mse21 = int(np.mean(np.min(distance.cdist(line2, line1), axis=0) ** 2))
         mse = np.mean([mse12, mse21])
 
-        # DEBUG
-
+        ### SANITY CHECK ###
         # plt.figure(figsize=(6, 6))
         # plt.title(f"Loc: {location}, MSE_avg: {int(mse)}")
         # plt.plot(line1[:, 0], line1[:, 1], c="r")
@@ -622,7 +721,6 @@ class Assembler:
         # plt.show()
 
         return mse
-
 
     def perform_assembly(self):
         """
@@ -647,30 +745,22 @@ class Assembler:
         tformed_images[str(self.frag_idx_ref)] = cv2.warpAffine(
             images[str(self.frag_idx_ref)],
             self.offset_tform_src[:2, :].astype("float32"),
-            self.output_size
+            self.output_size,
         )
         tformed_images[str(self.frag_idx1)] = cv2.warpAffine(
-            images[str(self.frag_idx1)],
-            self.img_dst_tform1,
-            self.output_size
+            images[str(self.frag_idx1)], self.img_dst_tform1, self.output_size
         )
         tformed_images[str(self.frag_idx2)] = cv2.warpAffine(
-            images[str(self.frag_idx2)],
-            self.img_dst_tform2,
-            self.output_size
+            images[str(self.frag_idx2)], self.img_dst_tform2, self.output_size
         )
         tformed_images[str(self.frag_idx3)] = cv2.warpAffine(
-            images[str(self.frag_idx3)],
-            self.img_dst_tform3a,
-            self.output_size
+            images[str(self.frag_idx3)], self.img_dst_tform3a, self.output_size
         )
         tformed_images["_"] = cv2.warpAffine(
-            images[str(self.frag_idx3)],
-            self.img_dst_tform3b,
-            self.output_size
+            images[str(self.frag_idx3)], self.img_dst_tform3b, self.output_size
         )
 
-        ##### DEBUG PLOT ######
+        ### SANITY CHECK ###
         # plt.figure(figsize=(6, 12))
         #
         # plt.subplot(421)
@@ -710,19 +800,18 @@ class Assembler:
         # plt.axis("off")
         #
         # plt.show()
-        ##### DEBUG PLOT ######
 
         # Rough assembly by summing images. Doesn't need to be fancy
         assembled_image = np.sum(list(tformed_images.values())[:-1], axis=0)
         assembled_image = np.clip(assembled_image, 0, 255).astype("uint8")
 
         # Cropping for visualization purposes
-        assembled_mask = np.all(assembled_image != [0, 0, 0], axis=2)*1
+        assembled_mask = np.all(assembled_image != [0, 0, 0], axis=2) * 1
         r, c = np.nonzero(assembled_mask)
-        min_x = np.max([0, np.min(r)-200])
-        max_x = np.min([np.max(r)+200, assembled_mask.shape[0]])
-        min_y = np.max([0, np.min(c)-200])
-        max_y = np.min([np.max(c)+200, assembled_mask.shape[1]])
+        min_x = np.max([0, np.min(r) - 200])
+        max_x = np.min([np.max(r) + 200, assembled_mask.shape[0]])
+        min_y = np.max([0, np.min(c) - 200])
+        max_y = np.min([np.max(c) + 200, assembled_mask.shape[1]])
         assembled_image_crop = assembled_image[min_x:max_x, min_y:max_y, :]
 
         # Plot result
@@ -733,19 +822,18 @@ class Assembler:
         plt.savefig(self.result_path.joinpath(f"sol_{self.sol_idx}.png"))
         plt.close()
 
-        """
-        plt.figure()
-        plt.title(f"MSE: {self.mse_score:.2f} and T_err: {t_err:.2f}")
-        plt.plot(self.cnt_ref_2d[:, 0], self.cnt_ref_2d[:, 1], c="r")
-        plt.plot(self.cnt_idx1_2d[:, 0], self.cnt_idx1_2d[:, 1], c=[0, 0, 1])
-        plt.plot(self.cnt_idx2_2d[:, 0], self.cnt_idx2_2d[:, 1], c=[0, 0, 0.75])
-        plt.plot(self.cnt_idx3a_2d[:, 0], self.cnt_idx3a_2d[:, 1], c=[0, 1, 0])
-        plt.plot(self.cnt_idx3b_2d[:, 0], self.cnt_idx3b_2d[:, 1], c=[0, 0.75, 0])
-        plt.legend(["ref", "1", "2", "3a", "3b"])
-        plt.gca().invert_yaxis()
-        plt.savefig(self.result_path.joinpath(f"sol_{self.sol_idx}_debug.png"))
-        plt.close()
-        """
+        ### SANITY CHECK ###
+        # plt.figure()
+        # plt.title(f"MSE: {self.mse_score:.2f} and T_err: {t_err:.2f}")
+        # plt.plot(self.cnt_ref_2d[:, 0], self.cnt_ref_2d[:, 1], c="r")
+        # plt.plot(self.cnt_idx1_2d[:, 0], self.cnt_idx1_2d[:, 1], c=[0, 0, 1])
+        # plt.plot(self.cnt_idx2_2d[:, 0], self.cnt_idx2_2d[:, 1], c=[0, 0, 0.75])
+        # plt.plot(self.cnt_idx3a_2d[:, 0], self.cnt_idx3a_2d[:, 1], c=[0, 1, 0])
+        # plt.plot(self.cnt_idx3b_2d[:, 0], self.cnt_idx3b_2d[:, 1], c=[0, 0.75, 0])
+        # plt.legend(["ref", "1", "2", "3a", "3b"])
+        # plt.gca().invert_yaxis()
+        # plt.savefig(self.result_path.joinpath(f"sol_{self.sol_idx}_debug.png"))
+        # plt.close()
 
         print("solution found")
         self.log.log(45, "   -> found solution!")

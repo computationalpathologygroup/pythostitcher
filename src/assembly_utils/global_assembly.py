@@ -6,7 +6,7 @@ def global_assembly(parameters):
     Main function to call the assembly script.
     """
 
-    parameters["log"].log(parameters["my_level"], f" - exploring feasible assemblies")
+    parameters["log"].log(parameters["my_level"], " - exploring feasible assemblies")
 
     # Perform main assembly
     print("\nPerforming global assembly...")
@@ -29,6 +29,6 @@ def global_assembly(parameters):
 
     # Evaluate all solutions for plausibility
     case.evaluate_solutions()
-    parameters["log"].log(parameters["my_level"], f" - finished!\n")
+    parameters["log"].log(parameters["my_level"], " - finished!\n")
 
     return

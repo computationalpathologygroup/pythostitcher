@@ -23,7 +23,7 @@ def jigsawnet_scoring(parameters):
     with open(checkpoint_root.joinpath("alpha.txt")) as f:
         for line in f:
             line = line.rstrip()
-            if line[0] != '#':
+            if line[0] != "#":
                 line = line.split()
                 Alpha = [float(x) for x in line]
 
@@ -64,11 +64,15 @@ def jigsawnet_scoring(parameters):
         raw_stitch_line = alignment.stitchLine
 
         # Load images to be stitched
-        image1_path = parameters["save_dir"].joinpath("configuration_detection", f"fragment_{str(v1+1).zfill(4)}.png")
+        image1_path = parameters["save_dir"].joinpath(
+            "configuration_detection", f"fragment_{str(v1+1).zfill(4)}.png"
+        )
         image1 = cv2.imread(str(image1_path))
         image1 = cv2.cvtColor(image1, cv2.COLOR_BGR2RGB)
 
-        image2_path = parameters["save_dir"].joinpath("configuration_detection", f"fragment_{str(v2+1).zfill(4)}.png")
+        image2_path = parameters["save_dir"].joinpath(
+            "configuration_detection", f"fragment_{str(v2+1).zfill(4)}.png"
+        )
         image2 = cv2.imread(str(image2_path))
         image2 = cv2.cvtColor(image2, cv2.COLOR_BGR2RGB)
 
@@ -77,37 +81,31 @@ def jigsawnet_scoring(parameters):
         path_img, point_tform, overlap_ratio, transform_offset = fusion_output
 
         # Resize image to fit network [160, 160]
-        resized_path_img = cv2.resize(path_img, (
-        parameters["JSN_Hyperparameters"]["height"], parameters["JSN_Hyperparameters"]["width"]))
+        resized_path_img = cv2.resize(
+            path_img,
+            (
+                parameters["JSN_Hyperparameters"]["height"],
+                parameters["JSN_Hyperparameters"]["width"],
+            ),
+        )
         net.evaluate_image = resized_path_img
         all_inference_images.append(resized_path_img)
 
         # Compute the ratio of the image where the attention should focus
-        [new_min_row_ratio, new_min_col_ratio, new_max_row_ratio,
-         new_max_col_ratio] = ConvertRawStitchLine2BBoxRatio(
+        [
+            new_min_row_ratio,
+            new_min_col_ratio,
+            new_max_row_ratio,
+            new_max_col_ratio,
+        ] = ConvertRawStitchLine2BBoxRatio(
             raw_stitch_line,
             path_img,
             trans,
             transform_offset,
-            max_expand_threshold=max_expand_threshold
+            max_expand_threshold=max_expand_threshold,
         )
-        net.roi_box = [new_min_row_ratio, new_min_col_ratio, new_max_row_ratio,
-                       new_max_col_ratio]
+        net.roi_box = [new_min_row_ratio, new_min_col_ratio, new_max_row_ratio, new_max_col_ratio]
         all_inference_bbox.append(net.roi_box)
-
-        ### DEBUG ADD ###
-        # bbox_min_col = resized_path_img.shape[1] * new_min_col_ratio
-        # bbox_max_col = resized_path_img.shape[1] * new_max_col_ratio
-        # bbox_min_row = resized_path_img.shape[0] * new_min_row_ratio
-        # bbox_max_row = resized_path_img.shape[0] * new_max_row_ratio
-        # bbox_coords = np.array([[bbox_min_col, bbox_min_row],
-        #                         [bbox_min_col, bbox_max_row],
-        #                         [bbox_max_col, bbox_min_row],
-        #                         [bbox_max_col, bbox_max_row]])
-        # plt.imshow(resized_path_img);
-        # plt.scatter(bbox_coords[:, 0], bbox_coords[:, 1], c="g");
-        # plt.show()
-        ### DEBUG ADD ###
 
         # Make prediction
         preds, probs = next(evaluator)
@@ -141,19 +139,26 @@ def jigsawnet_scoring(parameters):
     correct_threshold = 1e-20
 
     # Create filtered alignments file to write results
-    with open(parameters["save_dir"].joinpath("configuration_detection", "filtered_alignments.txt"), 'w') as f1:
-        for v1, v2, prob, trans in zip(all_inference_v1, all_inference_v2, all_inference_prob, all_inference_trans):
+    with open(
+        parameters["save_dir"].joinpath("configuration_detection", "filtered_alignments.txt"), "w"
+    ) as f1:
+        for v1, v2, prob, trans in zip(
+            all_inference_v1, all_inference_v2, all_inference_prob, all_inference_trans
+        ):
             if correct_probability > correct_threshold:
                 f1.write("%d\t%d\t%f\t0\n" % (v1, v2, prob))
-                f1.write("%f %f %f\n%f %f %f\n0 0 1\n" % (
-                    trans[0, 0], trans[0, 1], trans[0, 2],
-                    trans[1, 0], trans[1, 1], trans[1, 2]))
+                f1.write(
+                    "%f %f %f\n%f %f %f\n0 0 1\n"
+                    % (trans[0, 0], trans[0, 1], trans[0, 2], trans[1, 0], trans[1, 1], trans[1, 2])
+                )
     f1.close()
 
     # Save figure with all probabilites
     plt.figure(figsize=(8, 14))
     plt.suptitle("Image pairs with JigsawNet score and attention box\n", fontsize=20)
-    for c, (im, pred, bbox) in enumerate(zip(all_inference_images, all_inference_prob, all_inference_bbox), 1):
+    for c, (im, pred, bbox) in enumerate(
+        zip(all_inference_images, all_inference_prob, all_inference_bbox), 1
+    ):
 
         # Get bbox with attention
         im_size = resized_path_img.shape[0]
@@ -162,10 +167,14 @@ def jigsawnet_scoring(parameters):
         bbox_max_col = im_size * new_max_col_ratio
         bbox_min_row = im_size * new_min_row_ratio
         bbox_max_row = im_size * new_max_row_ratio
-        bbox_coords = np.array([[bbox_min_col, bbox_min_row],
-                                [bbox_min_col, bbox_max_row],
-                                [bbox_max_col, bbox_max_row],
-                                [bbox_max_col, bbox_min_row]])
+        bbox_coords = np.array(
+            [
+                [bbox_min_col, bbox_min_row],
+                [bbox_min_col, bbox_max_row],
+                [bbox_max_col, bbox_max_row],
+                [bbox_max_col, bbox_min_row],
+            ]
+        )
         test = np.vstack([bbox_coords, bbox_coords[0]])
 
         plt.subplot(6, 4, c)
@@ -174,7 +183,11 @@ def jigsawnet_scoring(parameters):
         plt.plot(test[:, 0], test[:, 1], c="g", linewidth=3)
         plt.axis("off")
     plt.tight_layout()
-    plt.savefig(parameters["save_dir"].joinpath("configuration_detection", "checks", f"jigsawnet_pred_expand{max_expand_threshold}.png"))
+    plt.savefig(
+        parameters["save_dir"].joinpath(
+            "configuration_detection", "checks", f"jigsawnet_pred_expand{max_expand_threshold}.png"
+        )
+    )
     plt.close()
 
     # Reset graphs required when performing reassembly for multiple cases
@@ -198,7 +211,8 @@ def SingleTest(checkpoint_root, K, net, is_training=False):
     """
 
     input = tf.keras.Input(
-        shape=[net.params['height'], net.params['width'], net.params['depth']], dtype=tf.float32)
+        shape=[net.params["height"], net.params["width"], net.params["depth"]], dtype=tf.float32
+    )
     roi_box = tf.keras.Input(shape=[4], dtype=tf.float32)
 
     logits = net._inference(input, roi_box, is_training)
@@ -211,8 +225,9 @@ def SingleTest(checkpoint_root, K, net, is_training=False):
     for i in range(K):
         check_point = os.path.join(checkpoint_root, "g%d" % i)
         sess = tf.compat.v1.Session()
-        sess_init_op = tf.group(tf.compat.v1.global_variables_initializer(),
-                                tf.compat.v1.local_variables_initializer())
+        sess_init_op = tf.group(
+            tf.compat.v1.global_variables_initializer(), tf.compat.v1.local_variables_initializer()
+        )
         sess.run(sess_init_op)
         saver.restore(sess, tf.train.latest_checkpoint(check_point))
         sessions.append(sess)
@@ -221,7 +236,10 @@ def SingleTest(checkpoint_root, K, net, is_training=False):
     # quite some potential to speed this up.
     while not net.close:
         if len(np.shape(net.evaluate_image)) < 4:
-            net.evaluate_image = np.reshape(net.evaluate_image, [1, net.params['height'], net.params['width'], net.params['depth']])
+            net.evaluate_image = np.reshape(
+                net.evaluate_image,
+                [1, net.params["height"], net.params["width"], net.params["depth"]],
+            )
         if len(np.shape(net.roi_box)) < 2:
             net.roi_box = np.reshape(net.roi_box, [1, 4])
 
@@ -229,7 +247,9 @@ def SingleTest(checkpoint_root, K, net, is_training=False):
         preds = []
         probs = []  # correct and incorrect probability
         for i in range(K):
-            pred, prob = sessions[i].run([net.pred, probability], feed_dict={input: net.evaluate_image, roi_box: net.roi_box})
+            pred, prob = sessions[i].run(
+                [net.pred, probability], feed_dict={input: net.evaluate_image, roi_box: net.roi_box}
+            )
             pred = pred[0]
             prob = prob[0]
             preds.append(pred)

@@ -22,23 +22,37 @@ def detect_configuration(parameters):
     elif parameters["n_fragments"] == 4:
 
         # Run initial pairwise alignment required for JigsawNet
-        if not parameters["save_dir"].joinpath("configuration_detection", "stitch_edges.txt").exists():
+        if (
+            not parameters["save_dir"]
+            .joinpath("configuration_detection", "stitch_edges.txt")
+            .exists()
+        ):
             run_pairwise_alignment(parameters)
 
         # Score the fit of each fragment pair with Jigsawnet
-        if not parameters["save_dir"].joinpath("configuration_detection", "filtered_alignments.txt").exists():
+        if (
+            not parameters["save_dir"]
+            .joinpath("configuration_detection", "filtered_alignments.txt")
+            .exists()
+        ):
             jigsawnet_scoring(parameters)
 
         # Use the JigsawNet scores to determine feasible assemblies
-        if not parameters["save_dir"].joinpath("configuration_detection", "location_solution.txt").exists():
+        if (
+            not parameters["save_dir"]
+            .joinpath("configuration_detection", "location_solution.txt")
+            .exists()
+        ):
             global_assembly(parameters)
 
         # Retrieve the three best solutions in rank of likelihood
         solutions = fetch_solutions(parameters)
 
     else:
-        raise ValueError(f"Sorry, stitching {parameters['n_fragments']} fragments is not (yet) "
-                         f"supported. PythoStitcher currently only supports 2 or 4 fragments.")
+        raise ValueError(
+            f"Sorry, stitching {parameters['n_fragments']} fragments is not (yet) "
+            f"supported. PythoStitcher currently only supports 2 or 4 fragments."
+        )
 
     return solutions
 
@@ -51,7 +65,9 @@ def get_configuration_2_fragments(parameters):
     """
 
     # Fetch all fragments
-    fragment_names = sorted([i.name for i in parameters["save_dir"].joinpath("preprocessed_images").iterdir()])
+    fragment_names = sorted(
+        [i.name for i in parameters["save_dir"].joinpath("preprocessed_images").iterdir()]
+    )
     fragments = []
     for fragment in fragment_names:
         parameters["fragment_name"] = fragment
@@ -75,7 +91,9 @@ def get_configuration_2_fragments(parameters):
     for image, rot in zip(parameters["raw_image_names"], rot_steps):
         parameters["rot_steps"][str(image)] = rot
 
-    location_solution_file = parameters["save_dir"].joinpath("configuration_detection", "location_solution.txt")
+    location_solution_file = parameters["save_dir"].joinpath(
+        "configuration_detection", "location_solution.txt"
+    )
     with open(location_solution_file, "r") as f:
         # Read content and process
         contents = f.readlines()
@@ -83,7 +101,9 @@ def get_configuration_2_fragments(parameters):
 
     # Save original filenames and their location
     sol_dict = dict()
-    original_filenames = sorted([i.name for i in parameters["data_dir"].joinpath("raw_images").iterdir() if not i.is_dir()])
+    original_filenames = sorted(
+        [i.name for i in parameters["data_dir"].joinpath("raw_images").iterdir() if not i.is_dir()]
+    )
 
     for file, loc in zip(original_filenames, locations):
         sol_dict[file] = loc

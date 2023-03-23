@@ -131,9 +131,7 @@ def fuse_images_lowres(images, parameters):
 
                         # Rotate the gradient along its primary axis
                         gradient_2d[ymin:ymax, xmin:xmax] = gradient_2d_fill
-                        rot_mat = cv2.getRotationMatrix2D(
-                            center=bbox_center, angle=-angle, scale=1
-                        )
+                        rot_mat = cv2.getRotationMatrix2D(center=bbox_center, angle=-angle, scale=1)
                         gradient_2d_warp = cv2.warpAffine(
                             gradient_2d, rot_mat, dsize=gradient_2d.shape[::-1]
                         )
@@ -141,9 +139,7 @@ def fuse_images_lowres(images, parameters):
 
                         # Compute the reverse gradient for scaling the other quadrant
                         gradient_2d_rev = np.zeros_like(q1_mask).astype("float")
-                        gradient_2d_rev[ymin:ymax, xmin:xmax] = np.fliplr(
-                            gradient_2d_fill
-                        )
+                        gradient_2d_rev[ymin:ymax, xmin:xmax] = np.fliplr(gradient_2d_fill)
                         rot_mat_rev = cv2.getRotationMatrix2D(
                             center=bbox_center, angle=-angle, scale=1
                         )
@@ -177,9 +173,7 @@ def fuse_images_lowres(images, parameters):
 
                         # Rotate the gradient along its primary axis
                         gradient_2d[ymin:ymax, xmin:xmax] = gradient_2d_fill
-                        rot_mat = cv2.getRotationMatrix2D(
-                            center=bbox_center, angle=-angle, scale=1
-                        )
+                        rot_mat = cv2.getRotationMatrix2D(center=bbox_center, angle=-angle, scale=1)
                         gradient_2d_warp = cv2.warpAffine(
                             gradient_2d, rot_mat, dsize=gradient_2d.shape[::-1]
                         )
@@ -187,16 +181,12 @@ def fuse_images_lowres(images, parameters):
 
                         # Compute the reverse gradient for scaling the other quadrant
                         gradient_2d_rev = np.zeros_like(q1_mask).astype("float")
-                        gradient_2d_rev[ymin:ymax, xmin:xmax] = np.flipud(
-                            gradient_2d_fill
-                        )
+                        gradient_2d_rev[ymin:ymax, xmin:xmax] = np.flipud(gradient_2d_fill)
                         rot_mat_rev = cv2.getRotationMatrix2D(
                             center=bbox_center, angle=-angle, scale=1
                         )
                         gradient_2d_warp_rev = cv2.warpAffine(
-                            gradient_2d_rev,
-                            rot_mat_rev,
-                            dsize=gradient_2d_rev.shape[::-1],
+                            gradient_2d_rev, rot_mat_rev, dsize=gradient_2d_rev.shape[::-1],
                         )
                         masked_gradient_rev = gradient_2d_warp_rev * overlap
 

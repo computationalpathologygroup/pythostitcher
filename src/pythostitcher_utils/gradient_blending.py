@@ -42,8 +42,10 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
     )
 
     # Get contour of overlapping areas and upsample to full resolution coords
-    mask_cnts_ds, _ = cv2.findContours((mask_ds == 2).astype("uint8"), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
-    mask_cnts = [np.squeeze(i*(2**mask_ds_level)) for i in mask_cnts_ds]
+    mask_cnts_ds, _ = cv2.findContours(
+        (mask_ds == 2).astype("uint8"), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE
+    )
+    mask_cnts = [np.squeeze(i * (2 ** mask_ds_level)) for i in mask_cnts_ds]
     mask_cnts = [i for i in mask_cnts if is_valid_contour(i)]
 
     # Param for saving blending result
@@ -74,12 +76,15 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
             n_points = int(np.ceil((long_end_end - long_end_start) / long_end)) + 1
             cnt_points_x = list(np.linspace(long_end_start, long_end_end, n_points))
             cnt_points_x = list(map(int, cnt_points_x))
-            cnt_points_x = np.array([np.max([0, long_end_start - 50])] + cnt_points_x + [
-                np.min([long_end_end + 50, max_image_width])])
+            cnt_points_x = np.array(
+                [np.max([0, long_end_start - 50])]
+                + cnt_points_x
+                + [np.min([long_end_end + 50, max_image_width])]
+            )
 
             # Draw a line along long axis and sample x coordinates
             short_end_start = mask_cnt[0, 1]
-            short_end_end_idx = int(len(mask_cnt[:, 1])/2)
+            short_end_end_idx = int(len(mask_cnt[:, 1]) / 2)
             short_end_end = mask_cnt[short_end_end_idx, 1]
             short_end_len = int((np.max(mask_cnt[:, 1]) - np.min(mask_cnt[:, 1])) * 2)
             cnt_points_y = np.linspace(short_end_start, short_end_end, len(cnt_points_x))
@@ -95,12 +100,15 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
             n_points = int(np.ceil((long_end_end - long_end_start) / long_end)) + 1
             cnt_points_y = list(np.linspace(long_end_start, long_end_end, n_points))
             cnt_points_y = list(map(int, cnt_points_y))
-            cnt_points_y = np.array([np.max([0, long_end_start - 50])] + cnt_points_y + [
-                np.min([long_end_end + 50, max_image_height])])
+            cnt_points_y = np.array(
+                [np.max([0, long_end_start - 50])]
+                + cnt_points_y
+                + [np.min([long_end_end + 50, max_image_height])]
+            )
 
             # Draw a line along long axis and sample x coordinates
             short_end_start = mask_cnt[0, 0]
-            short_end_end_idx = int(len(mask_cnt[:, 0])/2)
+            short_end_end_idx = int(len(mask_cnt[:, 0]) / 2)
             short_end_end = mask_cnt[short_end_end_idx, 0]
             short_end_len = int((np.max(mask_cnt[:, 0]) - np.min(mask_cnt[:, 0])) * 2)
             cnt_points_x = np.linspace(short_end_start, short_end_end, len(cnt_points_y))
@@ -119,7 +127,7 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
                 height = np.min([short_end_len, max_image_height - seed[1] - 1])
 
             elif cnt_dir == "ver":
-                xstart = seed[0] - int(0.5*(short_end_len))
+                xstart = seed[0] - int(0.5 * (short_end_len))
                 ystart = seed[1]
                 width = np.min([short_end_len, max_image_width - seed[0] - 1])
                 height = np.min([long_end, max_image_height - seed[1] - 1])
@@ -148,9 +156,7 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
 
             # Only perform bending in case of overlap
             try:
-                tile_mask = result_mask.crop(
-                    xstart, ystart, width, height
-                )
+                tile_mask = result_mask.crop(xstart, ystart, width, height)
             except:
                 print("s")
 
@@ -160,31 +166,23 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
                 images = dict()
                 masks = dict()
                 for f in full_res_fragments:
-                    image_patch = f.final_image.crop(
-                        xstart, ystart, width, height
-                    )
+                    image_patch = f.final_image.crop(xstart, ystart, width, height)
                     image = np.ndarray(
                         buffer=image_patch.write_to_memory(),
                         dtype=np.uint8,
                         shape=[height, width, image_patch.bands],
                     )
 
-                    mask_patch = f.outputres_mask.crop(
-                        xstart, ystart, width, height
-                    )
+                    mask_patch = f.outputres_mask.crop(xstart, ystart, width, height)
                     mask = np.ndarray(
-                        buffer=mask_patch.write_to_memory(),
-                        dtype=np.uint8,
-                        shape=[height, width]
+                        buffer=mask_patch.write_to_memory(), dtype=np.uint8, shape=[height, width]
                     )
 
                     images[f.orientation] = image
                     masks[f.orientation] = mask
 
                 # Perform the actual blending
-                blend, grad, overlap_fragments, valid = fuse_images_highres(
-                    images, masks
-                )
+                blend, grad, overlap_fragments, valid = fuse_images_highres(images, masks)
 
                 if valid:
 
@@ -210,7 +208,7 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
                     plt.subplot(233)
                     plt.title("Mask overlap + gradient", fontsize=20)
                     plt.imshow(
-                        (masks[overlap_fragments[0]] + masks[overlap_fragments[1]])==2,
+                        (masks[overlap_fragments[0]] + masks[overlap_fragments[1]]) == 2,
                         cmap="gray",
                     )
                     plt.imshow(grad, cmap="jet", alpha=0.5)
@@ -252,13 +250,9 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
                     h, w = blend.shape[:2]
                     bands = 3
                     dformat = "uchar"
-                    blend_image = pyvips.Image.new_from_memory(
-                        blend.ravel(), w, h, bands, dformat
-                    )
+                    blend_image = pyvips.Image.new_from_memory(blend.ravel(), w, h, bands, dformat)
 
-                    result_image = result_image.insert(
-                        blend_image, xstart, ystart
-                    )
+                    result_image = result_image.insert(blend_image, xstart, ystart)
 
             else:
                 continue

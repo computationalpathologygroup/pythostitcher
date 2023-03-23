@@ -32,8 +32,12 @@ class Fragment:
         self.hist_sizes = kwargs["hist_sizes"]
         self.data_dir = kwargs["data_dir"]
         self.original_image_idx = kwargs["fragment_names"].index(self.final_orientation) + 1
-        self.im_path = self.save_dir.joinpath("preprocessed_images", f"fragment_{str(self.original_image_idx).zfill(4)}.png")
-        self.mask_path = self.save_dir.joinpath("preprocessed_masks", f"fragment_{str(self.original_image_idx).zfill(4)}.png")
+        self.im_path = self.save_dir.joinpath(
+            "preprocessed_images", f"fragment_{str(self.original_image_idx).zfill(4)}.png"
+        )
+        self.mask_path = self.save_dir.joinpath(
+            "preprocessed_masks", f"fragment_{str(self.original_image_idx).zfill(4)}.png"
+        )
         self.res = self.resolutions[self.iteration]
         self.res_name = get_resname(self.res)
         self.pad_fraction = kwargs["pad_fraction"]
@@ -49,18 +53,17 @@ class Fragment:
             "left": "right",
             "right": "left",
             "top": "bottom",
-            "bottom": "top"
-	    }
-        self.complementary_fragments_total = {
-            "ul": "ll",
-            "ur": "ll",
-            "ll": "ul",
-            "lr": "ul"
+            "bottom": "top",
         }
+        self.complementary_fragments_total = {"ul": "ll", "ur": "ll", "ll": "ul", "lr": "ul"}
 
         if self.num_fragments == 4:
-            self.stitch_edge_dict = self.save_dir.joinpath("configuration_detection", "stitch_edges.txt")
-            assert self.stitch_edge_dict.exists(), "received invalid path to 'stitch_edges.txt' file"
+            self.stitch_edge_dict = self.save_dir.joinpath(
+                "configuration_detection", "stitch_edges.txt"
+            )
+            assert (
+                self.stitch_edge_dict.exists()
+            ), "received invalid path to 'stitch_edges.txt' file"
 
         return
 
@@ -85,8 +88,12 @@ class Fragment:
 
         # Determine the initial orientation of the fragment.
         self.all_labels_loop = ["ur", "lr", "ll", "ul"] * 2
-        self.classifier_label = stitch_label_dict[f"fragment_{str(self.original_image_idx).zfill(4)}.png"].lower()
-        self.init_orientation = self.all_labels_loop[self.all_labels_loop.index(self.classifier_label) + 2]
+        self.classifier_label = stitch_label_dict[
+            f"fragment_{str(self.original_image_idx).zfill(4)}.png"
+        ].lower()
+        self.init_orientation = self.all_labels_loop[
+            self.all_labels_loop.index(self.classifier_label) + 2
+        ]
 
         # Determine how many times the fragment needs to be located ccw to obtain its
         # final position
@@ -110,7 +117,7 @@ class Fragment:
 
         # Apply rotation/flipping
         if self.rot_k != 0:
-            self.original_image = np.rot90(self.original_image, k=self.rot_k, axes=(1,0))
+            self.original_image = np.rot90(self.original_image, k=self.rot_k, axes=(1, 0))
 
         return
 
@@ -148,8 +155,8 @@ class Fragment:
 
         # Rotate and resize mask to match image
         if self.rot_k != 0:
-            self.mask = np.rot90(self.mask, k=self.rot_k, axes=(1,0))
-        self.mask = (cv2.resize(self.mask, self.target_size) > 128)*1
+            self.mask = np.rot90(self.mask, k=self.rot_k, axes=(1, 0))
+        self.mask = (cv2.resize(self.mask, self.target_size) > 128) * 1
 
         # Apply mask to image
         self.colour_image = (self.colour_image * self.mask[:, :, np.newaxis]).astype("uint8")
@@ -167,9 +174,9 @@ class Fragment:
         cmin, cmax = np.min(c), np.max(c)
         rmin, rmax = np.min(r), np.max(r)
 
-        self.colour_image = self.colour_image[cmin:cmax, rmin:rmax+1]
-        self.gray_image = self.gray_image[cmin:cmax, rmin:rmax+1]
-        self.mask = self.mask[cmin:cmax, rmin:rmax+1]
+        self.colour_image = self.colour_image[cmin:cmax, rmin : rmax + 1]
+        self.gray_image = self.gray_image[cmin:cmax, rmin : rmax + 1]
+        self.mask = self.mask[cmin:cmax, rmin : rmax + 1]
 
         # For the lowest resolution we apply a fixed padding rate. For higher resolutions
         # we compute the ideal padding based on the previous resolution such that the
@@ -186,17 +193,11 @@ class Fragment:
             )
             self.gray_image = np.pad(
                 self.gray_image,
-                [
-                    [self.initial_pad, self.initial_pad],
-                    [self.initial_pad, self.initial_pad],
-                ],
+                [[self.initial_pad, self.initial_pad], [self.initial_pad, self.initial_pad],],
             )
             self.mask = np.pad(
                 self.mask,
-                [
-                    [self.initial_pad, self.initial_pad],
-                    [self.initial_pad, self.initial_pad],
-                ],
+                [[self.initial_pad, self.initial_pad], [self.initial_pad, self.initial_pad],],
             )
         else:
             prev_res_image_path = (
@@ -217,9 +218,7 @@ class Fragment:
             self.colour_image = np.pad(
                 self.colour_image, [[pad[0], pad[0]], [pad[1], pad[1]], [0, 0]]
             )
-            self.gray_image = np.pad(
-                self.gray_image, [[pad[0], pad[0]], [pad[1], pad[1]]]
-            )
+            self.gray_image = np.pad(self.gray_image, [[pad[0], pad[0]], [pad[1], pad[1]]])
             self.mask = np.pad(self.mask, [[pad[0], pad[0]], [pad[1], pad[1]]])
 
         return
@@ -268,15 +267,11 @@ class Fragment:
         # Read all relevant images. Take into account that opencv reads images in BGR
         # rather than RGB.
         basepath_load = f"{self.sol_save_dir}/images/{self.slice_idx}/{self.res_name}"
-        self.mask = cv2.imread(
-            f"{basepath_load}/fragment_{self.final_orientation}_mask.png"
-        )
+        self.mask = cv2.imread(f"{basepath_load}/fragment_{self.final_orientation}_mask.png")
         if len(self.mask.shape) == 3:
             self.mask = cv2.cvtColor(self.mask, cv2.COLOR_BGR2GRAY)
 
-        self.gray_image = cv2.imread(
-            f"{basepath_load}/fragment_{self.final_orientation}_gray.png"
-        )
+        self.gray_image = cv2.imread(f"{basepath_load}/fragment_{self.final_orientation}_gray.png")
         self.gray_image = cv2.cvtColor(self.gray_image, cv2.COLOR_BGR2GRAY)
         self.colour_image = cv2.imread(
             f"{basepath_load}/fragment_{self.final_orientation}_colour.png"
@@ -419,9 +414,7 @@ class Fragment:
         self.angle = np.round(self.angle, 1)
 
         # Apply rotation first
-        rot_mat = cv2.getRotationMatrix2D(
-            center=self.image_center_pre, angle=self.angle, scale=1
-        )
+        rot_mat = cv2.getRotationMatrix2D(center=self.image_center_pre, angle=self.angle, scale=1)
         self.tform_image = cv2.warpAffine(
             src=self.gray_image, M=rot_mat, dsize=self.gray_image.shape[::-1]
         )
@@ -479,9 +472,7 @@ class Fragment:
         ]
 
         pad_dict = dict()
-        for fragment, pad, pad_x, pad_y in zip(
-            fragment_names, paddings, padded_x, padded_y
-        ):
+        for fragment, pad, pad_x, pad_y in zip(fragment_names, paddings, padded_x, padded_y):
             pad_dict[fragment] = [pad, pad_x, pad_y]
 
         pad, pad_x, pad_y = pad_dict[self.final_orientation]
@@ -517,10 +508,7 @@ class Fragment:
 
             # Perform vertical translation depending on size of neighbouring fragment.
             if np.shape(self.tform_image)[0] < np.shape(other_fragment.tform_image)[0]:
-                trans_y = (
-                    np.shape(other_fragment.tform_image)[0]
-                    - np.shape(self.tform_image)[0]
-                )
+                trans_y = np.shape(other_fragment.tform_image)[0] - np.shape(self.tform_image)[0]
             else:
                 trans_y = 0
 
@@ -538,10 +526,7 @@ class Fragment:
 
             # Perform vertical translation depending on size of neighbouring fragment.
             if np.shape(self.tform_image)[0] < np.shape(other_fragment.tform_image)[0]:
-                trans_y = (
-                    np.shape(other_fragment.tform_image)[0]
-                    - np.shape(self.tform_image)[0]
-                )
+                trans_y = np.shape(other_fragment.tform_image)[0] - np.shape(self.tform_image)[0]
             else:
                 trans_y = 0
 
@@ -562,10 +547,7 @@ class Fragment:
 
             # Perform vertical translation depending on size of neighbouring fragment.
             if np.shape(self.tform_image)[0] < np.shape(other_fragment.tform_image)[0]:
-                expand_y = (
-                    np.shape(other_fragment.tform_image)[0]
-                    - np.shape(self.tform_image)[0]
-                )
+                expand_y = np.shape(other_fragment.tform_image)[0] - np.shape(self.tform_image)[0]
             else:
                 expand_y = 0
 
@@ -584,10 +566,7 @@ class Fragment:
 
             # Perform vertical translation depending on size of neighbouring fragment.
             if np.shape(self.tform_image)[0] < np.shape(other_fragment.tform_image)[0]:
-                expand_y = (
-                    np.shape(other_fragment.tform_image)[0]
-                    - np.shape(self.tform_image)[0]
-                )
+                expand_y = np.shape(other_fragment.tform_image)[0] - np.shape(self.tform_image)[0]
             else:
                 expand_y = 0
 
@@ -607,10 +586,7 @@ class Fragment:
 
             # Perform horizontal translation depending on size of the fused LL/LR
             # piece.
-            if (
-                np.shape(self.tform_image_local)[1]
-                < np.shape(other_fragment.tform_image_local)[1]
-            ):
+            if np.shape(self.tform_image_local)[1] < np.shape(other_fragment.tform_image_local)[1]:
                 trans_x = (
                     np.shape(other_fragment.tform_image_local)[1]
                     - np.shape(self.tform_image_local)[1]
@@ -632,10 +608,7 @@ class Fragment:
 
             # Perform horizontal translation depending on size of the fused LL/LR
             # piece.
-            if (
-                np.shape(self.tform_image_local)[1]
-                < np.shape(other_fragment.tform_image_local)[1]
-            ):
+            if np.shape(self.tform_image_local)[1] < np.shape(other_fragment.tform_image_local)[1]:
                 trans_x = (
                     np.shape(other_fragment.tform_image_local)[1]
                     - np.shape(self.tform_image_local)[1]
@@ -701,10 +674,7 @@ class Fragment:
 
             # Perform horizontal translation depending on size of the fused LL/LR
             # piece.
-            if (
-                np.shape(self.tform_image_local)[1]
-                < np.shape(other_fragment.tform_image_local)[1]
-            ):
+            if np.shape(self.tform_image_local)[1] < np.shape(other_fragment.tform_image_local)[1]:
                 trans_x = (
                     np.shape(other_fragment.tform_image_local)[1]
                     - np.shape(self.tform_image_local)[1]
@@ -726,10 +696,7 @@ class Fragment:
 
             # Perform horizontal translation depending on size of the fused LL/LR
             # piece.
-            if (
-                np.shape(self.tform_image_local)[1]
-                < np.shape(other_fragment.tform_image_local)[1]
-            ):
+            if np.shape(self.tform_image_local)[1] < np.shape(other_fragment.tform_image_local)[1]:
                 trans_x = (
                     np.shape(other_fragment.tform_image_local)[1]
                     - np.shape(self.tform_image_local)[1]
@@ -783,15 +750,11 @@ class Fragment:
         self.tform_image = cv2.warpAffine(
             src=self.gray_image_original, M=rot_mat, dsize=output_shape[::-1]
         )
-        self.mask = cv2.warpAffine(
-            src=self.mask_original, M=rot_mat, dsize=output_shape[::-1]
-        )
+        self.mask = cv2.warpAffine(src=self.mask_original, M=rot_mat, dsize=output_shape[::-1])
 
         # Save image center after transformation. This will be needed for the cost
         # function later on.
-        mask_contour, _ = cv2.findContours(
-            self.mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE
-        )
+        mask_contour, _ = cv2.findContours(self.mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
         mask_contour = np.squeeze(max(mask_contour, key=cv2.contourArea))
 
         # Get centerpoint of the contour
@@ -807,15 +770,11 @@ class Fragment:
         """
 
         # Get mask contour
-        self.mask_contour, _ = cv2.findContours(
-            self.mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE
-        )
+        self.mask_contour, _ = cv2.findContours(self.mask, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
         self.mask_contour = np.squeeze(max(self.mask_contour, key=cv2.contourArea))
 
         # Compute centerpoint
-        self.image_center_pre = tuple(
-            [int(i) for i in np.mean(self.mask_contour, axis=0)]
-        )
+        self.image_center_pre = tuple([int(i) for i in np.mean(self.mask_contour, axis=0)])
 
         return
 
@@ -830,16 +789,12 @@ class Fragment:
         if self.num_fragments == 2:
 
             if self.mask_corner_a_idx < self.mask_corner_b_idx:
-                option_a = list(
-                    self.cnt[self.mask_corner_a_idx : self.mask_corner_b_idx]
-                )
+                option_a = list(self.cnt[self.mask_corner_a_idx : self.mask_corner_b_idx])
                 option_b = list(self.cnt[self.mask_corner_a_idx :]) + list(
                     self.cnt[: self.mask_corner_b_idx]
                 )
             else:
-                option_a = list(
-                    self.cnt[self.mask_corner_b_idx : self.mask_corner_a_idx]
-                )
+                option_a = list(self.cnt[self.mask_corner_b_idx : self.mask_corner_a_idx])
                 option_b = list(self.cnt[self.mask_corner_b_idx :]) + list(
                     self.cnt[: self.mask_corner_a_idx]
                 )
@@ -852,9 +807,7 @@ class Fragment:
 
             # Define edge AB as part of the contour that goes from corner A to corner B
             if self.mask_corner_a_idx < self.mask_corner_b_idx:
-                edge_ab = list(
-                    self.cnt[self.mask_corner_a_idx : self.mask_corner_b_idx]
-                )
+                edge_ab = list(self.cnt[self.mask_corner_a_idx : self.mask_corner_b_idx])
             else:
                 edge_ab = list(self.cnt[self.mask_corner_a_idx :]) + list(
                     self.cnt[: self.mask_corner_b_idx]
@@ -864,9 +817,7 @@ class Fragment:
 
             # Define edge AD as part of the contour that goes from corner D to corner A
             if self.mask_corner_a_idx > self.mask_corner_d_idx:
-                edge_ad = list(
-                    self.cnt[self.mask_corner_d_idx : self.mask_corner_a_idx]
-                )
+                edge_ad = list(self.cnt[self.mask_corner_d_idx : self.mask_corner_a_idx])
             else:
                 edge_ad = list(self.cnt[self.mask_corner_d_idx :]) + list(
                     self.cnt[: self.mask_corner_a_idx]
