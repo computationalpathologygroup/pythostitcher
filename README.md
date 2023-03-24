@@ -25,13 +25,13 @@ Your input data should be prepared as follows, where you make a separate raw_ima
 	
 	data/ 
 	└── patient_ID
-	|	└── raw_images
-	|		├── image1
-	|   	└── image2
-	|	└── raw_masks
-	|		├── image1
-	|       └── image2
-	│	└── force_config.txt [OPTIONAL]
+	|    └── raw_images
+	|        ├── image1
+	|        └── image2
+	|    └── raw_masks
+	|        ├── image1
+	|        └── image2
+	│    └── force_config.txt [OPTIONAL]
 
 
 #### Usage instructions
