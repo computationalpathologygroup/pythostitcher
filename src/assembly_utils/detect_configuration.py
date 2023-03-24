@@ -22,27 +22,27 @@ def detect_configuration(parameters):
     elif parameters["n_fragments"] == 4:
 
         # Run initial pairwise alignment required for JigsawNet
-        if (
-            not parameters["save_dir"]
-            .joinpath("configuration_detection", "stitch_edges.txt")
-            .exists()
-        ):
+        stitch_edge_file = parameters["save_dir"].joinpath(
+            "configuration_detection",
+            "stitch_edges.txt"
+        )
+        if not stitch_edge_file.exists():
             run_pairwise_alignment(parameters)
 
         # Score the fit of each fragment pair with Jigsawnet
-        if (
-            not parameters["save_dir"]
-            .joinpath("configuration_detection", "filtered_alignments.txt")
-            .exists()
-        ):
+        alignments_file = parameters["save_dir"].joinpath(
+            "configuration_detection",
+            "filtered_alignments.txt"
+        )
+        if not alignments_file.exists():
             jigsawnet_scoring(parameters)
 
         # Use the JigsawNet scores to determine feasible assemblies
-        if (
-            not parameters["save_dir"]
-            .joinpath("configuration_detection", "location_solution.txt")
-            .exists()
-        ):
+        solution_file = parameters["save_dir"].joinpath(
+            "configuration_detection",
+            "location_solution.txt"
+        )
+        if not solution_file.exists():
             global_assembly(parameters)
 
         # Retrieve the three best solutions in rank of likelihood

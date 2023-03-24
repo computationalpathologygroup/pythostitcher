@@ -206,7 +206,8 @@ class FullResImage:
 
         self.outputres_mask = self.outputres_mask.resize(self.scaling_mask2outputres)
 
-        self.outputres_mask = self.outputres_mask.rotate(-self.rot_k * 90)
+        if not self.rot_k in [0, 4]:
+            self.outputres_mask = self.outputres_mask.rotate(self.rot_k * 90)
 
         # Pad image with zeros
         self.outputres_mask = self.outputres_mask.gravity(
@@ -239,8 +240,9 @@ class FullResImage:
         # Crop image
         self.outputres_image = self.outputres_image.crop(cmin, rmin, width, height)
 
-        # Rotate image
-        self.outputres_image = self.outputres_image.rotate(-self.rot_k * 90)
+        # Rotate image if necessary
+        if not self.rot_k in [0, 4]:
+            self.outputres_image = self.outputres_image.rotate(self.rot_k * 90)
 
         # Pad image with zeros
         self.outputres_image = self.outputres_image.gravity(
@@ -308,6 +310,10 @@ def generate_full_res(parameters, log):
 
     log.log(parameters["my_level"], "Processing high resolution fragments")
     start = time.time()
+
+    ### DEBUGGING ###
+    log.setLevel(logging.DEBUG)
+
     for f in full_res_fragments:
         log.log(parameters["my_level"], f" - '{f.raw_image_path.name}'")
 
@@ -317,6 +323,9 @@ def generate_full_res(parameters, log):
         f.get_scaling()
         f.process_mask()
         f.process_image()
+
+    ### DEBUGGING ###
+    log.setLevel(logging.ERROR)
 
     log.log(
         parameters["my_level"], f" > finished in {int(np.ceil((time.time()-start)/60))} mins!\n"
@@ -367,10 +376,13 @@ def generate_full_res(parameters, log):
         compression="jpeg",
         bigtiff=True,
         pyramid=True,
-        Q=20,
+        Q=80,
     )
     log.log(
         parameters["my_level"], f" > finished in {int(np.ceil((time.time()-start)/60))} mins!\n"
     )
+
+    # Clean up for next solution
+    del full_res_fragments, result_mask, result_image
 
     return

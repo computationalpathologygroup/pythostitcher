@@ -51,7 +51,7 @@ def preprocess(fragments, parameters):
         f.save_fragment()
 
     # Save rot90 steps for later in high resolution reconstruction
-    if not "rot_steps" in list(parameters.keys()):
+    if not parameters["n_fragments"] == 2:
         parameters["rot_steps"] = dict()
         for f in fragments:
             parameters["rot_steps"][f.original_name] = f.rot_k

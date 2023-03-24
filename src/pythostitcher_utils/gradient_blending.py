@@ -259,12 +259,28 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
 
     comp_time = int(np.ceil((time.time() - start) / 60))
 
-    # Prostates should be wider than they are high. If this is not the case, end result
-    # may need to be rotated 90 degrees.
-    y, x = np.nonzero(np.squeeze(mask_ds))
-    width = np.max(x) - np.min(x)
-    height = np.max(y) - np.min(y)
-    if height > width:
-        result_image = result_image.rotate(90)
+    """
+    ### Make sure the tissue is positioned straight rather than angled
+    # First correct based on the rotation of the bounding box
+    cnt, _ = cv2.findContours(
+        np.squeeze(mask_ds).astype("uint8"),
+        cv2.RETR_CCOMP,
+        cv2.CHAIN_APPROX_NONE
+    )
+    cnt = np.squeeze(max(cnt, key=cv2.contourArea))
+
+    bbox = cv2.minAreaRect(cnt)
+
+    # Adjust angle due to nature of the opencv function
+    angle = bbox[2]
+    if angle > 45:
+        angle = 90 - angle
+
+    # Align longest axis of the tissue with x-axis
+    if bbox[1][0] > bbox[1][1]:
+        angle += 90
+
+    result_image = result_image.rotate(90)
+    """
 
     return result_image, comp_time

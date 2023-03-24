@@ -26,7 +26,6 @@
 
 	"translation_range": [0.05, 0.025, 0.0083, 0.0083],
 	"angle_range": [10, 10, 5, 5],
-	"GA_fitness": ["None"],
 
 	"weights_fragment_classifier": "model_weights/fragment_classifier/best_weights.hdf5",
 	"alignment_score": "jigsawnet",

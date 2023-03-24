@@ -11,6 +11,9 @@ def jigsawnet_scoring(parameters):
 
     parameters["log"].log(parameters["my_level"], f" - scoring pairs with JigsawNet")
 
+    # Temporarily set logging to error to prevent annoying TF 1/2 warnings
+    parameters["log"].setLevel(logging.ERROR)
+
     # Required for JigsawNet
     tf.compat.v1.disable_v2_behavior()
 
@@ -192,6 +195,7 @@ def jigsawnet_scoring(parameters):
 
     # Reset graphs required when performing reassembly for multiple cases
     tf.compat.v1.reset_default_graph()
+    parameters["log"].setLevel(logging.WARNING)
 
     return
 

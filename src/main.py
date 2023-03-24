@@ -164,7 +164,7 @@ def main():
 
     logging.basicConfig(
         filename=logfile,
-        level=logging.ERROR,
+        level=logging.WARNING,
         format="%(asctime)s    %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )

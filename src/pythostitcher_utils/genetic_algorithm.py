@@ -148,7 +148,7 @@ def genetic_algorithm(fragments, parameters, initial_tform):
 
     # Save some results for later plotting
     if parameters["iteration"] == 0:
-        parameters["GA_fitness"].append(init_fitness)
+        parameters["GA_fitness"] = [init_fitness]
     parameters["GA_fitness"].append(solution_fitness)
 
     # Save final transformation for each quadrant

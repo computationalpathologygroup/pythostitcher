@@ -438,7 +438,7 @@ def plot_ga_multires(parameters):
     """
 
     # Set some plotting parameters
-    fitness = parameters["GA_fitness"][1:]
+    fitness = parameters["GA_fitness"]
     xticks_loc = list(np.arange(0, 5))
     xticks_label = ["Initial"] + parameters["resolutions"]
 

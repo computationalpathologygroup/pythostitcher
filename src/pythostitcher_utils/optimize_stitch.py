@@ -163,9 +163,8 @@ def optimize_stitch(parameters):
             )
             all_images.append(f.final_image)
 
-        # Get final fused image, correct for the rotation and display it
+        # Get final fused image and display it
         final_image = fuse_images_lowres(images=all_images, parameters=parameters)
-        # final_image = adjust_final_rotation(image=final_image)
         plot_ga_result(final_image=final_image, parameters=parameters)
 
         # Provide verbose on computation time
