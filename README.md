@@ -1,15 +1,14 @@
+<h1 align="center">PythoStitcher</h2>
 <p align="center">
    <a href="https://github.com/psf/black"><img alt="empty" src=https://img.shields.io/badge/code%20style-black-000000.svg></a>
 </p>
-
-<h1 align="center">PythoStitcher</h2>
 
     
 ## What is PythoStitcher?
 Pythostitcher is a Python implementation of the [AutoStitcher](https://www.nature.com/articles/srep29906) software which stitches histopathology images into an artifical whole mount image. These artificial whole-mounts are indispensable for multimodal imaging research, since they greatly improve the ability to relate histopathology information to pre-operative imaging. PythoStitcher works fully automatically and is able to generate very high resolution (0.25 µm/pixel) whole-mounts. 
 
 <p align="center">
-  <img width="640" height="480" src="./tform_progression.gif">
+  <img width="640" height="480" src="./img/tform_progression.gif">
 </p>
 
 ## Does PythoStitcher also work on my data?
