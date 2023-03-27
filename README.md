@@ -18,7 +18,7 @@ If your data consists of either halves or quadrants of a certain type of tissue 
 #### Docker container 
 It is highly recommended to run PythoStitcher as a Docker container, since PythoStitcher uses some libraries that need to be built from source. The Docker container comes prepackaged with these libraries, as well as with model weights of the involved CNNs, and should run out-of-the-box. You can pull the container with the following command or alternatively build it yourself locally with the provided Dockerfile in /build.
 
-	docker pull ghcr.io/computationalpathologygroup/pythostitcher:0.1.1
+	docker pull ghcr.io/computationalpathologygroup/pythostitcher:latest
 
 #### Data preparation
 Your input data should be prepared as follows, where you make a separate raw_images and raw_masks directory for your high resolution image and tissue mask files, respectively. Ensure that the name of the tissue mask is exactly the same as that of the image. If you want to enforce the location of each fragment in the final reconstruction, you can include a force_config.txt file. See the example_force_config.txt file on how to format this. If you leave out this file, PythoStitcher will automatically determine the optimal configuration of the tissue fragments.
