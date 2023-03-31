@@ -1,7 +1,10 @@
 <h1 align="center">PythoStitcher</h2>
 <p align="center">
    <a href="https://github.com/psf/black"><img alt="empty" src=https://img.shields.io/badge/code%20style-black-000000.svg></a>
+   <a href="https://github.com/computationalpathologygroup/pythostitcher/releases"><img alt="empty" src=https://img.shields.io/github/v/release/computationalpathologygroup/pythostitcher?include_prereleases&label=pre-release&logo=github.svg></a>
+  <a href="empty"><img alt="empty" src=https://img.shields.io/github/downloads/computationalpathologygroup/pythostitcher/total.svg></a>
 </p>
+
 
     
 ## What is PythoStitcher?
