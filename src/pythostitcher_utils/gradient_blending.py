@@ -5,6 +5,8 @@ import pyvips
 import matplotlib.pyplot as plt
 import time
 
+from scipy.spatial.distance import cdist
+
 from .fuse_images_highres import fuse_images_highres, is_valid_contour
 
 
@@ -55,8 +57,9 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
 
     # Find blending points per contour
     for c, mask_cnt in enumerate(mask_cnts):
+        break
 
-        log.log(45, f" - blending overlap area {c + 1}/{len(mask_cnts)}")
+        log.log(45, f" - area {c + 1}/{len(mask_cnts)}")
 
         # Get contour orientation and some starting variables
         cnt_dir = "hor" if np.std(mask_cnt[:, 0]) > np.std(mask_cnt[:, 1]) else "ver"
@@ -155,10 +158,7 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
             # plt.show()
 
             # Only perform bending in case of overlap
-            try:
-                tile_mask = result_mask.crop(xstart, ystart, width, height)
-            except:
-                print("s")
+            tile_mask = result_mask.crop(xstart, ystart, width, height)
 
             if tile_mask.max() > 1:
 
@@ -173,10 +173,9 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
                         shape=[height, width, image_patch.bands],
                     )
 
-                    mask_patch = f.outputres_mask.crop(xstart, ystart, width, height)
-                    mask = np.ndarray(
-                        buffer=mask_patch.write_to_memory(), dtype=np.uint8, shape=[height, width]
-                    )
+                    ### EXPERIMENTAL
+                    mask = np.all(image > 5, axis=2)*1
+                    ### EXPERIMENTAL
 
                     images[f.orientation] = image
                     masks[f.orientation] = mask
@@ -259,28 +258,189 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
 
     comp_time = int(np.ceil((time.time() - start) / 60))
 
+    # Get the correct orientation of the prostate
+    result_image = correct_orientation(
+        mask = mask_ds,
+        result_image = result_image,
+        parameters = parameters,
+        debug_visualization = True
+    )
+
+    return result_image, comp_time
+
+
+def correct_orientation(mask, result_image, parameters, debug_visualization):
     """
-    ### Make sure the tissue is positioned straight rather than angled
-    # First correct based on the rotation of the bounding box
+    Function to automatically get the correct orientation of the prostate. We operate
+    under the assumption that the dorsal side of the prostate is always slightly less
+    curved than the ventral side. This means that a bounding box should fit tighter
+    against the dorsal side. By the location of the dorsal side, we can then apply
+    a rotation such that the dorsal side is always aligned with the x-axis in the image.
+    """
+
+    # Compute bounding box around the whole mount
     cnt, _ = cv2.findContours(
-        np.squeeze(mask_ds).astype("uint8"),
+        np.squeeze(mask).astype("uint8"),
         cv2.RETR_CCOMP,
         cv2.CHAIN_APPROX_NONE
     )
     cnt = np.squeeze(max(cnt, key=cv2.contourArea))
-
     bbox = cv2.minAreaRect(cnt)
+    bbox_points = cv2.boxPoints(bbox)
 
-    # Adjust angle due to nature of the opencv function
+    # Compute min distance from bbox corners to contour.
+    box2cnt_dist = cdist(bbox_points, cnt).min(axis=1)
+    box2cnt_idx = np.argsort(box2cnt_dist)[:2]
+    valid_pairs = [[0, 1], [1, 2], [2, 3], [0, 3]]
+
+    # Corners must be adjacent
+    if sorted(box2cnt_idx) in valid_pairs:
+
+        # Variables to determine orientation of prostate
+        x_coords = [bbox_points[box2cnt_idx[0], 0], bbox_points[box2cnt_idx[1], 0]]
+        y_coords = [bbox_points[box2cnt_idx[0], 1], bbox_points[box2cnt_idx[1], 1]]
+        x_center = int(mask.shape[1] / 2)
+        y_center = int(mask.shape[0] / 2)
+
+        # Upper
+        if all([np.std(x_coords) > np.std(y_coords), np.mean(y_coords) < y_center]):
+            extra_rot = 180
+        # Lower
+        elif all([np.std(x_coords) > np.std(y_coords), np.mean(y_coords) > y_center]):
+            extra_rot = 0
+        # Left
+        elif all([np.std(x_coords) < np.std(y_coords), np.mean(x_coords) < x_center]):
+            extra_rot = 90
+        # Right
+        elif all([np.std(x_coords) < np.std(y_coords), np.mean(x_coords) > x_center]):
+            extra_rot = 270
+    else:
+        extra_rot = 0
+
+    # Also incorporate minor rotation from bbox. Adjust angle due to opencv convention
     angle = bbox[2]
     if angle > 45:
         angle = 90 - angle
 
-    # Align longest axis of the tissue with x-axis
-    if bbox[1][0] > bbox[1][1]:
-        angle += 90
+    angle = extra_rot - angle
 
-    result_image = result_image.rotate(90)
-    """
+    # Also change some affine tform variables when we need to flip hor/ver axes
+    if extra_rot in [90, 270]:
+        new_width = result_image.height
+        new_height = result_image.width
+        dx = int((new_width - new_height) / 2)
+        dy = int((new_height - new_width) / 2)
+    else:
+        new_width = result_image.width
+        new_height = result_image.height
+        dx, dy = 0, 0
 
-    return result_image, comp_time
+    # Rotate image
+    rotmat = cv2.getRotationMatrix2D(
+        center=(int(result_image.width / 2), int(result_image.height / 2)), angle=angle, scale=1
+    )
+    result_image = result_image.affine(
+        (rotmat[0, 0], rotmat[0, 1], rotmat[1, 0], rotmat[1, 1]),
+        interpolate=pyvips.Interpolate.new("nearest"),
+        oarea=[0, 0, new_width, new_height],
+        odx=rotmat[0, 2] + dx,
+        ody=rotmat[1, 2] + dy
+    )
+
+    if debug_visualization:
+
+        # Temp write to disk for later loading in debug visualization
+        result_image.write_to_file(
+            str(
+                parameters["sol_save_dir"].joinpath(
+                    "highres", f"stitched_image_{parameters['output_res']}_micron.tif"
+                )
+            ),
+            tile=True,
+            compression="jpeg",
+            bigtiff=True,
+            pyramid=True,
+            Q=80,
+        )
+
+        opener = mir.MultiResolutionImageReader()
+        result_image_tif = opener.open(str(
+            parameters["sol_save_dir"].joinpath(
+                "highres", f"stitched_image_{parameters['output_res']}_micron.tif"
+            )))
+
+        # Get lowres version
+        level = 2
+        downsample = result_image_tif.getLevelDownsample(level)
+        result_image_tif_lowres = result_image_tif.getUCharPatch(
+            0,
+            0,
+            *result_image_tif.getLevelDimensions(level),
+            level
+        )
+
+        plt.figure()
+        plt.imshow(result_image_tif_lowres)
+
+        # Also apply to landmarks
+        for i in range(parameters["n_fragments"]):
+            coords = np.load(
+                str(parameters["sol_save_dir"].joinpath(
+                    "highres", "eval", f"fragment{i + 1}_coordinates.npy")),
+                allow_pickle=True
+            ).item()
+
+            line_a = coords["a"]
+            ones_a = np.ones((len(line_a), 1))
+            line_a = np.hstack([line_a, ones_a]) @ rotmat.T
+            line_a[:, 0] += dx
+            line_a[:, 1] += dy
+
+            line_b = coords["b"]
+            ones_b = np.ones((len(line_b), 1))
+            line_b = np.hstack([line_b, ones_b]) @ rotmat.T
+            line_b[:, 0] += dx
+            line_b[:, 1] += dy
+
+            rot_coords = {"a": line_a, "b": line_b}
+            np.save(
+                str(parameters["sol_save_dir"].joinpath(
+                    "highres", "eval", f"fragment{i + 1}_coordinates.npy")),
+                rot_coords
+            )
+
+            line_a = line_a / downsample
+            line_b = line_b / downsample
+            plt.scatter(line_a[:, 0], line_a[:, 1], c="r")
+            plt.scatter(line_b[:, 0], line_b[:, 1], c="r")
+        plt.show()
+
+    else:
+        # Just apply rotation to landmarks
+        for i in range(parameters["n_fragments"]):
+            coords = np.load(
+                str(parameters["sol_save_dir"].joinpath(
+                    "highres", "eval", f"fragment{i + 1}_coordinates.npy")),
+                allow_pickle=True
+            ).item()
+
+            line_a = coords["a"]
+            ones_a = np.ones((len(line_a), 1))
+            line_a = np.hstack([line_a, ones_a]) @ rotmat.T
+            line_a[:, 0] += dx
+            line_a[:, 1] += dy
+
+            line_b = coords["b"]
+            ones_b = np.ones((len(line_b), 1))
+            line_b = np.hstack([line_b, ones_b]) @ rotmat.T
+            line_b[:, 0] += dx
+            line_b[:, 1] += dy
+
+            rot_coords = {"a": line_a, "b": line_b}
+            np.save(
+                str(parameters["sol_save_dir"].joinpath(
+                    "highres", "eval", f"fragment{i + 1}_coordinates.npy")),
+                rot_coords
+            )
+
+    return result_image

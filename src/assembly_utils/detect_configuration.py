@@ -18,7 +18,6 @@ def detect_configuration(parameters):
         # Retrieve the three best solutions in rank of likelihood
         solutions = get_configuration_2_fragments(parameters)
 
-    # Currently we support 2 or 4 fragments.
     elif parameters["n_fragments"] == 4:
 
         # Run initial pairwise alignment required for JigsawNet
@@ -60,7 +59,7 @@ def detect_configuration(parameters):
 def get_configuration_2_fragments(parameters):
     """
     Retrieve the configuration for 2 fragments. This is much easier than for 4 fragments,
-    since we don't have to iterate over all potential recombinations. There is only 1
+    since we don't have to iterate over all potential combinations. There is only 1
     way in which these fragments can be fit together.
     """
 
@@ -81,6 +80,8 @@ def get_configuration_2_fragments(parameters):
         f.save_images()
         f.get_stitch_edges()
         f.save_orientation()
+        if f.require_landmark_computation:
+            f.save_landmark_points()
 
     if fragments[0].force_config:
         print("Enforcing user-specified configuration")

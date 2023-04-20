@@ -4,6 +4,9 @@ import rdp
 import matplotlib.pyplot as plt
 import math
 import itertools
+import multiresolutionimageinterface as mir
+import shutil
+import copy
 
 from skimage.morphology import skeletonize
 from scipy.spatial import distance
@@ -22,11 +25,11 @@ class Fragment:
     def __init__(self, kwargs):
         self.all_fragment_names = kwargs["fragment_names"]
         self.all_temp_fragment_names = [
-            f"fragment_{str(i).zfill(4)}.png" for i in range(1, len(self.all_fragment_names) + 1)
+            f"fragment{i}.png" for i in range(1, len(self.all_fragment_names) + 1)
         ]
         self.fragment_name = kwargs["fragment_name"]
         self.num_fragments = kwargs["n_fragments"]
-        self.fragment_name_idx = int(self.fragment_name.split("_")[-1].rstrip(".png")) - 1
+        self.fragment_name_idx = int(self.fragment_name.lstrip("fragment").rstrip(".png")) - 1
 
         self.save_dir = kwargs["save_dir"]
         self.data_dir = kwargs["data_dir"]
@@ -34,6 +37,8 @@ class Fragment:
         self.mask_path = self.save_dir.joinpath(f"preprocessed_masks/{self.fragment_name}")
         self.res = kwargs["resolutions"][0]
         self.bg_color = kwargs["bg_color"]
+
+        self.landmark_level = kwargs["image_level"]
 
         self.force_config = self.data_dir.joinpath("force_config.txt").exists()
         if self.force_config:
@@ -46,6 +51,21 @@ class Fragment:
 
         if self.num_fragments == 4:
             self.classifier = kwargs["fragment_classifier"]
+
+        # Check for landmark points
+        if not self.save_dir.joinpath("landmarks").is_dir():
+            self.save_dir.joinpath("landmarks").mkdir()
+
+        landmark_path = self.data_dir.joinpath(f"fragment{self.fragment_name_idx+1}_coordinates.npy")
+        if landmark_path.exists():
+            dst = self.save_dir.joinpath(
+                "landmarks", f"fragment{self.fragment_name_idx+1}_coordinates.npy"
+            )
+
+            shutil.copyfile(landmark_path, dst)
+            self.require_landmark_computation = False
+        else:
+            self.require_landmark_computation = True
 
         return
 
@@ -147,7 +167,7 @@ class Fragment:
 
             # Put batch of images in datagenerator for fast inference
             stacked_images = np.vstack(tform_images)
-            datagen = ImageDataGenerator().flow(x=stacked_images, shuffle=False,)
+            datagen = ImageDataGenerator().flow(x=stacked_images, shuffle=False)
             pred = self.classifier.model.predict(datagen)
             pred = np.argmax(pred, axis=1) + 1
             pred = pred.tolist()
@@ -264,12 +284,6 @@ class Fragment:
             else:
                 cnt_fragments = [np.vstack([self.cnt_rdp[start_idx:], self.cnt_rdp[:end_idx]])]
 
-            # Sanity check
-            plt.figure()
-            plt.imshow(self.mask)
-            plt.plot(cnt_fragments[0][:, 0], cnt_fragments[0][:, 1], c="r")
-            plt.show()
-
         # Step 4b - scenario with 4 fragments
         elif self.num_fragments == 4:
 
@@ -335,7 +349,7 @@ class Fragment:
             )
 
             # Save forced configuration in file
-            if self.fragment_name == "fragment_0001.png":
+            if self.fragment_name == "fragment1.png":
                 with open(location_solution, "w") as f:
                     f.write(f"{self.fragment_name}:{required_config}")
             else:
@@ -346,7 +360,7 @@ class Fragment:
         # and just adjust the second image such that it complements the first image.
         else:
             # First fragment retains its original state
-            if self.fragment_name == "fragment_0001.png":
+            if self.fragment_name == "fragment1.png":
                 with open(location_solution, "w") as f:
                     f.write(f"{self.fragment_name}:{config}")
 
@@ -378,6 +392,197 @@ class Fragment:
                     str(self.save_dir.joinpath("configuration_detection", self.fragment_name)),
                     cv2.cvtColor(self.original_image, cv2.COLOR_RGB2BGR),
                 )
+
+        return
+
+    def save_landmark_points(self):
+        """
+        Method to save some automatically detected landmark points. These can be used
+        later to compute the residual registration mismatch.
+        Approximate steps:
+        1. Get lowres version of mask
+        2. Process it with floodfilling and connected component analysis
+        3. Compute simplified contour and stitch edges
+        4.
+        """
+
+        ### STEP 1 ###
+        # Load raw image
+        self.opener = mir.MultiResolutionImageReader()
+        self.raw_image_dir = self.data_dir.joinpath("raw_images")
+        self.raw_image_path = self.raw_image_dir.joinpath(
+            self.all_fragment_names[self.fragment_name_idx]
+        )
+        self.raw_image = self.opener.open(str(self.raw_image_path))
+
+        # Load raw mask
+        self.raw_mask_dir = self.data_dir.joinpath("raw_masks")
+        raw_mask_names = sorted([i.name for i in self.raw_mask_dir.iterdir()])
+        self.raw_mask_path = self.raw_mask_dir.joinpath(
+            raw_mask_names[self.fragment_name_idx]
+        )
+        self.raw_mask = self.opener.open(str(self.raw_mask_path))
+
+        # Compute size differences between image and mask
+        image_ds_level_dims = self.raw_image.getLevelDimensions(self.landmark_level)
+
+        all_mask_dims = [self.raw_mask.getLevelDimensions(i) for i in range(
+            self.raw_mask.getNumberOfLevels())]
+        mask_ds_level = np.argmin([(i[0] - image_ds_level_dims[0])**2 for i in all_mask_dims])
+        mask_ds_level_dims = self.raw_mask.getLevelDimensions(int(mask_ds_level))
+
+        raw_image_dims = self.raw_image.getLevelDimensions(0)
+        mask2raw_scaling = raw_image_dims[0] / mask_ds_level_dims[0]
+
+        # Get downsampled version of mask
+        lowres_mask = self.raw_mask.getUCharPatch(
+            startX=0,
+            startY=0,
+            width=mask_ds_level_dims[0],
+            height=mask_ds_level_dims[1],
+            level=int(mask_ds_level)
+        )
+
+        ### STEP 2 ###
+        # Process mask
+        temp_pad = int(0.05 * lowres_mask.shape[0])
+        lowres_mask = np.pad(
+            np.squeeze(lowres_mask),
+            [[temp_pad, temp_pad], [temp_pad, temp_pad]],
+            mode="constant",
+            constant_values=0,
+        )
+
+        # Get largest component
+        num_labels, labeled_mask, stats, _ = cv2.connectedComponentsWithStats(
+            lowres_mask, connectivity=8
+        )
+        largest_cc_label = np.argmax(stats[1:, -1]) + 1
+        lowres_mask = ((labeled_mask == largest_cc_label) * 255).astype("uint8")
+
+        # Close some small holes
+        strel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+        lowres_mask = cv2.morphologyEx(lowres_mask, cv2.MORPH_CLOSE, strel)
+
+        # Get floodfilled background
+        seedpoint = (0, 0)
+        floodfill_mask = np.zeros(
+            (lowres_mask.shape[0] + 2, lowres_mask.shape[1] + 2)
+        )
+        floodfill_mask = floodfill_mask.astype("uint8")
+        _, _, lowres_mask, _ = cv2.floodFill(
+            lowres_mask,
+            floodfill_mask,
+            seedpoint,
+            255
+        )
+        lowres_mask = (
+                1 - lowres_mask[temp_pad + 1: -(temp_pad + 1), temp_pad + 1: -(temp_pad + 1)]
+        )
+
+        ### STEP 3 ###
+        # Get contour
+        cnt, _ = cv2.findContours(
+            lowres_mask.astype("uint8"), cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE
+        )
+        cnt = np.squeeze(max(cnt, key=cv2.contourArea))[::-1]
+
+        # Get enlarged bbox
+        bbox = cv2.minAreaRect(cnt)
+        bbox_points = cv2.boxPoints(bbox)
+        bbox_center = np.mean(bbox_points, axis=0)
+        bbox_corner_dist = bbox_center - bbox_points
+
+        expansion = bbox_center / 10
+        expand_direction = np.array([list(i < 0) for i in bbox_corner_dist])
+        bbox_corners_expansion = (expand_direction == True) * expansion + (
+                expand_direction == False
+        ) * -expansion
+        new_bbox_points = bbox_points + bbox_corners_expansion
+
+        # Get closest point on contour as seen from enlarged bbox
+        distances = distance.cdist(new_bbox_points, cnt)
+        indices = np.argmin(distances, axis=1)
+        cnt_corners = np.array([list(cnt[i, :]) for i in indices])
+        cnt_corners = sort_counterclockwise(cnt_corners)
+        cnt_corners_loop = np.vstack([cnt_corners, cnt_corners])
+        ul_cnt_corner_idx = np.argmin(np.sum(cnt_corners**2, axis=1))
+
+        # Get the contours
+        cnt_fragments = []
+        if self.num_fragments == 2:
+
+            # Compute distance from contour corners to surrounding bbox
+            dist_cnt_corner_to_bbox = np.min(
+                distance.cdist(cnt_corners, new_bbox_points), axis=1
+            )
+            dist_cnt_corner_to_bbox_loop = np.hstack([dist_cnt_corner_to_bbox] * 2)
+
+            # Get the pair of contour corners with largest distance to bounding box, this should
+            # be the outer point of the contour. Stitch edge is then located opposite.
+            dist_per_cnt_corner_pair = [
+                dist_cnt_corner_to_bbox_loop[i] ** 2 + dist_cnt_corner_to_bbox_loop[i + 1] ** 2
+                for i in range(4)
+            ]
+            max_dist_corner_idx = np.argmax(dist_per_cnt_corner_pair)
+
+            # Get location and indices of these contour corners
+            start_corner = cnt_corners_loop[max_dist_corner_idx + 2]
+            end_corner = cnt_corners_loop[max_dist_corner_idx + 3]
+            start_idx = np.argmax((cnt == start_corner).all(axis=1))
+            end_idx = np.argmax((cnt == end_corner).all(axis=1)) + 1
+
+            # Account for indexing of the contour
+            if end_idx > start_idx:
+                cnt_fragments = [cnt[start_idx:end_idx]]
+            else:
+                cnt_fragments = [np.vstack([cnt[start_idx:], cnt[:end_idx]])]
+
+            # Sanity check
+            plt.figure()
+            plt.imshow(lowres_mask)
+            plt.plot(cnt_fragments[0][:, 0], cnt_fragments[0][:, 1], c="r")
+            plt.show()
+
+        elif self.num_fragments == 4:
+            for i in range(2):
+                start_corner = cnt_corners_loop[
+                    ul_cnt_corner_idx + self.stitch_edge_label - 1 + i
+                    ]
+                end_corner = cnt_corners_loop[ul_cnt_corner_idx + self.stitch_edge_label + i]
+
+                start_idx = np.argmax((cnt == start_corner).all(axis=1))
+                end_idx = np.argmax((cnt == end_corner).all(axis=1)) + 1
+
+                if end_idx > start_idx:
+                    cnt_fragment = cnt[start_idx:end_idx]
+                else:
+                    cnt_fragment = np.vstack([cnt[start_idx:], cnt[:end_idx]])
+                cnt_fragments.append(interpolate_contour(cnt_fragment))
+
+        # Sample 5 points along each line
+        n_sample = 5
+        line_a_idx = np.linspace(0, len(cnt_fragments[0])-1, n_sample).astype("int")
+        line_a = cnt_fragments[0][line_a_idx]
+        line_a = (line_a * mask2raw_scaling).astype("int")
+
+        # In case of 2 fragments, just duplicate the line. This will not impair
+        # downstream tasks for median distance calculation but will prevent elaborate
+        # 2/4 fragment specific landmark computation.
+        if self.num_fragments == 2:
+            line_b = copy.copy(line_a)
+        else:
+            line_b_idx = np.linspace(0, len(cnt_fragments[1])-1, n_sample).astype("int")
+            line_b = cnt_fragments[1][line_b_idx]
+            line_b = (line_b * mask2raw_scaling).astype("int")
+
+        # Save in dict for later use
+        lines = {"a" : line_a, "b" : line_b}
+        np.save(
+            self.save_dir.joinpath("landmarks", f"fragment"
+                                                f"{self.fragment_name_idx+1}_coordinates.npy"),
+            lines
+        )
 
         return
 
@@ -859,7 +1064,7 @@ def explore_pairs(fragments, parameters):
             line1_com = np.array(
                 [(line1_ts[0, 0] + line1_ts[-1, 0]) / 2, (line1_ts[0, 1] + line1_ts[-1, 1]) / 2]
             )
-            line1_angle = np.round(((np.arctan(y_dif / x_dif + eps) / np.pi) * 180), 1)
+            line1_angle = np.round(((np.arctan(y_dif / (x_dif + eps)) / np.pi) * 180), 1)
 
             # Get theil sen representation for line 2. Again, first check if the line is
             #  horizontal or vertical as this will determine how we handle x/y coords.
@@ -909,7 +1114,7 @@ def explore_pairs(fragments, parameters):
             line2_com = np.array(
                 [(line2_ts[0, 0] + line2_ts[-1, 0]) / 2, (line2_ts[0, 1] + line2_ts[-1, 1]) / 2]
             )
-            line2_angle = np.round(((np.arctan(y_dif / x_dif) / np.pi) * 180), 1)
+            line2_angle = np.round(((np.arctan(y_dif / (x_dif + eps)) / np.pi) * 180), 1)
 
             # Warp line 2. Make sure to account for the translation induced by rotating
             # around the origin.

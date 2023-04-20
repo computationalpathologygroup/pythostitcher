@@ -1,5 +1,6 @@
 import pathlib
 import matplotlib.pyplot as plt
+import logging
 
 from .jigsawnet_utils import *
 
@@ -68,13 +69,13 @@ def jigsawnet_scoring(parameters):
 
         # Load images to be stitched
         image1_path = parameters["save_dir"].joinpath(
-            "configuration_detection", f"fragment_{str(v1+1).zfill(4)}.png"
+            "configuration_detection", f"fragment{str(v1+1)}.png"
         )
         image1 = cv2.imread(str(image1_path))
         image1 = cv2.cvtColor(image1, cv2.COLOR_BGR2RGB)
 
         image2_path = parameters["save_dir"].joinpath(
-            "configuration_detection", f"fragment_{str(v2+1).zfill(4)}.png"
+            "configuration_detection", f"fragment{str(v2+1)}.png"
         )
         image2 = cv2.imread(str(image2_path))
         image2 = cv2.cvtColor(image2, cv2.COLOR_BGR2RGB)

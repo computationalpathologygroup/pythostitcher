@@ -33,10 +33,10 @@ class Fragment:
         self.data_dir = kwargs["data_dir"]
         self.original_image_idx = kwargs["fragment_names"].index(self.final_orientation) + 1
         self.im_path = self.save_dir.joinpath(
-            "preprocessed_images", f"fragment_{str(self.original_image_idx).zfill(4)}.png"
+            "preprocessed_images", f"fragment{self.original_image_idx}.png"
         )
         self.mask_path = self.save_dir.joinpath(
-            "preprocessed_masks", f"fragment_{str(self.original_image_idx).zfill(4)}.png"
+            "preprocessed_masks", f"fragment{self.original_image_idx}.png"
         )
         self.res = self.resolutions[self.iteration]
         self.res_name = get_resname(self.res)
@@ -89,7 +89,7 @@ class Fragment:
         # Determine the initial orientation of the fragment.
         self.all_labels_loop = ["ur", "lr", "ll", "ul"] * 2
         self.classifier_label = stitch_label_dict[
-            f"fragment_{str(self.original_image_idx).zfill(4)}.png"
+            f"fragment{self.original_image_idx}.png"
         ].lower()
         self.init_orientation = self.all_labels_loop[
             self.all_labels_loop.index(self.classifier_label) + 2

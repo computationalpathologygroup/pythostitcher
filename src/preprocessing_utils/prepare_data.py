@@ -91,14 +91,23 @@ class Processor:
         self.mask = ((labeled_im == largest_cc_label) * 255).astype("uint8")
 
         # Closing operation to close some holes on the mask border
-        kernel = cv2.getStructuringElement(shape=cv2.MORPH_ELLIPSE, ksize=(10, 10))
-        self.mask = cv2.morphologyEx(src=self.mask, op=cv2.MORPH_CLOSE, kernel=kernel, iterations=2)
+        kernel = cv2.getStructuringElement(shape=cv2.MORPH_ELLIPSE, ksize=(5, 5))
+        self.mask = cv2.morphologyEx(src=self.mask, op=cv2.MORPH_CLOSE, kernel=kernel, iterations=1)
+
+        # Temporarily enlarge mask for succesful floodfill later
+        offset = 5
+        self.mask = np.pad(
+            self.mask,
+            [[offset, offset], [offset, offset]],
+            mode="constant",
+            constant_values=0
+        )
 
         # Flood fill to remove holes inside mask. The floodfill mask is required by opencv
         seedpoint = (0, 0)
         floodfill_mask = np.zeros((self.mask.shape[0] + 2, self.mask.shape[1] + 2)).astype("uint8")
         _, _, self.mask, _ = cv2.floodFill(self.mask, floodfill_mask, seedpoint, 255)
-        self.mask = self.mask[1:-1, 1:-1]
+        self.mask = self.mask[1+offset:-1-offset, 1+offset:-1-offset]
         self.mask = 1 - self.mask
 
         assert np.sum(self.mask) > 0, "floodfilled mask is empty"
@@ -122,7 +131,7 @@ class Processor:
         if not image_savedir.is_dir():
             image_savedir.mkdir()
 
-        image_savefile = image_savedir.joinpath(f"fragment_{str(self.count).zfill(4)}.png")
+        image_savefile = image_savedir.joinpath(f"fragment{self.count}.png")
         cv2.imwrite(str(image_savefile), cv2.cvtColor(self.image, cv2.COLOR_RGB2BGR))
 
         # Save mask
@@ -130,7 +139,7 @@ class Processor:
         if not mask_savedir.is_dir():
             mask_savedir.mkdir()
 
-        mask_savefile = mask_savedir.joinpath(f"fragment_{str(self.count).zfill(4)}.png")
+        mask_savefile = mask_savedir.joinpath(f"fragment{self.count}.png")
         cv2.imwrite(str(mask_savefile), self.mask)
 
         return
@@ -145,7 +154,7 @@ def prepare_data(parameters):
 
     # Get all image files
     image_files = sorted(
-        [i for i in parameters["data_dir"].joinpath("raw_images").iterdir() if i.match("*.mrxs")]
+        [i for i in parameters["data_dir"].joinpath("raw_images").iterdir() if not i.is_dir()]
     )
 
     # Get mask files if these are provided

@@ -655,8 +655,6 @@ def distance_cost_function(fragments):
             # Get resolution specific scaling factor
             scaling_inner = distance_scaling[hkey_inner] * res_scaling
             scaling_outer = distance_scaling[hkey_outer] * res_scaling
-            # scaling_inner = 1
-            # scaling_outer = 1
 
             # Compute edge_distance_costs as sum of distances
             inner_point_weight = 1 - global_parameters["outer_point_weight"]

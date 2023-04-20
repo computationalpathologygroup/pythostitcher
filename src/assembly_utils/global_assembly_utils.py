@@ -39,7 +39,7 @@ class Assembler:
             "filtered_alignments.txt",
             "bg_color.txt",
             "fragment_list.txt",
-            "fragment_****.png",
+            "fragment*.png",
         ]
 
         self.all_mandatory_files_present = all(
@@ -429,19 +429,19 @@ class Assembler:
 
         # Obtain old stitch edge labels per fragment
         self.ref_img_old_label = self.stitch_edge_dict[
-            f"fragment_{str(self.frag_idx_ref+1).zfill(4)}.png"
+            f"fragment{self.frag_idx_ref+1}.png"
         ]
         self.img1_old_label = self.stitch_edge_dict[
-            f"fragment_{str(self.frag_idx1+1).zfill(4)}.png"
+            f"fragment{self.frag_idx1+1}.png"
         ]
         self.img2_old_label = self.stitch_edge_dict[
-            f"fragment_{str(self.frag_idx2+1).zfill(4)}.png"
+            f"fragment{self.frag_idx2+1}.png"
         ]
         self.img3a_old_label = self.stitch_edge_dict[
-            f"fragment_{str(self.frag_idx3+1).zfill(4)}.png"
+            f"fragment{self.frag_idx3+1}.png"
         ]
         self.img3b_old_label = self.stitch_edge_dict[
-            f"fragment_{str(self.frag_idx3+1).zfill(4)}.png"
+            f"fragment{self.frag_idx3+1}.png"
         ]
 
         # Obtain new tformed stitch edge labels per fragment
@@ -663,19 +663,19 @@ class Assembler:
                     f.write(line)
                 f.write(
                     f"\nmse:{int(self.mse_score)},"
-                    f"fragment_{str(self.frag_idx_ref + 1).zfill(4)}.png:{label2opposite[self.ref_img_new_label]},"
-                    f"fragment_{str(self.frag_idx1 + 1).zfill(4)}.png:{label2opposite[self.img1_new_label]},"
-                    f"fragment_{str(self.frag_idx2 + 1).zfill(4)}.png:{label2opposite[self.img2_new_label]},"
-                    f"fragment_{str(self.frag_idx3 + 1).zfill(4)}.png:{label2opposite[self.img3a_new_label]}"
+                    f"fragment{self.frag_idx_ref + 1}.png:{label2opposite[self.ref_img_new_label]},"
+                    f"fragment{self.frag_idx1 + 1}.png:{label2opposite[self.img1_new_label]},"
+                    f"fragment{self.frag_idx2 + 1}.png:{label2opposite[self.img2_new_label]},"
+                    f"fragment{self.frag_idx3 + 1}.png:{label2opposite[self.img3a_new_label]}"
                 )
         else:
             with open(location_solution, "w") as f:
                 f.write(
                     f"mse:{int(self.mse_score)},"
-                    f"fragment_{str(self.frag_idx_ref + 1).zfill(4)}.png:{label2opposite[self.ref_img_new_label]},"
-                    f"fragment_{str(self.frag_idx1 + 1).zfill(4)}.png:{label2opposite[self.img1_new_label]},"
-                    f"fragment_{str(self.frag_idx2 + 1).zfill(4)}.png:{label2opposite[self.img2_new_label]},"
-                    f"fragment_{str(self.frag_idx3 + 1).zfill(4)}.png:{label2opposite[self.img3a_new_label]}"
+                    f"fragment{self.frag_idx_ref + 1}.png:{label2opposite[self.ref_img_new_label]},"
+                    f"fragment{self.frag_idx1 + 1}.png:{label2opposite[self.img1_new_label]},"
+                    f"fragment{self.frag_idx2 + 1}.png:{label2opposite[self.img2_new_label]},"
+                    f"fragment{self.frag_idx3 + 1}.png:{label2opposite[self.img3a_new_label]}"
                 )
 
         return

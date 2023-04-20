@@ -34,7 +34,7 @@ def fetch_solutions(parameters):
 
             # Relate each fragment pseudonym back to its original name
             for element in contents[c][1:]:
-                idx = int(element.split(":")[0].split("_")[-1].rstrip(".png")) - 1
+                idx = int(element.split(".png")[0].lstrip("fragment")) - 1
                 filename = original_filenames[idx]
                 location = element.split(":")[-1]
                 temp_sol[filename] = location

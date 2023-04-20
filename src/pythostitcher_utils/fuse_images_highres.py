@@ -2,6 +2,7 @@ import copy
 import numpy as np
 import cv2
 import itertools
+import matplotlib.pyplot as plt
 
 
 def is_valid_contour(cnt):
@@ -41,7 +42,7 @@ def is_valid_contour(cnt):
     return True
 
 
-def get_gradients(bbox, q1_mask, overlap, direction, pad):
+def get_gradients(bbox, overlap, direction, pad):
     """
     Custom function to obtain the gradient based on the direction. This function
     will also apply the mask to the gradient.
@@ -62,8 +63,12 @@ def get_gradients(bbox, q1_mask, overlap, direction, pad):
     angle = bbox[2]
 
     # Preallocate gradient field
+    """
     gradient_2d = np.zeros_like(q1_mask)
     gradient_2d = np.pad(gradient_2d, [[pad, pad], [pad, pad]]).astype("float")
+    """
+    gradient_2d = np.zeros_like(overlap)
+    overlap = overlap[pad:-pad, pad:-pad]
 
     # OpenCV provides angles in range [0, 90]. We rescale these values to range [-45, 45]
     # for our use case. One extra factor to take into account is that we have to swap
@@ -93,13 +98,13 @@ def get_gradients(bbox, q1_mask, overlap, direction, pad):
         gradient_2d_fill = np.transpose(gradient_2d_fill)
 
     # Insert gradient in image and rotate it along its primary axis
-    gradient_2d[ymin:ymax, xmin:xmax] = gradient_2d_fill
+    gradient_2d[ymin:ymax, xmin:xmax] = gradient_2d_fill*255
     rot_mat = cv2.getRotationMatrix2D(center=bbox_center, angle=angle, scale=1)
     gradient_2d = cv2.warpAffine(gradient_2d, rot_mat, dsize=gradient_2d.shape[::-1])
     gradient_2d = gradient_2d[pad:-pad, pad:-pad]
 
     # Apply overlap mask to gradient
-    masked_gradient = gradient_2d * overlap
+    masked_gradient = (gradient_2d * overlap)/255
 
     # Get reverse gradient
     masked_gradient_rev = (1 - masked_gradient) * (masked_gradient > 0)
@@ -164,6 +169,7 @@ def fuse_images_highres(images, masks):
         # Get fragments and masks
         q1_image = images[q1_name]
         q2_image = images[q2_name]
+
         q1_mask = masks[q1_name]
         q2_mask = masks[q2_name]
 
@@ -197,7 +203,7 @@ def fuse_images_highres(images, masks):
 
             # Pad overlap image to obtain rotated bounding boxes even in cases when
             # overlap reaches images border.
-            pad = int(overlap.shape[0] / 4)
+            pad = int(np.min(overlap.shape) / 2)
             overlap_pad = np.pad(overlap, [[pad, pad], [pad, pad]])
             overlap_pad = (overlap_pad * 255).astype("uint8")
 
@@ -223,8 +229,7 @@ def fuse_images_highres(images, masks):
                     if is_horizontal:
                         grad, grad_rev = get_gradients(
                             bbox=bbox,
-                            q1_mask=q1_mask,
-                            overlap=overlap,
+                            overlap=overlap_pad,
                             direction="horizontal",
                             pad=pad,
                         )
@@ -232,8 +237,7 @@ def fuse_images_highres(images, masks):
                     elif is_vertical:
                         grad, grad_rev = get_gradients(
                             bbox=bbox,
-                            q1_mask=q1_mask,
-                            overlap=overlap,
+                            overlap=overlap_pad,
                             direction="vertical",
                             pad=pad,
                         )
@@ -245,8 +249,8 @@ def fuse_images_highres(images, masks):
                 all_grad_rev = np.sum(all_grads_rev, axis=0)
 
                 # Save the gradients
-                gradients[(q1_name, q2_name)] = all_grad
-                gradients[(q2_name, q1_name)] = all_grad_rev
+                gradients[(q1_name, q2_name)] = all_grad_rev
+                gradients[(q2_name, q1_name)] = all_grad
 
             # In case of only 1 valid contour
             elif len(actual_cnts) == 1:
@@ -258,25 +262,32 @@ def fuse_images_highres(images, masks):
                 if is_horizontal:
                     all_grad, all_grad_rev = get_gradients(
                         bbox=bbox,
-                        q1_mask=q1_mask,
-                        overlap=overlap,
+                        overlap=overlap_pad,
                         direction="horizontal",
                         pad=pad,
                     )
 
                 elif is_vertical:
                     all_grad, all_grad_rev = get_gradients(
-                        bbox=bbox, q1_mask=q1_mask, overlap=overlap, direction="vertical", pad=pad,
+                        bbox=bbox,
+                        overlap=overlap_pad,
+                        direction="vertical",
+                        pad=pad,
                     )
 
                 # Save the gradients
-                gradients[(q1_name, q2_name)] = all_grad
-                gradients[(q2_name, q1_name)] = all_grad_rev
+                gradients[(q1_name, q2_name)] = all_grad_rev
+                gradients[(q2_name, q1_name)] = all_grad
 
             # Rare case when there is 1 contour but this contour is not valid and
             # basically an artefact. In this case we treat this as nonoverlap.
             else:
                 is_overlap_list[-1] = False
+
+        # else:
+            # final_image_edit, final_grad, overlapping_fragments = None, None, None
+            # valid_cnt = False
+            # return final_image_edit, final_grad, overlapping_fragments, valid_cnt
 
     # Sum all non overlapping parts
     all_nonoverlap = np.sum(list(nonoverlap.values()), axis=0).astype("uint8")
@@ -348,12 +359,12 @@ def fuse_images_highres(images, masks):
     # Set 0 values to nan for plotting in blend summary.
     if len(list(gradients.values())) > 0:
         final_grad = list(gradients.values())[0]
+        final_grad = final_grad.astype("float32")
         final_grad[final_grad == 0] = np.nan
         valid_cnt = True
+        overlapping_fragments = overlapping_fragments[0]
     else:
         final_grad = np.full(final_image_edit.shape, np.nan)
         valid_cnt = False
-
-    overlapping_fragments = overlapping_fragments[0]
 
     return final_image_edit, final_grad, overlapping_fragments, valid_cnt

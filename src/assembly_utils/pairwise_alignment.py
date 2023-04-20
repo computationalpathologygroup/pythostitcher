@@ -48,6 +48,8 @@ def run_pairwise_alignment(parameters):
         f.classify_stitch_edges()
         f.save_images()
         f.get_stitch_edges()
+        if f.require_landmark_computation:
+            f.save_landmark_points()
 
     plot_stitch_edge_classification(fragments=fragments, parameters=parameters)
 

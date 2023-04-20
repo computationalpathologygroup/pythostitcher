@@ -43,7 +43,7 @@ def load_parameter_configuration(data_dir, save_dir, output_res):
     parameters["patient_idx"] = data_dir.name
     parameters["output_res"] = output_res
     parameters["fragment_names"] = [
-        i.name for i in data_dir.joinpath("raw_images").iterdir() if i.is_dir()
+        i.name for i in data_dir.joinpath("raw_images").iterdir() if not i.is_dir()
     ]
     parameters["n_fragments"] = len(parameters["fragment_names"])
     parameters["resolution_scaling"] = [
