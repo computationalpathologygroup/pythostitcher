@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from shapely.geometry import Polygon
+from scipy.spatial.distance import cdist
 
 from .plot_tools import plot_sampled_patches
 from .fuse_images_lowres import fuse_images_lowres
@@ -32,11 +33,8 @@ def genetic_algorithm(fragments, parameters, initial_tform):
     # pygad must be built to not accept any other input parameters than the solution and
     # solution index, but we need the fragments to compute fitness.
     global global_fragments, global_parameters, num_gen, global_init_tform
-    # global_fragments = [copy.deepcopy(i) for i in fragments]
     global_fragments = [copy.copy(i) for i in fragments]
-    # global_parameters = copy.deepcopy(parameters)
     global_parameters = copy.copy(parameters)
-    # global_init_tform = copy.deepcopy(initial_tform)
     global_init_tform = copy.copy(initial_tform)
 
     # Set scaling factor for distance cost function
@@ -59,6 +57,7 @@ def genetic_algorithm(fragments, parameters, initial_tform):
     p_mutation = parameters["p_mutation"]
     mutation_type = parameters["mutation_type"]
     num_fragments = parameters["n_fragments"]
+    stop_criteria = parameters["early_stopping"]
 
     # Cap solution ranges to plausible values. The param_range variable denotes the range
     # for the mutation values that can be added/substracted from the genes in each parent.
@@ -107,7 +106,8 @@ def genetic_algorithm(fragments, parameters, initial_tform):
         fitness_func=fitness_func,  # optimization function
         initial_population=init_pop,  # gene values for first population
         gene_space=param_range,  # parameter search range
-        keep_parents=keep_parents,  # num of parents that proceed to next generation
+        # keep_parents=keep_parents,  # num of parents that proceed to next generation
+        keep_elitism=1,  # only keep best parent in next generation
         num_parents_mating=parents_mating,  # num parents that produce offspring
         parent_selection_type=parents,  # function to select parents for offspring
         crossover_type=crossover_type,  # (M) method how genes between parents are combined
@@ -117,7 +117,8 @@ def genetic_algorithm(fragments, parameters, initial_tform):
         on_generation=plot_best_sol_per_gen,  # plot the result after every N generations
         save_best_solutions=True,  # must be True in order to use the callback above
         suppress_warnings=True,  # suppress warnings
-        stop_criteria=None,  # can be changed to a certain level of convergence
+        stop_criteria=stop_criteria,  # early stopping when no improvement after 25 generations
+        allow_duplicate_genes=False  # do not allow duplicate solutions
     )
 
     # Run genetic algorithm
@@ -211,30 +212,8 @@ def fitness_func(solution, solution_idx):
         frag = apply_new_transform(fragment=f, sol_tform=sol, combo_tform=combo, tform_image=False)
         global_fragments[c] = frag
 
-    ### EXPERIMENTAL - if you want to, you can use these additional cost functions. In my
-    ### personal experiments I have not found these to significantly improve performance,
-    ### but they do come at an increased computational cost. If you want to, you can use
-    ### them though.
-    # Cost function that penalizes dissimilar histograms along the edge of neighbouring fragments
-    # histogram_cost = hist_cost_function(
-    #     quadrant_a=global_quadrant_a,
-    #     quadrant_b=global_quadrant_b,
-    #     quadrant_c=global_quadrant_c,
-    #     quadrant_d=global_quadrant_d,
-    #     parameters=global_parameters,
-    #     plot=False
-    # )
-    
-    # Cost function that penalizes a high degree of overlap between fragments
-    # overlap_cost = overlap_cost_function(
-    #     quadrant_a=global_quadrant_a,
-    #     quadrant_b=global_quadrant_b,
-    #     quadrant_c=global_quadrant_c,
-    #     quadrant_d=global_quadrant_d,
-    # )
-
     # Cost function that penalizes a large distance between endpoints of fragments
-    distance_cost = distance_cost_function(fragments=global_fragments)
+    distance_cost = distance_cost_function_v2(fragments=global_fragments)
     total_cost = distance_cost
 
     return 1 / total_cost
@@ -260,6 +239,12 @@ def apply_new_transform(fragment, sol_tform, combo_tform, tform_image):
 
     # Apply tform to theilsen endpoints
     if hasattr(fragment, "h_edge"):
+        fragment.h_edge_theilsen_coords_tform = warp_2d_points(
+            src=fragment.h_edge_theilsen_coords,
+            center=center_sol,
+            rotation=sol_tform[2],
+            translation=sol_tform[:2],
+        )
         fragment.h_edge_theilsen_endpoints_tform = warp_2d_points(
             src=fragment.h_edge_theilsen_endpoints,
             center=center_sol,
@@ -268,6 +253,12 @@ def apply_new_transform(fragment, sol_tform, combo_tform, tform_image):
         )
 
     if hasattr(fragment, "v_edge"):
+        fragment.v_edge_theilsen_coords_tform = warp_2d_points(
+            src=fragment.v_edge_theilsen_coords,
+            center=center_sol,
+            rotation=sol_tform[2],
+            translation=sol_tform[:2],
+        )
         fragment.v_edge_theilsen_endpoints_tform = warp_2d_points(
             src=fragment.v_edge_theilsen_endpoints,
             center=center_sol,
@@ -515,7 +506,7 @@ def overlap_cost_function(fragments):
     return cost
 
 
-def distance_cost_function(fragments):
+def distance_cost_function_v1(fragments):
     """
     Custom function to compute the distance cost between the endpoints. This distance is
     computed as the Euclidean distance, but we want to scale this to a normalized range in
@@ -528,6 +519,8 @@ def distance_cost_function(fragments):
 
     Output:
     - Cost normalized by initial distance
+
+    v1 - uses only endpoints of theilsen lines
     """
 
     global global_parameters, distance_scaling
@@ -773,6 +766,177 @@ def distance_cost_function(fragments):
 
     return cost
 
+def distance_cost_function_v2(fragments):
+    """
+    Custom function to compute the distance cost between the endpoints. This distance is
+    computed as the Euclidean distance, but we want to scale this to a normalized range in
+    order to account for the increasing distance for finer resolutions. We normalize this
+    distance by dividing the distance by the starting value without any transformations.
+
+    Input:
+    - All fragments
+    - (GLOBAL) Dict with parameters
+
+    Output:
+    - Cost normalized by initial distance
+
+    v2 - uses 10 sampled points along theilsen lines
+    """
+
+    global global_parameters, distance_scaling
+
+    # Get the pairs of fragments which share either a horizontal or vertical edge
+    names = global_parameters["fragment_names"]
+    if global_parameters["n_fragments"] == 2:
+        if "top" in names:
+            hline_pairs = [copy.deepcopy(fragments)]
+            vline_pairs = None
+        else:
+            hline_pairs = None
+            vline_pairs = [copy.deepcopy(fragments)]
+
+    elif global_parameters["n_fragments"] == 4:
+        hline_pairs = [
+            [fragments[names.index("ul")], fragments[names.index("ll")]],
+            [fragments[names.index("ur")], fragments[names.index("lr")]],
+        ]
+        vline_pairs = [
+            [fragments[names.index("ul")], fragments[names.index("ur")]],
+            [fragments[names.index("ll")], fragments[names.index("lr")]],
+        ]
+
+    # Distance scaling parameters
+    distance_costs = []
+    res_scaling = global_parameters["resolution_scaling"][global_parameters["iteration"]]
+
+    # Keys for saving the scaling factor related to the inner point norm and the outer
+    # point norm from the endpoints of the theilsen lines.
+    hline_scaling = [f"hscale_{n+1}" for n in range(len(hline_pairs))] if hline_pairs else None
+    vline_scaling = [f"vscale_{n+1}" for n in range(len(vline_pairs))] if vline_pairs else None
+
+    # Get all valid keys
+    all_keys = [i for i in [hline_scaling, vline_scaling] if i]
+
+    # Loop over horizontal lines
+    if hline_scaling:
+        for fragments, hkey in zip(hline_pairs, hline_scaling):
+
+            # Extract fragments
+            fragment_1 = fragments[0]
+            fragment_2 = fragments[1]
+
+            # Get the lines from the fragment and reverse line 2 if it's not in right order
+            hline1_pts = fragment_1.h_edge_theilsen_coords_tform
+            hline2_pts = fragment_2.h_edge_theilsen_coords_tform
+
+            hline1_start = np.array(hline1_pts[0][np.newaxis, :]).astype("float32")
+            hline2_start = np.array(hline2_pts[0][np.newaxis, :]).astype("float32")
+            hline2_end = np.array(hline2_pts[-1][np.newaxis, :]).astype("float32")
+
+            dist1 = float(cdist(hline1_start, hline2_start))
+            dist2 = float(cdist(hline1_start, hline2_end))
+            if dist1 > dist2:
+                hline2_pts = hline2_pts[::-1]
+
+            hline1_pts = np.array(hline1_pts).astype("float32")
+            hline2_pts = np.array(hline2_pts).astype("float32")
+
+            # Obtain a scaling factor to normalize the distance cost across multiple
+            # resolutions. This scaling factor consists of the initial cost at the lowest
+            # resolution which is then extrapolated to what this cost would be on higher
+            # resolutions.
+            if (
+                global_parameters["iteration"] == 0
+                and distance_scaling["distance_scaling_hor_required"]
+            ):
+                base_cost = [np.float(cdist(a[np.newaxis, :], b[np.newaxis, :])) \
+                             for a, b in zip(hline1_pts, hline2_pts)]
+                distance_scaling[hkey] = np.round(np.mean(base_cost), 2)
+
+            # Handle cases where the initial genetic algorithm optimization has already
+            # been performed in a previous run and where the actual scaling factor is
+            # hence not available.
+            elif global_parameters["iteration"] > 0 and "distance_scaling" not in globals():
+                distance_scaling = dict()
+
+                for key in all_keys:  #
+                    distance_scaling[key] = 1
+
+                distance_scaling["distance_scaling_hor_required"] = False
+                distance_scaling["distance_scaling_ver_required"] = False
+                warnings.warn(
+                    "Distance cost scaling is unavailable, try deleting this patient "
+                    "from the results directory and rerun pythostitcher"
+                )
+
+            # Compute resolution specific cost
+            res_costs = [np.float(cdist(a[np.newaxis, :], b[np.newaxis, :])) \
+                             for a, b in zip(hline1_pts, hline2_pts)]
+            res_costs = np.mean(res_costs) / (res_scaling * distance_scaling[hkey])
+            distance_costs.append(np.round(res_costs, 2))
+
+    # Loop over vertical lines
+    if vline_scaling:
+        for fragments, vkey in zip(vline_pairs, vline_scaling):
+
+            # Extract fragments
+            fragment_1 = fragments[0]
+            fragment_2 = fragments[1]
+
+            # Get the lines from the fragments
+            vline1_pts = fragment_1.v_edge_theilsen_coords_tform
+            vline2_pts = fragment_2.v_edge_theilsen_coords_tform
+
+            # Reverse line 2 if it's not in right order
+            vline1_start = np.array(vline1_pts[0][np.newaxis, :]).astype("float32")
+            vline2_start = np.array(vline2_pts[0][np.newaxis, :]).astype("float32")
+            vline2_end = np.array(vline2_pts[-1][np.newaxis, :]).astype("float32")
+
+            dist1 = float(cdist(vline1_start, vline2_start))
+            dist2 = float(cdist(vline1_start, vline2_end))
+            if dist1 > dist2:
+                vline2_pts = vline2_pts[::-1]
+
+            vline1_pts = np.array(vline1_pts).astype("float32")
+            vline2_pts = np.array(vline2_pts).astype("float32")
+
+            # Obtain a scaling factor to normalize the distance cost across multiple
+            # resolutions. This scaling factor consists of the initial cost at the lowest
+            # resolution which is then extrapolated to what this cost would be on higher
+            # resolutions.
+            if (
+                global_parameters["iteration"] == 0
+                and distance_scaling["distance_scaling_ver_required"]
+            ):
+                base_cost = [np.float(cdist(a[np.newaxis, :], b[np.newaxis, :])) \
+                             for a, b in zip(vline1_pts, vline2_pts)]
+                distance_scaling[vkey] = np.round(np.mean(base_cost), 2)
+
+            # Handle cases where the first genetic algorithm optimization has already
+            # been performed in a different run and where the actual scaling factor is
+            # hence not available.
+            elif (
+                global_parameters["iteration"] > 0
+                and distance_scaling["distance_scaling_ver_required"]
+            ):
+                distance_scaling[vkey] = 1
+                warnings.warn("Distance cost is not scaled properly")
+
+            # Compute resolution specific cost
+            res_costs = [np.float(cdist(a[np.newaxis, :], b[np.newaxis, :])) \
+                         for a, b in zip(vline1_pts, vline2_pts)]
+            res_costs = np.mean(res_costs) / (res_scaling * distance_scaling[vkey])
+            distance_costs.append(np.round(res_costs, 2))
+
+    # Distance scaling should be computed now
+    if len(distance_scaling.keys()) > 2:
+        distance_scaling["distance_scaling_hor_required"] = False
+        distance_scaling["distance_scaling_ver_required"] = False
+
+    cost = np.mean(distance_costs)
+
+    return cost
+
 
 def plot_best_sol_per_gen(ga):
     """
@@ -841,10 +1005,18 @@ def plot_best_sol_per_gen(ga):
 
         # Make figure
         plt.figure()
-        plt.title(f"Best result at generation {gen}/{num_gen}: fitness = {np.round(fitness, 2)}")
+        plt.title(f"Best result at generation {gen}: fitness = {np.round(fitness, 2)}")
         plt.imshow(total_im, cmap="gray")
         for f in global_fragments:
-            if hasattr(f, "v_edge_theilsen_endpoints_tform"):
+            if hasattr(f, "v_edge_theilsen_coords_tform"):
+                plt.scatter(
+                    f.v_edge_theilsen_coords_tform[:, 0],
+                    f.v_edge_theilsen_coords_tform[:, 1],
+                    marker="*",
+                    s=ms,
+                    color="g",
+                )
+            elif hasattr(f, "v_edge_theilsen_endpoints_tform"):
                 plt.scatter(
                     f.v_edge_theilsen_endpoints_tform[:, 0],
                     f.v_edge_theilsen_endpoints_tform[:, 1],
@@ -852,7 +1024,15 @@ def plot_best_sol_per_gen(ga):
                     s=ms,
                     color="g",
                 )
-            if hasattr(f, "h_edge_theilsen_endpoints_tform"):
+            if hasattr(f, "h_edge_theilsen_coords_tform"):
+                plt.scatter(
+                    f.h_edge_theilsen_coords_tform[:, 0],
+                    f.h_edge_theilsen_coords_tform[:, 1],
+                    marker="*",
+                    s=ms,
+                    color="b",
+                )
+            elif hasattr(f, "h_edge_theilsen_endpoints_tform"):
                 plt.scatter(
                     f.h_edge_theilsen_endpoints_tform[:, 0],
                     f.h_edge_theilsen_endpoints_tform[:, 1],

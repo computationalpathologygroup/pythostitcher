@@ -872,18 +872,20 @@ class Fragment:
         ### In case of horizontal edge use regular X/Y convention
         # Get X/Y coordinates of horizontal edge. For higher resolutions we don't use
         # all edge points as this can become quite computationally expensive.
-        sample_rate = int(np.ceil(self.res * 20))
         eps = 1e-5
+        n_samples = 10
 
         if hasattr(self, "h_edge"):
+            indices = np.linspace(0, self.h_edge.shape[0]-1, n_samples).astype("int")
+
             x_edge = np.array([i[0] for i in self.h_edge])
             x_edge = x_edge[:, np.newaxis]
-            x_edge = x_edge[::sample_rate]
+            x_edge = x_edge[indices]
             x = x_edge[
                 :,
             ]
             y_edge = np.array([i[1] for i in self.h_edge])
-            y_edge = y_edge[::sample_rate]
+            y_edge = y_edge[indices]
 
             # Fit coordinates
             theilsen_h.fit(x_edge, y_edge)
@@ -908,12 +910,14 @@ class Fragment:
         ### In case of vertical edge we need to swap X/Y
         # Get X/Y coordinates of edge
         if hasattr(self, "v_edge"):
+            indices = np.linspace(0, self.v_edge.shape[0]-1, n_samples).astype("int")
+
             x_edge = np.array([i[1] for i in self.v_edge])
             x_edge = x_edge[:, np.newaxis]
-            x_edge = x_edge[::sample_rate]
+            x_edge = x_edge[indices]
             x = x_edge[:]
             y_edge = np.array([i[0] for i in self.v_edge])
-            y_edge = y_edge[::sample_rate]
+            y_edge = y_edge[indices]
 
             # Fit coordinates
             theilsen_v.fit(x_edge, y_edge)

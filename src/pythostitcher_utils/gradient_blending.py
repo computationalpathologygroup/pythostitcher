@@ -57,7 +57,6 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
 
     # Find blending points per contour
     for c, mask_cnt in enumerate(mask_cnts):
-        break
 
         log.log(45, f" - area {c + 1}/{len(mask_cnts)}")
 
@@ -86,10 +85,11 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
             )
 
             # Draw a line along long axis and sample x coordinates
-            short_end_start = mask_cnt[0, 1]
-            short_end_end_idx = int(len(mask_cnt[:, 1]) / 2)
-            short_end_end = mask_cnt[short_end_end_idx, 1]
-            short_end_len = int((np.max(mask_cnt[:, 1]) - np.min(mask_cnt[:, 1])) * 2)
+            short_end_start = mask_cnt[np.argmin(mask_cnt[:, 0]), 1]
+            short_end_end = mask_cnt[np.argmax(mask_cnt[:, 0]), 1]
+            short_end_len = np.max([
+                int((np.max(mask_cnt[:, 1]) - np.min(mask_cnt[:, 1])) * 2), 1000
+            ])
             cnt_points_y = np.linspace(short_end_start, short_end_end, len(cnt_points_x))
             cnt_points_y = cnt_points_y.astype("int")
 
@@ -110,10 +110,11 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
             )
 
             # Draw a line along long axis and sample x coordinates
-            short_end_start = mask_cnt[0, 0]
-            short_end_end_idx = int(len(mask_cnt[:, 0]) / 2)
-            short_end_end = mask_cnt[short_end_end_idx, 0]
-            short_end_len = int((np.max(mask_cnt[:, 0]) - np.min(mask_cnt[:, 0])) * 2)
+            short_end_start = mask_cnt[np.argmin(mask_cnt[:, 1]), 0]
+            short_end_end = mask_cnt[np.argmax(mask_cnt[:, 1]), 0]
+            short_end_len = np.max([
+                int((np.max(mask_cnt[:, 0]) - np.min(mask_cnt[:, 0])) * 2), 1000
+            ])
             cnt_points_x = np.linspace(short_end_start, short_end_end, len(cnt_points_y))
             cnt_points_x = cnt_points_x.astype("int")
 
@@ -153,8 +154,7 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
             # ]
             # plt.figure()
             # plt.imshow(mask_ds)
-            # plt.plot(seed_points[:, 0]/8, seed_points[:, 1]/8, c="r")
-            # plt.plot(xvals, yvals, c="r")
+            # plt.plot(seed_points[:, 0]/scale_factor, seed_points[:, 1]/scale_factor, c="r")
             # plt.show()
 
             # Only perform bending in case of overlap
@@ -255,6 +255,7 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
 
             else:
                 continue
+
 
     comp_time = int(np.ceil((time.time() - start) / 60))
 

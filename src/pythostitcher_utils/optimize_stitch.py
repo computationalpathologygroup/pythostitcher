@@ -146,7 +146,9 @@ def optimize_stitch(parameters):
         parameters["output_shape"] = fragments[0].tform_image.shape
 
         ga_dict = genetic_algorithm(
-            fragments=fragments, parameters=parameters, initial_tform=initial_tform,
+            fragments=fragments,
+            parameters=parameters,
+            initial_tform=initial_tform,
         )
         np.save(parameters["filepath_tform"], ga_dict)
 

@@ -138,8 +138,8 @@ def plot_theilsen_result(fragments, parameters):
                 color="g",
             )
             plt.scatter(
-                f.v_edge_theilsen_endpoints[:, 0],
-                f.v_edge_theilsen_endpoints[:, 1],
+                f.v_edge_theilsen_coords[:, 0],
+                f.v_edge_theilsen_coords[:, 1],
                 marker="*",
                 s=ms,
                 color="g",
@@ -153,8 +153,8 @@ def plot_theilsen_result(fragments, parameters):
                 color="b",
             )
             plt.scatter(
-                f.h_edge_theilsen_endpoints[:, 0],
-                f.h_edge_theilsen_endpoints[:, 1],
+                f.h_edge_theilsen_coords[:, 0],
+                f.h_edge_theilsen_coords[:, 1],
                 marker="+",
                 s=ms,
                 color="b",

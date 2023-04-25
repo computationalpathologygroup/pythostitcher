@@ -6,8 +6,8 @@
 	"slice_idx": "slice_0",
 	"my_level": 45,
 	
-	"n_solutions": 20,
-	"n_generations": [200, 150, 100, 100],
+	"n_solutions": 40,
+	"n_generations": [400, 200, 200, 100],
 	"n_parents": 3,
 	"n_mating": 6,
 	"p_crossover": 0.5,
@@ -15,6 +15,7 @@
 	"p_mutation": 0.25,
 	"mutation_type": "random",
 	"parent_selection": "rank",
+	"early_stopping": "saturate_50",
 
 	"resolution_scaling": [1, 2, 10, 20],
 	"nbins": 16,

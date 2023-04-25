@@ -91,8 +91,8 @@ class Processor:
         self.mask = ((labeled_im == largest_cc_label) * 255).astype("uint8")
 
         # Closing operation to close some holes on the mask border
-        kernel = cv2.getStructuringElement(shape=cv2.MORPH_ELLIPSE, ksize=(5, 5))
-        self.mask = cv2.morphologyEx(src=self.mask, op=cv2.MORPH_CLOSE, kernel=kernel, iterations=1)
+        kernel = cv2.getStructuringElement(shape=cv2.MORPH_ELLIPSE, ksize=(10, 10))
+        self.mask = cv2.morphologyEx(src=self.mask, op=cv2.MORPH_CLOSE, kernel=kernel, iterations=3)
 
         # Temporarily enlarge mask for succesful floodfill later
         offset = 5
@@ -111,6 +111,9 @@ class Processor:
         self.mask = 1 - self.mask
 
         assert np.sum(self.mask) > 0, "floodfilled mask is empty"
+
+        # Perhaps 1 iter of erosion
+        # self.mask = cv2.morphologyEx(src=self.mask, op=cv2.MORPH_CLOSE, kernel=kernel, iterations=3)
 
         # Crop to nonzero pixels for efficient saving
         r, c = np.nonzero(self.mask)

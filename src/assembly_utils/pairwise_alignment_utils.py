@@ -39,6 +39,7 @@ class Fragment:
         self.bg_color = kwargs["bg_color"]
 
         self.landmark_level = kwargs["image_level"]
+        self.n_samples = 10
 
         self.force_config = self.data_dir.joinpath("force_config.txt").exists()
         if self.force_config:
@@ -461,8 +462,8 @@ class Fragment:
         lowres_mask = ((labeled_mask == largest_cc_label) * 255).astype("uint8")
 
         # Close some small holes
-        strel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
-        lowres_mask = cv2.morphologyEx(lowres_mask, cv2.MORPH_CLOSE, strel)
+        strel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10))
+        lowres_mask = cv2.morphologyEx(lowres_mask, cv2.MORPH_CLOSE, strel, iterations=3)
 
         # Get floodfilled background
         seedpoint = (0, 0)
@@ -561,8 +562,7 @@ class Fragment:
                 cnt_fragments.append(interpolate_contour(cnt_fragment))
 
         # Sample 5 points along each line
-        n_sample = 5
-        line_a_idx = np.linspace(0, len(cnt_fragments[0])-1, n_sample).astype("int")
+        line_a_idx = np.linspace(0, len(cnt_fragments[0])-1, self.n_samples).astype("int")
         line_a = cnt_fragments[0][line_a_idx]
         line_a = (line_a * mask2raw_scaling).astype("int")
 
@@ -572,7 +572,7 @@ class Fragment:
         if self.num_fragments == 2:
             line_b = copy.copy(line_a)
         else:
-            line_b_idx = np.linspace(0, len(cnt_fragments[1])-1, n_sample).astype("int")
+            line_b_idx = np.linspace(0, len(cnt_fragments[1])-1, self.n_samples).astype("int")
             line_b = cnt_fragments[1][line_b_idx]
             line_b = (line_b * mask2raw_scaling).astype("int")
 
