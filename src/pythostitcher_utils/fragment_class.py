@@ -850,9 +850,9 @@ class Fragment:
 
         h_edge, v_edge = edge_dict[self.final_orientation]
         if h_edge is not None:
-            self.h_edge = h_edge
+            self.h_edge = np.array(h_edge)
         if v_edge is not None:
-            self.v_edge = v_edge
+            self.v_edge = np.array(v_edge)
 
         return
 
