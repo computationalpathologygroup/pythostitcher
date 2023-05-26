@@ -11,6 +11,7 @@ ARG PYTORCH_VERSION=1.10.2
 ARG TORCHVISION_VERSION=0.11.3
 ARG TENSORFLOW_VERSION=2.8.0 
 ARG VIPS_VERSION=8.13.0
+ARG PYTHOSTITCHER_VERSION=0.3.0
 
 ARG BUILD_JOBS=16
 
@@ -89,15 +90,6 @@ RUN CUDA_IDENTIFIER_PYTORCH=`echo "cu${CUDA_MAJOR_VERSION}" | sed "s|\.||g" | cu
         "torch==${PYTORCH_VERSION}+${CUDA_IDENTIFIER_PYTORCH}" \
         "torchvision==${TORCHVISION_VERSION}+${CUDA_IDENTIFIER_PYTORCH}"
 
-# === Build the library ===
-# https://docs.nvidia.com/deploy/cuda-compatibility/index.html
-ENV TORCH_CUDA_ARCH_LIST "6.0;6.1+PTX;7.0;7.5;8.0"
-RUN git clone https://github.com/NVIDIA/apex /tmp/apex && \
-    cd /tmp/apex && \
-    python3 setup.py --cpp_ext --cuda_ext bdist_wheel && \
-    mkdir /apex && \
-    cp dist/*.whl /apex/
-
 # =============================================================
 # Create base docker
 # =============================================================
@@ -131,6 +123,7 @@ RUN apt-get update --fix-missing && \
         g++ ninja-build \
         rsync \
         pv \
+		meson \
         curl wget \
         bzip2 zip unzip \
         dcmtk libboost-all-dev \
@@ -188,7 +181,6 @@ RUN pip3 install --upgrade pip pip-tools wheel setuptools && \
 
 # === Install python libraries ===
 COPY --from=tensorflow-odf /tensorflow-odf/object_detection-*.whl /root/python-packages/
-COPY --from=apex /apex/apex-*-linux_x86_64.whl /root/python-packages/
 COPY install_files/requirements.txt /root/python-packages/
 RUN pip3 install -r /root/python-packages/requirements.txt
 
@@ -208,9 +200,21 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+#  === Install latest Pixman ===
+#  This should fix the bug described here (https://github.com/TissueImageAnalytics/tiatoolbox/issues/133)
+RUN sudo apt-get install meson && \
+	wget https://www.cairographics.org/releases/pixman-0.42.2.tar.gz && \
+	tar -xf pixman-0.42.2.tar.gz && \
+	cd pixman-0.42.2 && \
+	mkdir build && \
+	cd build && \
+	meson --prefix=/usr --buildtype=release && \
+	ninja && \
+	sudo ninja install
+
 # === Get latest pre-release of PythoStitcher ===
 WORKDIR /home/user
-ARG PYTHOSTITCHER_VERSION=0.1.0
+ARG PYTHOSTITCHER_VERSION
 RUN wget https://github.com/computationalpathologygroup/pythostitcher/archive/refs/tags/${PYTHOSTITCHER_VERSION}.tar.gz && \
     tar xf ${PYTHOSTITCHER_VERSION}.tar.gz
 
