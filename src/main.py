@@ -42,9 +42,9 @@ def load_parameter_configuration(data_dir, save_dir, output_res):
     parameters["save_dir"] = save_dir
     parameters["patient_idx"] = data_dir.name
     parameters["output_res"] = output_res
-    parameters["fragment_names"] = [
+    parameters["fragment_names"] = sorted([
         i.name for i in data_dir.joinpath("raw_images").iterdir() if not i.is_dir()
-    ]
+    ])
     parameters["n_fragments"] = len(parameters["fragment_names"])
     parameters["resolution_scaling"] = [
         i / parameters["resolutions"][0] for i in parameters["resolutions"]
@@ -85,7 +85,7 @@ def collect_arguments():
 
     # Parse arguments
     parser = argparse.ArgumentParser(
-        description="Stitch prostate histopathology images into a pseudo whole-mount image"
+        description="Stitch histopathology images into a pseudo whole-mount image"
     )
     parser.add_argument(
         "--datadir", required=True, type=pathlib.Path, help="Path to the case to stitch"

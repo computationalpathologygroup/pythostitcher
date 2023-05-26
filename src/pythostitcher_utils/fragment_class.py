@@ -307,6 +307,32 @@ class Fragment:
         self.bbox = cv2.minAreaRect(self.cnt)
         self.bbox_corners = cv2.boxPoints(self.bbox)
 
+        bbox_center = np.mean(self.bbox_corners, axis=0)
+        bbox_corner_dist = bbox_center - self.bbox_corners
+        # Again expand bbox
+        if self.final_orientation in ["left", "right"]:
+            # bbox_corners_expansion = -np.vstack([bbox_corner_dist[:, 0] * 2, np.zeros_like(
+            #     bbox_corner_dist[:, 0])]).T
+            bbox_corners_expansion = -np.vstack(
+                [bbox_corner_dist[:, 0] * 2, bbox_corner_dist[:, 1] * 0.5]
+            )
+            bbox_corners_expansion = bbox_corners_expansion.astype("int").T
+
+        elif self.final_orientation in ["top", "bottom"]:
+            bbox_corners_expansion = -np.vstack(
+                [bbox_corner_dist[:, 0] * 0.5, [bbox_corner_dist[:, 1] * 2]]
+            )
+            bbox_corners_expansion = bbox_corners_expansion.astype("int").T
+
+        # Case of 4 fragments expand uniformly.
+        else:
+            expansion = bbox_center / 2
+            expand_direction = np.array([list(i < 0) for i in bbox_corner_dist])
+            bbox_corners_expansion = (expand_direction == True) * expansion + (
+                    expand_direction == False
+            ) * -expansion
+        self.new_bbox_corners = self.bbox_corners + bbox_corners_expansion
+
         # Get list of x-y values of contour
         x_points = [i[0] for i in self.cnt]
         y_points = [i[1] for i in self.cnt]
@@ -322,7 +348,7 @@ class Fragment:
         ### other corners are named in clockwise direction.
 
         # Get distance from each corner to the mask
-        for corner in self.bbox_corners:
+        for corner in self.new_bbox_corners:
             dist_x = [np.abs(corner[0] - x_point) for x_point in x_points]
             dist_y = [np.abs(corner[1] - y_point) for y_point in y_points]
             dist = [np.sqrt(x ** 2 + y ** 2) for x, y in zip(dist_x, dist_y)]
@@ -339,18 +365,18 @@ class Fragment:
             # Define stitching edge based on two points with largest/smallest x/y
             # coordinates.
             if self.final_orientation == "top":
-                corner_idxs = np.argsort(self.bbox_corners[:, 1])[-2:]
+                corner_idxs = np.argsort(self.new_bbox_corners[:, 1])[-2:]
             elif self.final_orientation == "bottom":
-                corner_idxs = np.argsort(self.bbox_corners[:, 1])[:2]
+                corner_idxs = np.argsort(self.new_bbox_corners[:, 1])[:2]
             elif self.final_orientation == "left":
-                corner_idxs = np.argsort(self.bbox_corners[:, 0])[-2:]
+                corner_idxs = np.argsort(self.new_bbox_corners[:, 0])[-2:]
             elif self.final_orientation == "right":
-                corner_idxs = np.argsort(self.bbox_corners[:, 0])[:2]
+                corner_idxs = np.argsort(self.new_bbox_corners[:, 0])[:2]
 
-            self.bbox_corner_a = self.bbox_corners[corner_idxs[0]]
+            self.bbox_corner_a = self.new_bbox_corners[corner_idxs[0]]
             self.mask_corner_a = mask_corners[corner_idxs[0]]
             self.mask_corner_a_idx = mask_corners_idxs[corner_idxs[0]]
-            self.bbox_corner_b = self.bbox_corners[corner_idxs[1]]
+            self.bbox_corner_b = self.new_bbox_corners[corner_idxs[1]]
             self.mask_corner_b = mask_corners[corner_idxs[1]]
             self.mask_corner_b_idx = mask_corners_idxs[corner_idxs[1]]
 
@@ -750,7 +776,9 @@ class Fragment:
         self.tform_image = cv2.warpAffine(
             src=self.gray_image_original, M=rot_mat, dsize=output_shape[::-1]
         )
-        self.mask = cv2.warpAffine(src=self.mask_original, M=rot_mat, dsize=output_shape[::-1])
+        self.mask = cv2.warpAffine(
+            src=self.mask_original, M=rot_mat, dsize=output_shape[::-1]
+        )
 
         # Save image center after transformation. This will be needed for the cost
         # function later on.
@@ -800,6 +828,7 @@ class Fragment:
                 )
 
             edge_ab = option_a if len(option_a) < len(option_b) else option_b
+            edge_ab = np.array(edge_ab)
             edge_ad = None
 
         # With 4 fragments we have to take the other cornerpoints into account.

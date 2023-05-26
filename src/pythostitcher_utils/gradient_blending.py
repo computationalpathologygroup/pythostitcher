@@ -53,8 +53,6 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
     # Param for saving blending result
     n_valid = 0
 
-    start = time.time()
-
     # Find blending points per contour
     for c, mask_cnt in enumerate(mask_cnts):
 
@@ -256,9 +254,6 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
             else:
                 continue
 
-
-    comp_time = int(np.ceil((time.time() - start) / 60))
-
     # Get the correct orientation of the prostate
     result_image = correct_orientation(
         mask = mask_ds,
@@ -267,7 +262,7 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
         debug_visualization = True
     )
 
-    return result_image, comp_time
+    return result_image
 
 
 def correct_orientation(mask, result_image, parameters, debug_visualization):

@@ -46,6 +46,10 @@ class Processor:
         self.new_dims = self.raw_image.getLevelDimensions(self.new_level)
         self.image = self.raw_image.getUCharPatch(0, 0, *self.new_dims, self.new_level)
 
+        ### EXPERIMENTAL - shift black background to white for correct otsu thresholding###
+        self.image[np.all(self.image<10, axis=2)] = 255
+        ### \\\ EXPERIMENTAL ###
+
         # Get downsampled mask with same dimensions as downsampled image
         if self.mask_provided:
             mask_dims = [
@@ -57,24 +61,35 @@ class Processor:
             self.mask = np.squeeze(self.mask)
             self.mask = ((self.mask / np.max(self.mask)) * 255).astype("uint8")
 
-        # Generic mask generation if mask is not provided.
         else:
-            # Process image and threshold for initial mask creation
-            img_hsv = cv2.cvtColor(self.image, cv2.COLOR_RGB2HSV)
-            img_med = cv2.medianBlur(img_hsv[:, :, 1], 7)
-            _, self.mask = cv2.threshold(img_med, 0, 255, cv2.THRESH_OTSU + cv2.THRESH_BINARY)
-
-            # Close some holes
-            kernel = cv2.getStructuringElement(shape=cv2.MORPH_ELLIPSE, ksize=(10, 10))
-            self.mask = cv2.morphologyEx(
-                src=self.mask, op=cv2.MORPH_CLOSE, kernel=kernel, iterations=2
-            )
+            raise ValueError("PythoStitcher requires a tissue mask for stitching")
 
         return
 
-    def postprocess(self):
+    def get_otsu_mask(self):
         """
-        Function to postprocess the mask. This mainly consists
+        Method to get the mask using Otsu thresholding. This mask will be combined with
+        the tissue segmentation mask in order to filter out the fatty tissue.
+        """
+
+        # Convert to HSV space and perform Otsu thresholding
+        self.image_hsv = cv2.cvtColor(self.image, cv2.COLOR_RGB2HSV)
+        self.image_hsv = cv2.medianBlur(self.image_hsv[:, :, 1], 7)
+        _, self.otsu_mask = cv2.threshold(self.image_hsv, 0, 255, cv2.THRESH_OTSU +
+                                          cv2.THRESH_BINARY)
+        self.otsu_mask = (self.otsu_mask / np.max(self.otsu_mask)).astype("uint8")
+
+        # Postprocess the mask a bit
+        kernel = cv2.getStructuringElement(shape=cv2.MORPH_ELLIPSE, ksize=(8, 8))
+        self.otsu_mask = cv2.morphologyEx(
+            src=self.otsu_mask, op=cv2.MORPH_CLOSE, kernel=kernel, iterations=3
+        )
+
+        return
+
+    def get_tissueseg_mask(self):
+        """
+        Function to postprocess both the regular and the mask. This mainly consists
         of getting the largest component and then cleaning up this mask.
         """
 
@@ -92,7 +107,7 @@ class Processor:
 
         # Closing operation to close some holes on the mask border
         kernel = cv2.getStructuringElement(shape=cv2.MORPH_ELLIPSE, ksize=(10, 10))
-        self.mask = cv2.morphologyEx(src=self.mask, op=cv2.MORPH_CLOSE, kernel=kernel, iterations=3)
+        self.mask = cv2.morphologyEx(src=self.mask, op=cv2.MORPH_CLOSE, kernel=kernel, iterations=2)
 
         # Temporarily enlarge mask for succesful floodfill later
         offset = 5
@@ -112,15 +127,45 @@ class Processor:
 
         assert np.sum(self.mask) > 0, "floodfilled mask is empty"
 
-        # Perhaps 1 iter of erosion
-        # self.mask = cv2.morphologyEx(src=self.mask, op=cv2.MORPH_CLOSE, kernel=kernel, iterations=3)
+        return
+
+    def combine_masks(self):
+        """
+        Method to combine the tissue mask and the Otsu mask for fat filtering.
+        """
+
+        # Combine
+        self.final_mask = self.otsu_mask * self.mask
+
+        # Postprocess similar to tissue segmentation mask. Get largest cc and floodfill.
+        num_labels, labeled_im, stats, _ = cv2.connectedComponentsWithStats(
+            self.final_mask, connectivity=8
+        )
+        assert num_labels > 1, "mask is empty"
+        largest_cc_label = np.argmax(stats[1:, -1]) + 1
+        self.final_mask = ((labeled_im == largest_cc_label) * 255).astype("uint8")
+
+        # Flood fill
+        offset = 5
+        self.final_mask = np.pad(
+            self.final_mask,
+            [[offset, offset], [offset, offset]],
+            mode="constant",
+            constant_values=0
+        )
+
+        seedpoint = (0, 0)
+        floodfill_mask = np.zeros((self.final_mask.shape[0] + 2, self.final_mask.shape[1] + 2)).astype("uint8")
+        _, _, self.final_mask, _ = cv2.floodFill(self.final_mask, floodfill_mask, seedpoint, 255)
+        self.final_mask = self.final_mask[1 + offset:-1 - offset, 1 + offset:-1 - offset]
+        self.final_mask = 1 - self.final_mask
 
         # Crop to nonzero pixels for efficient saving
-        r, c = np.nonzero(self.mask)
-        self.mask = self.mask[np.min(r) : np.max(r), np.min(c) : np.max(c)]
+        r, c = np.nonzero(self.final_mask)
+        self.final_mask = self.final_mask[np.min(r) : np.max(r), np.min(c) : np.max(c)]
         self.image = self.image[np.min(r) : np.max(r), np.min(c) : np.max(c)]
         self.image = self.image.astype("uint8")
-        self.mask = (self.mask * 255).astype("uint8")
+        self.final_mask = (self.final_mask * 255).astype("uint8")
 
         return
 
@@ -143,7 +188,7 @@ class Processor:
             mask_savedir.mkdir()
 
         mask_savefile = mask_savedir.joinpath(f"fragment{self.count}.png")
-        cv2.imwrite(str(mask_savefile), self.mask)
+        cv2.imwrite(str(mask_savefile), self.final_mask)
 
         return
 
@@ -180,7 +225,9 @@ def prepare_data(parameters):
             count=c,
         )
         data_processor.load()
-        data_processor.postprocess()
+        data_processor.get_otsu_mask()
+        data_processor.get_tissueseg_mask()
+        data_processor.combine_masks()
         data_processor.save()
 
     parameters["log"].log(parameters["my_level"], " > finished!\n")
