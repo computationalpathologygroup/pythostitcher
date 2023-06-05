@@ -556,18 +556,17 @@ class Assembler:
 
         ### SANITY CHECK ###
         # if self.feasible_assembly:
-        # plt.figure(figsize=(8, 8))
-        # all_cnts = [self.cnt_ref_2d, self.cnt_idx1_2d, self.cnt_idx2_2d, self.cnt_idx3a_2d,
-        #             self.cnt_idx3b_2d]
-        # colours = ["b", "r", "r", "g", "g"]
-        # for col, cnt in zip(colours, all_cnts):
-        #     plt.title(
-        #         f"123 overlap: {frag12_overlap:.2f} & {frag13_overlap:.2f}\n33 overlap: {frag33_overlap:.2f}\nT_err: {t_err:.2f} & R_err: {r_err:.2f}")
-        #     plt.plot(cnt[:, 0], cnt[:, 1], c=col)
-        # # plt.plot(test[:, 0], test[:, 1], c="g", linewidth=4)
-        # plt.gca().invert_yaxis()
-        # plt.show()
-        # print("a")
+        #     plt.figure(figsize=(8, 8))
+        #     all_cnts = [self.cnt_ref_2d, self.cnt_idx1_2d, self.cnt_idx2_2d, self.cnt_idx3a_2d,
+        #                 self.cnt_idx3b_2d]
+        #     colours = ["b", "r", "r", "g", "g"]
+        #     for col, cnt in zip(colours, all_cnts):
+        #         plt.title(
+        #             f"123 overlap: {frag12_overlap:.2f} & {frag13_overlap:.2f}\n33 overlap: {frag33_overlap:.2f}\nT_err: {t_err:.2f} & R_err: {r_err:.2f}")
+        #         plt.plot(cnt[:, 0], cnt[:, 1], c=col)
+        #     # plt.plot(test[:, 0], test[:, 1], c="g", linewidth=4)
+        #     plt.gca().invert_yaxis()
+        #     plt.show()
 
         return
 
@@ -649,7 +648,8 @@ class Assembler:
 
         # Compute assembly score
         locations = ["upper", "lower", "left", "right"]
-        self.mse_score = np.sum([self.compute_mse_stitch_line(location=l) for l in locations])
+        self.mse_score = 0
+        # self.mse_score = np.sum([self.compute_mse_stitch_line(location=l) for l in locations])
 
         # Write results for each solution to text file
         location_solution = self.case_path.joinpath("location_solution.txt")

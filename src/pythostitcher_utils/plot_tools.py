@@ -442,6 +442,13 @@ def plot_ga_multires(parameters):
     xticks_loc = list(np.arange(0, 5))
     xticks_label = ["Initial"] + parameters["resolutions"]
 
+    # Save csv of cost (inverse of fitness, lower cost is better) per res
+    df_savepath = parameters["sol_save_dir"].joinpath("tform", "cost_per_res.csv")
+    df = pd.DataFrame()
+    df["resolution"] = xticks_label
+    df["cost"] = [np.round(1/i, 3) for i in fitness]
+    df.to_csv(df_savepath, index=False)
+
     # Only plot when the GA fitness has been tracked properly (e.g. when the cost function
     # has been scaled properly throughout the different resolutions).
     if len(fitness) == len(xticks_label):

@@ -241,6 +241,56 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
                     )
                     plt.close()
 
+                    ### PAPER FIGURE ###
+                    """
+                    plt.figure(figsize=(12, 6))
+                    plt.title("A", fontsize=40)
+                    plt.imshow(images[overlap_fragments[0]])
+                    plt.axis("off")
+                    plt.show()
+
+                    plt.figure(figsize=(12, 6))
+                    plt.title("B", fontsize=40)
+                    plt.imshow(images[overlap_fragments[1]])
+                    plt.axis("off")
+                    plt.show()
+
+                    plt.figure(figsize=(12, 6))
+                    plt.title("C", fontsize=40)
+                    plt.imshow(
+                        (masks[overlap_fragments[0]] + masks[overlap_fragments[1]]) == 2,
+                        cmap="gray",
+                    )
+                    plt.imshow(grad, cmap="jet", alpha=0.5)
+                    plt.axis("off")
+                    plt.colorbar(fraction=0.046, pad=0.04)
+                    plt.show()
+
+
+                    overlap = (masks[overlap_fragments[0]] + masks[overlap_fragments[1]]) == 2
+                    simple_add = (~overlap[:, :, np.newaxis] * images[overlap_fragments[0]]) + \
+                                 (~overlap[:, :, np.newaxis] * images[overlap_fragments[1]]) + \
+                                 (overlap[:, :, np.newaxis] * images[overlap_fragments[0]] * 0.5) + \
+                                 (overlap[:, :, np.newaxis] * images[overlap_fragments[1]] * 0.5)
+                    simple_add = simple_add.astype("uint8")
+                    plt.figure(figsize=(12, 6))
+                    plt.title("D", fontsize=40)
+                    plt.imshow(simple_add[:, 850:1400, :])
+                    cnt = np.squeeze(overlap_cnts[0])
+                    # plt.plot(cnt[:, 0]-850, cnt[:, 1], c="r", linewidth=2)
+                    plt.axis("off")
+                    plt.show()
+
+                    plt.figure(figsize=(12, 6))
+                    plt.title("E", fontsize=40)
+                    plt.imshow(blend[:, 850:1400, :])
+                    cnt = np.squeeze(overlap_cnts[0])
+                    # plt.plot(cnt[:, 0]-850, cnt[:, 1], c="r", linewidth=1)
+                    plt.axis("off")
+                    plt.show()
+                    """
+                    ### \\\ PAPER FIGURE ###
+
                     n_valid += 1
 
                     # Insert blended image
