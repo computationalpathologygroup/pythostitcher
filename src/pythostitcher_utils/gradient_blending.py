@@ -135,25 +135,27 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
                 height = np.min([long_end, max_image_height - seed[1] - 1])
 
             ### SANITY CHECK FOR TILE SELECTION
-            # scale_factor = 2**mask_ds_level
-            # xvals = [
-            #     xstart/scale_factor,
-            #     (xstart+width)/scale_factor,
-            #     (xstart+width)/scale_factor,
-            #     xstart / scale_factor,
-            #     xstart / scale_factor
-            #     ]
-            # yvals = [
-            #     ystart/scale_factor,
-            #     ystart / scale_factor,
-            #     (ystart + height) / scale_factor,
-            #     (ystart + height) / scale_factor,
-            #     ystart / scale_factor,
-            # ]
-            # plt.figure()
-            # plt.imshow(mask_ds)
-            # plt.plot(seed_points[:, 0]/scale_factor, seed_points[:, 1]/scale_factor, c="r")
-            # plt.show()
+            """
+            scale_factor = 2**mask_ds_level
+            xvals = [
+                xstart/scale_factor,
+                (xstart+width)/scale_factor,
+                (xstart+width)/scale_factor,
+                xstart / scale_factor,
+                xstart / scale_factor
+                ]
+            yvals = [
+                ystart/scale_factor,
+                ystart / scale_factor,
+                (ystart + height) / scale_factor,
+                (ystart + height) / scale_factor,
+                ystart / scale_factor,
+            ]
+            plt.figure()
+            plt.imshow(mask_ds)
+            plt.plot(xvals, yvals, c="r")
+            plt.show()
+            """
 
             # Only perform bending in case of overlap
             tile_mask = result_mask.crop(xstart, ystart, width, height)
@@ -171,9 +173,12 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
                         shape=[height, width, image_patch.bands],
                     )
 
-                    ### EXPERIMENTAL
-                    mask = np.all(image > 5, axis=2)*1
-                    ### EXPERIMENTAL
+                    mask_patch = f.outputres_mask.crop(xstart, ystart, width, height)
+                    mask = np.ndarray(
+                        buffer=mask_patch.write_to_memory(),
+                        dtype=np.uint8,
+                        shape=[height, width],
+                    )
 
                     images[f.orientation] = image
                     masks[f.orientation] = mask
@@ -189,7 +194,8 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
                         overlap, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE,
                     )
 
-                    # Show and save blended result
+                    # Show and save blended result if desired
+                    """
                     plt.figure(figsize=(12, 10))
                     plt.suptitle(f"Result at x {xstart} and y {ystart}", fontsize=24)
                     plt.subplot(231)
@@ -240,6 +246,7 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
                         f"{parameters['blend_dir']}/contour{str(c).zfill(3)}_tile{str(n_valid).zfill(4)}.png"
                     )
                     plt.close()
+                    """
 
                     ### PAPER FIGURE ###
                     """
@@ -309,7 +316,7 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
         mask = mask_ds,
         result_image = result_image,
         parameters = parameters,
-        debug_visualization = True
+        debug_visualization = False
     )
 
     return result_image
@@ -368,7 +375,7 @@ def correct_orientation(mask, result_image, parameters, debug_visualization):
     if angle > 45:
         angle = 90 - angle
 
-    angle = extra_rot - angle
+    angle = extra_rot + angle
 
     # Also change some affine tform variables when we need to flip hor/ver axes
     if extra_rot in [90, 270]:

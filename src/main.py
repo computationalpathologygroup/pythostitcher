@@ -65,6 +65,7 @@ def load_parameter_configuration(data_dir, save_dir, output_res):
         2, 4,
     ], "pythostitcher only supports stitching 2/4 fragments"
 
+
     # Make directories for later saving
     dirnames = [
         pathlib.Path(parameters["save_dir"]),
@@ -99,7 +100,7 @@ def collect_arguments():
         default=0.25,
         type=float,
         help="Output resolution (µm/pixel) of the reconstructed image. Should be roughly "
-        "in range of 0.25-20.",
+        "in range of 0.25-16 with a factor 2 between steps (0.25-0.50-1.00 etc).",
     )
     args = parser.parse_args()
 
@@ -186,7 +187,7 @@ def main():
             f"PythoStitcher with pregenerated tissuemasks, please put these files in "
             f"[{data_dir.joinpath('raw_masks')}]. If no tissuemasks are supplied, "
             f"PythoStitcher will use a generic tissue segmentation which may not perform "
-            f"as well as the AI-generated masks. In addition, PythoStitcher will not "
+            f"as well for your use case. In addition, PythoStitcher will not "
             f"be able to generate the full resolution end result.",
         )
 

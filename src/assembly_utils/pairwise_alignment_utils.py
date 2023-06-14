@@ -62,6 +62,7 @@ class Fragment:
 
         landmark_path = self.data_dir.joinpath(f"fragment{self.fragment_name_idx+1}_coordinates.npy")
         if landmark_path.exists():
+            print("Using provided landmarks")
             dst = self.save_dir.joinpath(
                 "landmarks", f"fragment{self.fragment_name_idx+1}_coordinates.npy"
             )
@@ -133,15 +134,29 @@ class Fragment:
         angle = bbox[2] if bbox[2] < 45 else bbox[2] - 90
         rot_mat = cv2.getRotationMatrix2D(center=center, angle=angle, scale=1)
         self.original_image = cv2.warpAffine(
-            self.original_image, rot_mat, self.original_image.shape[:-1]
+            self.original_image,
+            rot_mat,
+            self.original_image.shape[:-1],
+            borderValue=(255, 255, 255)
         )
-        self.original_image[np.all(self.original_image == 0, axis=2)] = [255, 255, 255]
+
+        ### EXPERIMENTAL ###
+        # Some scanners use a slightly gray background for areas without tissue. This
+        # may confuse the fragment classifier since the model was trained on images with
+        # a perfect white background [255, 255, 255]. Hence, gray colours are
+        # converted to white with this step.
+        self.original_image_hsv = cv2.cvtColor(self.original_image, cv2.COLOR_RGB2HSV)
+        self.original_image_new = copy.copy(self.original_image)
+        sat_thres = 15
+        self.original_image_new[self.original_image_hsv[:, :, 1] < sat_thres] = 255
+        ### EXPERIMENTAL ###
+
         self.mask = cv2.warpAffine(self.mask, rot_mat, self.mask.shape)
 
         # Make smaller version for classifier
         if self.num_fragments == 4:
             self.model_image = cv2.resize(
-                self.original_image, (self.classifier.model_size, self.classifier.model_size)
+                self.original_image_new, (self.classifier.model_size, self.classifier.model_size)
             )
 
         return
@@ -223,9 +238,18 @@ class Fragment:
         self.cnt = np.squeeze(max(self.cnt, key=cv2.contourArea))
         self.cnt = self.cnt[::-1]
 
-        # Apply RDP algorithm for simpler representation of contour
-        self.rdp_epsilon = 3
-        self.cnt_rdp = rdp.rdp(self.cnt, epsilon=self.rdp_epsilon, algo="rec").astype("int")
+        # Possibly apply RDP algorithm for simpler representation of contour
+        # self.rdp_epsilon = 1
+        # self.cnt_rdp = rdp.rdp(self.cnt, epsilon=self.rdp_epsilon, algo="rec").astype("int")
+        self.cnt_rdp = copy.copy(self.cnt)
+
+        debug_this = False
+        if debug_this:
+            plt.figure()
+            plt.imshow(self.mask, cmap="gray")
+            plt.scatter(self.cnt[:, 0], self.cnt[:, 1], c='r')
+            plt.scatter(self.cnt_rdp[:, 0], self.cnt_rdp[:, 1], c='g')
+            plt.show()
 
         ### Step 2 ###
         # Get bbox and its corners
@@ -334,6 +358,16 @@ class Fragment:
 
         self.cnt_fragments = cnt_fragments
 
+        debug = False
+        if debug:
+            colours = ["g", "r"]
+            plt.figure()
+            plt.title("Stitch edge extraction from RDP")
+            plt.imshow(self.mask, cmap="gray")
+            for c, cnt in zip(colours, self.cnt_fragments):
+                plt.scatter(cnt[:, 0], cnt[:, 1], c=c)
+            plt.show()
+
         return
 
     def save_orientation(self):
@@ -435,6 +469,8 @@ class Fragment:
         5. Compute simplified contour and stitch edges
         6.
         """
+
+        print("Extracting landmarks...")
 
         ### STEP 1 ###
         # Load raw image
@@ -661,7 +697,7 @@ class Fragment:
                     cnt_fragment = np.vstack([cnt[start_idx:], cnt[:end_idx]])
                 cnt_fragments.append(interpolate_contour(cnt_fragment))
 
-        # Sample 5 points along each line
+        # Sample n points along each line
         line_a_idx = np.linspace(0, len(cnt_fragments[0])-1, self.n_samples).astype("int")
         line_a = cnt_fragments[0][line_a_idx]
         line_a = (line_a * mask2raw_scaling).astype("int")
@@ -683,6 +719,15 @@ class Fragment:
                                                 f"{self.fragment_name_idx+1}_coordinates.npy"),
             lines
         )
+
+        debug = False
+        if debug:
+            colours = ["g", "r"]
+            plt.figure()
+            plt.title("Stitch edge extraction from RDP")
+            for c, line in zip(colours, [line_a, line_b]):
+                plt.scatter(line[:, 0], line[:, 1], c=c)
+            plt.show()
 
         return
 
@@ -1095,6 +1140,17 @@ def explore_pairs(fragments, parameters):
         a_line_indices = np.arange(0, len(a_line_fragments))
         b_line_indices = np.arange(0, len(b_line_fragments))
 
+        # plt.figure()
+        # plt.subplot(121)
+        # plt.imshow(a_fragment_mask, cmap="gray")
+        # for line in a_line_fragments:
+        #     plt.scatter(line[:, 0], line[:, 1], c="r")
+        # plt.subplot(122)
+        # plt.imshow(b_fragment_mask, cmap="gray")
+        # for line in b_line_fragments:
+        #     plt.scatter(line[:, 0], line[:, 1], c="r")
+        # plt.show()
+
         # Get possible combinations of line fragments
         line_combinations = list(itertools.product(a_line_indices, b_line_indices))
         result_dict = dict()
@@ -1167,7 +1223,7 @@ def explore_pairs(fragments, parameters):
             line1_angle = np.round(((np.arctan(y_dif / (x_dif + eps)) / np.pi) * 180), 1)
 
             # Get theil sen representation for line 2. Again, first check if the line is
-            #  horizontal or vertical as this will determine how we handle x/y coords.
+            # horizontal or vertical as this will determine how we handle x/y coords.
             l2_initial_dx = np.abs(line2[0, 0] - line2[-1, 0])
             l2_initial_dy = np.abs(line2[0, 1] - line2[-1, 1])
             if l2_initial_dx >= l2_initial_dy:
@@ -1289,7 +1345,14 @@ def explore_pairs(fragments, parameters):
                 point_tform, np.vstack([line2_ts[:, ::-1].T, np.ones(len(line2_ts))])
             )
             line2_warp = (line2_warp[:2, :].T).astype("int")
-            line2_warp_interp = interpolate_contour(line2_warp)
+            line2_interp = interpolate_contour(line2_warp)
+
+            debug_this = False
+            if debug_this:
+                plt.imshow(fused_mask, cmap="gray")
+                plt.scatter(line1_interp[:, 1], line1_interp[:, 0], c="r")
+                plt.scatter(line2_interp[:, 1], line2_interp[:, 0], c="g")
+                plt.show()
 
             ### Step 1c - compute the matching score ###
             # Penalty component - Difference in contour lengths
@@ -1303,8 +1366,8 @@ def explore_pairs(fragments, parameters):
             fitness_rel_overlap = 100 * (1 - overlap_ratio) ** 6
 
             # Penalty component - Hausdorff distance between contours
-            hausdorff1, _, _ = distance.directed_hausdorff(line1_interp, line2_warp_interp)
-            hausdorff2, _, _ = distance.directed_hausdorff(line2_warp_interp, line1_interp)
+            hausdorff1, _, _ = distance.directed_hausdorff(line1_interp, line2_interp)
+            hausdorff2, _, _ = distance.directed_hausdorff(line2_interp, line1_interp)
             max_hausdorff = np.max([hausdorff1, hausdorff2])
             fitness_hausdorff = 1000 / max_hausdorff
 

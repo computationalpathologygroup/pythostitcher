@@ -36,6 +36,8 @@ class FullResImage:
         self.raw_image_path = self.data_dir.joinpath("raw_images", self.raw_image_name)
         self.orientation = parameters["detected_configuration"][self.raw_image_name].lower()
         self.rot_k = parameters["rot_steps"][self.raw_image_name]
+        self.resolutions = parameters["resolutions"]
+        self.resolution_scaling = parameters["resolution_scaling"]
 
         if self.raw_mask_name:
             self.raw_mask_path = parameters["data_dir"].joinpath("raw_masks", self.raw_mask_name)
@@ -218,17 +220,10 @@ class FullResImage:
         """
 
         # Get image of same size as tissue segmentation mask
-
-        ### EXPERIMENTAL --- get the image level based on the mask level ###
-        # New code
         im_vs_mask_ds = self.raw_image.getLevelDimensions(0)[0]/self.raw_mask.getLevelDimensions(
             0)[0]
         image_ds_level = int(self.mask_ds_level +
                              int(math.log2(im_vs_mask_ds)))
-
-        # Previous code
-        # image_ds_level = int(self.mask_ds_level + int(math.log2(self.scaling_coords2outputres)))
-        ### \\\ EXPERIMENTAL ###
 
         image_ds_dims = self.raw_image.getLevelDimensions(image_ds_level)
         self.otsu_image = self.raw_image.getUCharPatch(
@@ -238,10 +233,6 @@ class FullResImage:
             height=int(image_ds_dims[1]),
             level=int(image_ds_level),
         )
-
-        ### EXPERIMENTAL - shift black background to white for correct otsu thresholding###
-        self.otsu_image[np.all(self.otsu_image<10, axis=2)] = 255
-        ### \\\ EXPERIMENTAL ###
 
         image_hsv = cv2.cvtColor(self.otsu_image, cv2.COLOR_RGB2HSV)
         image_hsv = cv2.medianBlur(image_hsv[:, :, 1], 7)
@@ -319,37 +310,6 @@ class FullResImage:
 
         return
 
-    def process_mask(self):
-        """
-        Process the mask to a full resolution version
-        """
-
-        # Get nonzero indices and crop
-        self.r_idx, self.c_idx = np.nonzero(original_mask)
-        original_mask = original_mask[
-            np.min(self.r_idx) : np.max(self.r_idx), np.min(self.c_idx) : np.max(self.c_idx),
-        ]
-
-        # Convert to pyvips array
-        height, width = original_mask.shape
-        bands = 1
-        dformat = "uchar"
-        self.outputres_mask = pyvips.Image.new_from_memory(
-            original_mask.ravel(), width, height, bands, dformat
-        )
-
-        self.outputres_mask = self.outputres_mask.resize(self.scaling_mask2outputres)
-
-        if self.rot_k in range(1, 4):
-            self.outputres_mask = self.outputres_mask.rotate(self.rot_k * 90)
-
-        # Pad image with zeros
-        self.outputres_mask = self.outputres_mask.gravity(
-            "centre", self.target_dims[1], self.target_dims[0]
-        )
-
-        return
-
     def process_image(self):
         """
         Process the raw image to the full resolution version
@@ -397,16 +357,22 @@ class FullResImage:
             self.outputres_image = self.outputres_image.rotate(self.rot_k * 90)
 
         # Pad image with zeros
-        xpad = int((self.target_dims[1] - self.outputres_image.width)/2)
-        ypad = int((self.target_dims[0] - self.outputres_image.height)/2)
+        self.xpad = int((self.target_dims[1] - self.outputres_image.width)/2)
+        self.ypad = int((self.target_dims[0] - self.outputres_image.height)/2)
 
         self.outputres_image = self.outputres_image.gravity(
             "centre", self.target_dims[1], self.target_dims[0]
         )
 
         # Also apply to landmark points
-        self.line_a = np.vstack([self.line_a[:, 0] + xpad, self.line_a[:, 1] + ypad]).T
-        self.line_b = np.vstack([self.line_b[:, 0] + xpad, self.line_b[:, 1] + ypad]).T
+        self.line_a = np.vstack(
+            [self.line_a[:, 0] + self.xpad,
+             self.line_a[:, 1] + self.ypad]
+        ).T
+        self.line_b = np.vstack(
+            [self.line_b[:, 0] + self.xpad,
+             self.line_b[:, 1] + self.ypad]
+        ).T
 
         # Get transformation matrix
         rotmat = cv2.getRotationMatrix2D(
@@ -435,11 +401,11 @@ class FullResImage:
         # Apply affine transformation to coordinates
         ones = np.ones((len(self.line_a), 1))
 
-        self.line_a = np.hstack([self.line_a, ones]) @ rotmat.T
-        self.line_b = np.hstack([self.line_b, ones]) @ rotmat.T
+        self.line_a_tform = np.hstack([self.line_a, ones]) @ rotmat.T
+        self.line_b_tform = np.hstack([self.line_b, ones]) @ rotmat.T
 
-        self.line_a = self.line_a.astype("int")
-        self.line_b = self.line_b.astype("int")
+        self.line_a_tform = self.line_a_tform.astype("int")
+        self.line_b_tform = self.line_b_tform.astype("int")
 
         if not self.outputres_image.format == "uchar":
             self.outputres_image = self.outputres_image.cast("uchar", shift=False)
@@ -456,11 +422,65 @@ class FullResImage:
         if not self.eval_dir.is_dir():
             self.eval_dir.mkdir()
 
-        rot_lines = {"a" : self.line_a, "b" : self.line_b}
+        rot_lines = {"a" : self.line_a_tform, "b" : self.line_b_tform}
         np.save(
             str(self.eval_dir.joinpath(f"fragment{self.idx+1}_coordinates.npy")),
             rot_lines
         )
+
+        return
+
+    def save_multi_res_coords(self):
+        """
+        Method to save the coordinates from the different resolutions.
+        """
+
+        # Get all tforms
+        initial_tform = sorted(list(self.save_dir.joinpath("tform").glob("*initial*")))[0]
+        initial_res = "res0000"
+        initial_res_scaling = np.round(self.resolution_scaling[-1], 1)
+
+        final_tforms = sorted(list(self.save_dir.joinpath("tform").glob("*final*")))
+        final_res = [i.name.split("_")[0] for i in final_tforms]
+        final_res_scaling = [self.resolution_scaling[-1]/i for i in self.resolution_scaling]
+
+        all_tforms = [initial_tform] + final_tforms
+        all_res = [initial_res] + final_res
+        all_res_scaling = [initial_res_scaling] + final_res_scaling
+
+        for tform, res, scale in zip(all_tforms, all_res, all_res_scaling):
+
+            # Get resolution specific tform
+            ps_tform = np.load(tform, allow_pickle=True).item()
+            scaling_ps2outputres = self.scaling_ps2outputres * scale
+            highres_tform = [
+                int(ps_tform[self.orientation][0] * scaling_ps2outputres),
+                int(ps_tform[self.orientation][1] * scaling_ps2outputres),
+                np.round(ps_tform[self.orientation][2], 1),
+                tuple([int(i * scaling_ps2outputres) for i in ps_tform[self.orientation][3]]),
+                tuple([int(i * scaling_ps2outputres) for i in ps_tform[self.orientation][4]]),
+            ]
+
+            # Get transformation matrix
+            rotmat = cv2.getRotationMatrix2D(
+                center=highres_tform[3], angle=highres_tform[2], scale=1
+            )
+            rotmat[0, 2] += highres_tform[0]
+            rotmat[1, 2] += highres_tform[1]
+
+            # Transform lines
+            line_a_tform = np.hstack([self.line_a, np.ones((len(self.line_a), 1))]) @ rotmat.T
+            line_b_tform = np.hstack([self.line_b, np.ones((len(self.line_b), 1))]) @ rotmat.T
+
+            # Save lines
+            rot_lines = {"a": line_a_tform, "b": line_b_tform}
+            multi_res_save_dir = self.eval_dir.joinpath("multires")
+            if not multi_res_save_dir.is_dir():
+                multi_res_save_dir.mkdir()
+            np.save(
+                str(multi_res_save_dir.joinpath(f"{res}_fragment{self.idx + 1}_coordinates.npy")),
+                rot_lines
+            )
 
         return
 
@@ -496,11 +516,11 @@ def generate_full_res(parameters, log):
         # initial stitch
         f.load_images()
         f.get_scaling()
-        # f.process_mask()
         f.get_tissue_seg_mask()
         f.get_otsu_mask()
         f.combine_masks()
         f.process_image()
+        f.save_multi_res_coords()
 
     ### DEBUGGING ###
     log.setLevel(logging.ERROR)

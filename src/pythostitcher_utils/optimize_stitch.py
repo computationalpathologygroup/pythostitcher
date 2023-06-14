@@ -1,6 +1,7 @@
 import time
 import pickle
 import cv2
+import pandas as pd
 
 from .get_resname import get_resname
 from .genetic_algorithm import genetic_algorithm

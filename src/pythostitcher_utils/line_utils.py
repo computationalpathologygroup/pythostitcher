@@ -21,27 +21,29 @@ def apply_im_tform_to_coords(coords, fragment, rot_k):
     # Clip coords to prevent out of bounds indexing due to rounding errors
     coords_image_dims = (int(fragment.width / downscale),
                         int(fragment.height / downscale))
-    coords_ds_x = np.clip(coords_ds[:, 0], 0, coords_image_dims[0]-1)
-    coords_ds_y = np.clip(coords_ds[:, 1], 0, coords_image_dims[1]-1)
 
-    # Convert to image
-    coords_image = np.zeros((coords_image_dims))
-    coords_image[coords_ds_x, coords_ds_y] = 1
+    coords_ds_x = coords_ds[:, 0]
+    coords_ds_y = coords_ds[:, 1]
+
+    # Convert coords to image. Use larger image to prevent out of bounds indexing.
+    offset = int(0.3 * (coords_image_dims[0]))
+    coords_image = np.zeros((coords_image_dims[0] + 2 * offset, coords_image_dims[1] + 2 * offset))
+    coords_image[coords_ds_x + offset, coords_ds_y + offset] = 1
 
     # Sanity checks
     assert len(coords_ds_x) == len(coords_ds_y), \
-        "mismatch in number of x/y coordinates, check clipping"
+        "mismatch in number of x/y coordinates, check input coordinates"
     assert len(coords_ds_x) == np.sum(coords_image).astype("int"), \
-        "coords did not transfer properly to binary image"
+        "received duplicate coordinates, check input coordinates"
 
     # Rot image and extract coords
     coords_image = np.rot90(coords_image, rot_k, (0, 1))
     r, c = np.nonzero(coords_image)
-    coords_image_rot = np.vstack([r, c]).T
+    coords_image_rot = np.vstack([r - offset, c - offset]).T
     coords_image_rot = (coords_image_rot * downscale).astype("int")
 
     # Sort coords by x or y values depending on line direction
-    if np.std(coords_ds[:, 0]) > np.std(coords_ds[:, 1]):
+    if np.std(coords_image_rot[:, 0]) > np.std(coords_image_rot[:, 1]):
         coords_image_rot_sort = sorted(coords_image_rot, key=lambda x: x[0])
         coords_image_rot_sort = np.array(coords_image_rot_sort)
     else:

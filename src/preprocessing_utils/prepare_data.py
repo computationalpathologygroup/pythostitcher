@@ -2,6 +2,7 @@ import multiresolutionimageinterface as mir
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
+from scipy import ndimage
 
 
 class Processor:
@@ -46,10 +47,6 @@ class Processor:
         self.new_dims = self.raw_image.getLevelDimensions(self.new_level)
         self.image = self.raw_image.getUCharPatch(0, 0, *self.new_dims, self.new_level)
 
-        ### EXPERIMENTAL - shift black background to white for correct otsu thresholding###
-        self.image[np.all(self.image<10, axis=2)] = 255
-        ### \\\ EXPERIMENTAL ###
-
         # Get downsampled mask with same dimensions as downsampled image
         if self.mask_provided:
             mask_dims = [
@@ -81,9 +78,17 @@ class Processor:
 
         # Postprocess the mask a bit
         kernel = cv2.getStructuringElement(shape=cv2.MORPH_ELLIPSE, ksize=(8, 8))
+        pad = int(0.1 * self.otsu_mask.shape[0])
+        self.otsu_mask = np.pad(
+            self.otsu_mask,
+            [[pad, pad], [pad, pad]],
+            mode="constant",
+            constant_values=0
+        )
         self.otsu_mask = cv2.morphologyEx(
             src=self.otsu_mask, op=cv2.MORPH_CLOSE, kernel=kernel, iterations=3
         )
+        self.otsu_mask = self.otsu_mask[pad:-pad, pad:-pad]
 
         return
 
@@ -105,24 +110,24 @@ class Processor:
         largest_cc_label = np.argmax(stats[1:, -1]) + 1
         self.mask = ((labeled_im == largest_cc_label) * 255).astype("uint8")
 
-        # Closing operation to close some holes on the mask border
-        kernel = cv2.getStructuringElement(shape=cv2.MORPH_ELLIPSE, ksize=(10, 10))
-        self.mask = cv2.morphologyEx(src=self.mask, op=cv2.MORPH_CLOSE, kernel=kernel, iterations=2)
-
-        # Temporarily enlarge mask for succesful floodfill later
-        offset = 5
+        # Temporarily enlarge mask for better closing
+        pad = int(0.1 * self.mask.shape[0])
         self.mask = np.pad(
             self.mask,
-            [[offset, offset], [offset, offset]],
+            [[pad, pad], [pad, pad]],
             mode="constant",
             constant_values=0
         )
+
+        # Closing operation to close some holes on the mask border
+        kernel = cv2.getStructuringElement(shape=cv2.MORPH_ELLIPSE, ksize=(10, 10))
+        self.mask = cv2.morphologyEx(src=self.mask, op=cv2.MORPH_CLOSE, kernel=kernel, iterations=2)
 
         # Flood fill to remove holes inside mask. The floodfill mask is required by opencv
         seedpoint = (0, 0)
         floodfill_mask = np.zeros((self.mask.shape[0] + 2, self.mask.shape[1] + 2)).astype("uint8")
         _, _, self.mask, _ = cv2.floodFill(self.mask, floodfill_mask, seedpoint, 255)
-        self.mask = self.mask[1+offset:-1-offset, 1+offset:-1-offset]
+        self.mask = self.mask[1+pad:-1-pad, 1+pad:-1-pad]
         self.mask = 1 - self.mask
 
         assert np.sum(self.mask) > 0, "floodfilled mask is empty"

@@ -648,8 +648,7 @@ class Assembler:
 
         # Compute assembly score
         locations = ["upper", "lower", "left", "right"]
-        self.mse_score = 0
-        # self.mse_score = np.sum([self.compute_mse_stitch_line(location=l) for l in locations])
+        self.mse_score = np.sum([self.compute_mse_stitch_line(location=l) for l in locations])
 
         # Write results for each solution to text file
         location_solution = self.case_path.joinpath("location_solution.txt")
@@ -816,7 +815,7 @@ class Assembler:
 
         # Plot result
         plt.figure(figsize=(8, 8))
-        plt.title(f"JSN score = {self.sol_score:.2f}, MSE score = {self.mse_score}")
+        plt.title(f"JSN score = {self.sol_score:.2f}, MSE score = {int(self.mse_score)}")
         plt.imshow(assembled_image_crop)
         plt.axis("off")
         plt.savefig(self.result_path.joinpath(f"sol_{self.sol_idx}.png"))

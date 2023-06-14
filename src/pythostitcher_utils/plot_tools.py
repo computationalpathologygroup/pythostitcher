@@ -4,6 +4,7 @@ import warnings
 import numpy as np
 import imageio
 import matplotlib.pyplot as plt
+import pandas as pd
 
 from .fuse_images_lowres import fuse_images_lowres
 from .get_resname import get_resname
