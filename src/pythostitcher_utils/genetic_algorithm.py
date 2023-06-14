@@ -49,7 +49,7 @@ def genetic_algorithm(fragments, parameters, initial_tform):
     init_fitness = fitness_func(solution=ga_tform, solution_idx=0)
     num_sol = parameters["n_solutions"]
     num_gen = parameters["n_generations"][parameters["iteration"]]
-    keep_parents = parameters["n_parents"]
+    keep_elitism = parameters["n_parents"]
     parents_mating = parameters["n_mating"]
     parents = parameters["parent_selection"]
     p_crossover = parameters["p_crossover"]
@@ -65,6 +65,7 @@ def genetic_algorithm(fragments, parameters, initial_tform):
         np.mean(fragments[0].tform_image.shape)
     )
     a_range = parameters["angle_range"][parameters["iteration"]]
+    print(f"Using translations in range: {parameters['translation_range'][parameters['iteration']]}")
     angles = [False, False, True] * num_fragments
     lb = [
         int(x - a_range) if is_angle else int(x - t_range) for x, is_angle in zip(ga_tform, angles)
@@ -72,10 +73,13 @@ def genetic_algorithm(fragments, parameters, initial_tform):
     ub = [
         int(x + a_range) if is_angle else int(x + t_range) for x, is_angle in zip(ga_tform, angles)
     ]
-    param_range = [
-        np.arange(lower, upper, step=0.1) if a else np.arange(lower, upper, step=1)
-        for lower, upper, a in zip(lb, ub, angles)
-    ]
+
+    param_range = []
+    for lower, upper in zip(lb, ub):
+        range_dict = dict()
+        range_dict["low"] = lower
+        range_dict["high"] = upper
+        param_range.append(range_dict)
 
     # Perform random initialization of the first generation. The range for these values has
     # been established empirically. The seed is used to ensure that we start with the same
@@ -86,7 +90,7 @@ def genetic_algorithm(fragments, parameters, initial_tform):
         translation_noise = np.random.randint(
             low=np.round(-t_range), high=np.round(t_range), size=num_genes - 4
         )
-        angle_noise = np.random.randint(low=-a_range / 5, high=a_range / 5, size=4)
+        angle_noise = np.random.randint(low=-a_range, high=a_range, size=4)
         total_noise = [
             *translation_noise[:2],
             angle_noise[0],
@@ -106,8 +110,7 @@ def genetic_algorithm(fragments, parameters, initial_tform):
         fitness_func=fitness_func,  # optimization function
         initial_population=init_pop,  # gene values for first population
         gene_space=param_range,  # parameter search range
-        # keep_parents=keep_parents,  # num of parents that proceed to next generation
-        keep_elitism=1,  # only keep best parent in next generation
+        keep_elitism=keep_elitism,  # only keep best parent in next generation
         num_parents_mating=parents_mating,  # num parents that produce offspring
         parent_selection_type=parents,  # function to select parents for offspring
         crossover_type=crossover_type,  # (M) method how genes between parents are combined
@@ -117,7 +120,7 @@ def genetic_algorithm(fragments, parameters, initial_tform):
         on_generation=plot_best_sol_per_gen,  # plot the result after every N generations
         save_best_solutions=True,  # must be True in order to use the callback above
         suppress_warnings=True,  # suppress warnings
-        stop_criteria=stop_criteria,  # early stopping when no improvement after 25 generations
+        stop_criteria=stop_criteria,  # early stopping when no improvement after x generations
         allow_duplicate_genes=False  # do not allow duplicate solutions
     )
 
@@ -191,7 +194,7 @@ def fitness_func(solution, solution_idx):
     sol_tforms = []
     for c, f in enumerate(global_fragments):
         sol = [
-            *solution[c * 3 : c * 3 + 3],
+            *np.round(solution[c * 3 : c * 3 + 3], 2),
             f.image_center_peri,
             global_init_tform[f.final_orientation][4],
         ]
@@ -201,7 +204,7 @@ def fitness_func(solution, solution_idx):
     combo_tforms = []
     for f, s in zip(global_fragments, sol_tforms):
         com = [
-            *[a + b for a, b in zip(global_init_tform[f.final_orientation][:3], s)],
+            *np.round([a + b for a, b in zip(global_init_tform[f.final_orientation][:3], s)], 2),
             *global_init_tform[f.final_orientation][3:],
         ]
         combo_tforms.append(com)
@@ -215,6 +218,27 @@ def fitness_func(solution, solution_idx):
     # Cost function that penalizes a large distance between endpoints of fragments
     distance_cost = distance_cost_function_v2(fragments=global_fragments)
     total_cost = distance_cost
+
+    debug_this = False
+    if debug_this:
+        simple_recombine = np.sum(np.stack([i.colour_image for i in global_fragments]), axis=0)
+        title = " ".join([f"{i.classifier_label}: {t[:3]}\n" for i, t in zip(global_fragments, combo_tforms)])
+        title = title.rstrip("\n")
+        plt.figure(figsize=(8, 10))
+        plt.title(f"sol idx: {solution_idx}\n{title}\ncost: {np.round(total_cost, 2)}", fontsize=20)
+        plt.imshow(simple_recombine)
+        for frag in global_fragments:
+            plt.scatter(
+                np.array(frag.h_edge_theilsen_coords_tform)[:, 0],
+                np.array(frag.h_edge_theilsen_coords_tform)[:, 1],
+                c="r"
+            )
+            plt.scatter(
+                np.array(frag.v_edge_theilsen_coords_tform)[:, 0],
+                np.array(frag.v_edge_theilsen_coords_tform)[:, 1],
+                c="r"
+            )
+        plt.show()
 
     return 1 / total_cost
 
@@ -849,7 +873,7 @@ def distance_cost_function_v2(fragments):
                 global_parameters["iteration"] == 0
                 and distance_scaling["distance_scaling_hor_required"]
             ):
-                base_cost = [np.float(cdist(a[np.newaxis, :], b[np.newaxis, :])) \
+                base_cost = [np.float(cdist(a[np.newaxis, :], b[np.newaxis, :]))**2 \
                              for a, b in zip(hline1_pts, hline2_pts)]
                 distance_scaling[hkey] = np.round(np.mean(base_cost), 2)
 
@@ -870,7 +894,7 @@ def distance_cost_function_v2(fragments):
                 )
 
             # Compute resolution specific cost
-            res_costs = [np.float(cdist(a[np.newaxis, :], b[np.newaxis, :])) \
+            res_costs = [np.float(cdist(a[np.newaxis, :], b[np.newaxis, :]))**2 \
                              for a, b in zip(hline1_pts, hline2_pts)]
             res_costs = np.mean(res_costs) / (res_scaling * distance_scaling[hkey])
             distance_costs.append(np.round(res_costs, 2))
@@ -908,7 +932,7 @@ def distance_cost_function_v2(fragments):
                 global_parameters["iteration"] == 0
                 and distance_scaling["distance_scaling_ver_required"]
             ):
-                base_cost = [np.float(cdist(a[np.newaxis, :], b[np.newaxis, :])) \
+                base_cost = [np.float(cdist(a[np.newaxis, :], b[np.newaxis, :]))**2 \
                              for a, b in zip(vline1_pts, vline2_pts)]
                 distance_scaling[vkey] = np.round(np.mean(base_cost), 2)
 
@@ -923,7 +947,7 @@ def distance_cost_function_v2(fragments):
                 warnings.warn("Distance cost is not scaled properly")
 
             # Compute resolution specific cost
-            res_costs = [np.float(cdist(a[np.newaxis, :], b[np.newaxis, :])) \
+            res_costs = [np.float(cdist(a[np.newaxis, :], b[np.newaxis, :]))**2 \
                          for a, b in zip(vline1_pts, vline2_pts)]
             res_costs = np.mean(res_costs) / (res_scaling * distance_scaling[vkey])
             distance_costs.append(np.round(res_costs, 2))

@@ -1,6 +1,5 @@
 {
 	"resolutions": [0.05, 0.15, 0.45, 1],
-	
 	"image_level": 7,
 	"pad_fraction": 0.5,
 	"slice_idx": "slice_0",
@@ -8,7 +7,7 @@
 	
 	"n_solutions": 40,
 	"n_generations": [400, 200, 200, 100],
-	"n_parents": 3,
+	"n_parents": 2,
 	"n_mating": 6,
 	"p_crossover": 0.5,
 	"crossover_type": "scattered",
@@ -25,8 +24,8 @@
 	"distance_scaling_hor_required": true,
 	"distance_scaling_ver_required": true,
 
-	"translation_range": [0.05, 0.025, 0.0083, 0.0083],
-	"angle_range": [10, 10, 5, 5],
+	"translation_range": [0.05, 0.025, 0.015, 0.01],
+	"angle_range": [10, 5, 3, 1],
 
 	"weights_fragment_classifier": "model_weights/fragment_classifier/best_weights.hdf5",
 	"alignment_score": "jigsawnet",
