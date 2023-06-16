@@ -65,7 +65,6 @@ def load_parameter_configuration(data_dir, save_dir, output_res):
         2, 4,
     ], "pythostitcher only supports stitching 2/4 fragments"
 
-
     # Make directories for later saving
     dirnames = [
         pathlib.Path(parameters["save_dir"]),
@@ -89,15 +88,21 @@ def collect_arguments():
         description="Stitch histopathology images into a pseudo whole-mount image"
     )
     parser.add_argument(
-        "--datadir", required=True, type=pathlib.Path, help="Path to the case to stitch"
+        "--datadir",
+        required=True,
+        type=pathlib.Path,
+        help="Path to the case to stitch"
     )
     parser.add_argument(
-        "--savedir", required=True, type=pathlib.Path, help="Directory to save the results",
+        "--savedir",
+        required=True,
+        type=pathlib.Path,
+        help="Directory to save the results",
     )
     parser.add_argument(
         "--resolution",
         required=True,
-        default=0.25,
+        default=1,
         type=float,
         help="Output resolution (µm/pixel) of the reconstructed image. Should be roughly "
         "in range of 0.25-16 with a factor 2 between steps (0.25-0.50-1.00 etc).",
@@ -106,27 +111,22 @@ def collect_arguments():
 
     # Extract arguments
     data_dir = pathlib.Path(args.datadir)
-    save_dir = pathlib.Path(args.savedir).joinpath(data_dir.name)
     resolution = args.resolution
 
     assert data_dir.is_dir(), "provided patient directory doesn't exist"
-    assert data_dir.joinpath("raw_images").is_dir(), "patient has no 'raw_images' directory"
-    assert (
-        len(list(data_dir.joinpath("raw_images").iterdir())) > 0
-    ), "no images found in 'raw_images' directory"
     assert resolution > 0, "output resolution cannot be negative"
 
-    print(
-        f"\nRunning job with following parameters:"
-        f"\n - Data dir: {data_dir}"
-        f"\n - Save dir: {save_dir}"
-        f"\n - Output resolution: {resolution} µm/pixel\n"
-    )
+    if not data_dir.joinpath("raw_images").is_dir():
+        mode = "batch"
+        save_dir = pathlib.Path(args.savedir)
+    else:
+        mode = "single"
+        save_dir = pathlib.Path(args.savedir).joinpath(data_dir.name)
 
-    return data_dir, save_dir, resolution
+    return data_dir, save_dir, resolution, mode
 
 
-def main():
+def run_case(data_dir, save_dir, output_res):
     """
     PythoStitcher is an automated and robust program for stitching prostate tissue
     fragments into a whole histological section.
@@ -153,13 +153,25 @@ def main():
 
     """
 
-    ### ARGUMENT CONFIGURATION ###
+    # Sanity checks
+    assert data_dir.joinpath("raw_images").is_dir(), "patient has no 'raw_images' directory"
+    assert (
+        len(list(data_dir.joinpath("raw_images").iterdir())) > 0
+    ), "no images found in 'raw_images' directory"
+
+    print(
+        f"\nRunning job with following parameters:"
+        f"\n - Data dir: {data_dir}"
+        f"\n - Save dir: {save_dir}"
+        f"\n - Output resolution: {output_res} µm/pixel\n"
+    )
+
     # Collect arguments
-    data_dir, save_dir, output_res = collect_arguments()
     parameters = load_parameter_configuration(data_dir, save_dir, output_res)
 
     # Initiate logging file
-    logfile = save_dir.joinpath("pythostitcher_log.log")
+    import logging
+    logfile = save_dir.joinpath("pythostitcher_log.txt")
     if logfile.exists():
         logfile.unlink()
 
@@ -168,9 +180,10 @@ def main():
         level=logging.WARNING,
         format="%(asctime)s    %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
+        force=True
     )
     logging.addLevelName(parameters["my_level"], "output")
-    log = logging.getLogger("pythostitcher")
+    log = logging.getLogger(f"{data_dir.name}")
 
     parameters["log"] = log
     parameters["log"].log(parameters["my_level"], f"Running job with following parameters:")
@@ -231,6 +244,39 @@ def main():
         parameters["log"].log(
             parameters["my_level"], f"### Succesfully stitched solution {count_sol} ###\n",
         )
+
+    del parameters, log
+
+    return
+
+
+def main():
+    """
+    Main function to run PythoStitcher. PythoStitcher will automatically figure out if
+    the provided data directory contains multiple patients. If so, it will initiate
+    batch mode. Otherwise it will run in single mode.
+    """
+
+    # Get arguments and determine single/batch mode
+    data_dir, save_dir, output_res, mode = collect_arguments()
+
+    # Run PythoStitcher for a single case or a batch of cases.
+    if mode == "single":
+        run_case(data_dir, save_dir, output_res)
+    elif mode == "batch":
+
+        # Extract valid patients
+        patients = sorted([i for i in data_dir.iterdir() if i.joinpath("raw_images").is_dir()])
+
+        # Filter patients that have already been stitched
+        patients = sorted([i for i in patients if not save_dir.joinpath(i.name).is_dir()])
+        print(f"\n### Identified {len(patients)} cases. ###")
+
+        for pt in patients:
+
+            pt_data_dir = data_dir.joinpath(pt.name)
+            pt_save_dir = save_dir.joinpath(pt.name)
+            run_case(pt_data_dir, pt_save_dir, output_res)
 
     return
 
