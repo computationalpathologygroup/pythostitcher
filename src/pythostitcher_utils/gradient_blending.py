@@ -123,14 +123,14 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
 
             # Get tilesize and take into account not to cross image size borders
             if cnt_dir == "hor":
-                xstart = seed[0]
-                ystart = seed[1] - int(0.5 * (short_end_len))
+                xstart = np.max([0, seed[0]])
+                ystart = np.max([0, seed[1] - int(0.5 * (short_end_len))])
                 width = np.min([long_end, max_image_width - seed[0] - 1])
                 height = np.min([short_end_len, max_image_height - seed[1] - 1])
 
             elif cnt_dir == "ver":
-                xstart = seed[0] - int(0.5 * (short_end_len))
-                ystart = seed[1]
+                xstart = np.max([0, seed[0] - int(0.5 * (short_end_len))])
+                ystart = np.max([0, seed[1]])
                 width = np.min([short_end_len, max_image_width - seed[0] - 1])
                 height = np.min([long_end, max_image_height - seed[1] - 1])
 

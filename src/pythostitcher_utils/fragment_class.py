@@ -117,7 +117,8 @@ class Fragment:
 
         # Apply rotation/flipping
         if self.rot_k != 0:
-            self.original_image = np.rot90(self.original_image, k=self.rot_k, axes=(1, 0))
+            # self.original_image = np.rot90(self.original_image, k=self.rot_k, axes=(1, 0))
+            self.original_image = np.rot90(self.original_image, k=-self.rot_k)
 
         return
 
@@ -155,7 +156,8 @@ class Fragment:
 
         # Rotate and resize mask to match image
         if self.rot_k != 0:
-            self.mask = np.rot90(self.mask, k=self.rot_k, axes=(1, 0))
+            # self.mask = np.rot90(self.mask, k=self.rot_k, axes=(1, 0))
+            self.mask = np.rot90(self.mask, k=-self.rot_k)
         self.mask = (cv2.resize(self.mask, self.target_size) > 128) * 1
 
         # Apply mask to image
@@ -311,8 +313,6 @@ class Fragment:
         bbox_corner_dist = bbox_center - self.bbox_corners
         # Again expand bbox
         if self.final_orientation in ["left", "right"]:
-            # bbox_corners_expansion = -np.vstack([bbox_corner_dist[:, 0] * 2, np.zeros_like(
-            #     bbox_corner_dist[:, 0])]).T
             bbox_corners_expansion = -np.vstack(
                 [bbox_corner_dist[:, 0] * 2, bbox_corner_dist[:, 1] * 0.5]
             )
@@ -608,14 +608,14 @@ class Fragment:
             # Top fragment should not be translated vertically but has to be
             # padded vertically
             trans_y = 0
-            expand_y = np.shape(other_fragment.tform_image_local)[0] + eps
+            expand_y = np.shape(other_fragment.tform_image)[0] + eps
 
             # Perform horizontal translation depending on size of the fused LL/LR
             # piece.
-            if np.shape(self.tform_image_local)[1] < np.shape(other_fragment.tform_image_local)[1]:
+            if np.shape(self.tform_image)[1] < np.shape(other_fragment.tform_image)[1]:
                 trans_x = (
-                    np.shape(other_fragment.tform_image_local)[1]
-                    - np.shape(self.tform_image_local)[1]
+                    np.shape(other_fragment.tform_image)[1]
+                    - np.shape(self.tform_image)[1]
                 )
             else:
                 trans_x = 0
@@ -623,21 +623,21 @@ class Fragment:
             # Get output shape. This should be larger than original image due to
             # translation
             output_shape = (
-                np.shape(self.tform_image_local)[0] + expand_y,
-                np.shape(self.tform_image_local)[1] + trans_x,
+                np.shape(self.tform_image)[0] + expand_y,
+                np.shape(self.tform_image)[1] + trans_x,
             )
 
         elif self.final_orientation == "bottom":
 
             # Bottom fragment should be translated and padded vertically
-            trans_y = np.shape(other_fragment.tform_image_local)[0] + eps
+            trans_y = np.shape(other_fragment.tform_image)[0] + eps
 
             # Perform horizontal translation depending on size of the fused LL/LR
             # piece.
-            if np.shape(self.tform_image_local)[1] < np.shape(other_fragment.tform_image_local)[1]:
+            if np.shape(self.tform_image)[1] < np.shape(other_fragment.tform_image)[1]:
                 trans_x = (
-                    np.shape(other_fragment.tform_image_local)[1]
-                    - np.shape(self.tform_image_local)[1]
+                    np.shape(other_fragment.tform_image)[1]
+                    - np.shape(self.tform_image)[1]
                 )
             else:
                 trans_x = 0
@@ -645,13 +645,12 @@ class Fragment:
             # Get output shape. This should be larger than original image due to
             # translation
             output_shape = (
-                np.shape(self.tform_image_local)[0] + trans_y,
-                np.shape(self.tform_image_local)[1] + trans_x,
+                np.shape(self.tform_image)[0] + trans_y,
+                np.shape(self.tform_image)[1] + trans_x,
             )
 
         if self.final_orientation in ["left", "right", "top", "bottom"]:
             self.output_shape = output_shape
-            self.tform_image = copy.copy(self.tform_image)
 
         # Apply transformation. Output shape is defined such that horizontally aligned
         # fragments can be added elementwise.
@@ -818,13 +817,13 @@ class Fragment:
 
             if self.mask_corner_a_idx < self.mask_corner_b_idx:
                 option_a = list(self.cnt[self.mask_corner_a_idx : self.mask_corner_b_idx])
-                option_b = list(self.cnt[self.mask_corner_a_idx :]) + list(
-                    self.cnt[: self.mask_corner_b_idx]
+                option_b = list(self.cnt[self.mask_corner_b_idx :]) + list(
+                    self.cnt[: self.mask_corner_a_idx]
                 )
             else:
                 option_a = list(self.cnt[self.mask_corner_b_idx : self.mask_corner_a_idx])
-                option_b = list(self.cnt[self.mask_corner_b_idx :]) + list(
-                    self.cnt[: self.mask_corner_a_idx]
+                option_b = list(self.cnt[self.mask_corner_a_idx :]) + list(
+                    self.cnt[: self.mask_corner_b_idx]
                 )
 
             edge_ab = option_a if len(option_a) < len(option_b) else option_b

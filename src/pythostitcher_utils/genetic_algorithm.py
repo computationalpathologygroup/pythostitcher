@@ -65,7 +65,6 @@ def genetic_algorithm(fragments, parameters, initial_tform):
         np.mean(fragments[0].tform_image.shape)
     )
     a_range = parameters["angle_range"][parameters["iteration"]]
-    print(f"Using translations in range: {parameters['translation_range'][parameters['iteration']]}")
     angles = [False, False, True] * num_fragments
     lb = [
         int(x - a_range) if is_angle else int(x - t_range) for x, is_angle in zip(ga_tform, angles)
@@ -957,7 +956,8 @@ def distance_cost_function_v2(fragments):
         distance_scaling["distance_scaling_hor_required"] = False
         distance_scaling["distance_scaling_ver_required"] = False
 
-    cost = np.mean(distance_costs)
+    eps = 1e-6
+    cost = np.mean(distance_costs) + eps
 
     return cost
 

@@ -224,7 +224,7 @@ class Fragment:
         """
         Method to get some edges for matching the fragments. The method can be summarized
         as follows:
-        1. Get the tissue contour and simplify using RDP algorithm
+        1. Get the tissue contour
         2. Create large bounding box around contour
         3. Find closest point on contour from each bounding box corner
         4. Use the predicted stitch edge side to compute the stitching edge coordinates
@@ -386,7 +386,7 @@ class Fragment:
         if std_x < std_y:
             config = "right" if avg_x < center[0] else "left"
         else:
-            config = "top" if avg_y < center[1] else "bottom"
+            config = "bottom" if avg_y < center[1] else "top"
 
         # Write location solution txt file. We use this later to load in the fragments
         location_solution = self.save_dir.joinpath(
@@ -404,7 +404,7 @@ class Fragment:
             self.rot_k = idx_diff if idx_diff > 0 else idx_diff + 4
 
             # Save rotated images
-            self.original_image = np.rot90(self.original_image, k=self.rot_k, axes=(1, 0))
+            self.original_image = np.rot90(self.original_image, k=-self.rot_k)
             cv2.imwrite(
                 str(self.save_dir.joinpath("configuration_detection", self.fragment_name)),
                 cv2.cvtColor(self.original_image, cv2.COLOR_RGB2BGR),
@@ -449,11 +449,21 @@ class Fragment:
                     f.write(f"\n{self.fragment_name}:{required_config}")
 
                 # Save rotated images
-                self.original_image = np.rot90(self.original_image, k=self.rot_k, axes=(1, 0))
+                self.original_image = np.rot90(self.original_image, k=-self.rot_k)
                 cv2.imwrite(
                     str(self.save_dir.joinpath("configuration_detection", self.fragment_name)),
                     cv2.cvtColor(self.original_image, cv2.COLOR_RGB2BGR),
                 )
+
+                # Also change the preprocessed images
+                # if self.rot_k != 0:
+                #     for path in [self.im_path, self.mask_path]:
+                #         temp = cv2.imread(str(path))
+                #         temp = np.rot90(temp, k=-self.rot_k)
+                #         cv2.imwrite(
+                #             str(path),
+                #             temp
+                #         )
 
         return
 
@@ -469,8 +479,6 @@ class Fragment:
         5. Compute simplified contour and stitch edges
         6.
         """
-
-        print("Extracting landmarks...")
 
         ### STEP 1 ###
         # Load raw image
