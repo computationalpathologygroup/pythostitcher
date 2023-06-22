@@ -170,7 +170,6 @@ def run_case(data_dir, save_dir, output_res):
     parameters = load_parameter_configuration(data_dir, save_dir, output_res)
 
     # Initiate logging file
-    import logging
     logfile = save_dir.joinpath("pythostitcher_log.txt")
     if logfile.exists():
         logfile.unlink()
@@ -245,6 +244,9 @@ def run_case(data_dir, save_dir, output_res):
             parameters["my_level"], f"### Succesfully stitched solution {count_sol} ###\n",
         )
 
+    parameters["log"].log(
+        parameters["my_level"], f"\nPythoStitcher completed!",
+    )
     del parameters, log
 
     return

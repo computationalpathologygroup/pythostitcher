@@ -132,13 +132,38 @@ class Fragment:
         # the XY-axis. The fragment classifier was also trained on these images.
         center = np.mean(cnt, axis=0)
         angle = bbox[2] if bbox[2] < 45 else bbox[2] - 90
+
+        # Pad the image a bit for better rotation
+        pad = int(self.original_image.shape[0] * 0.5)
+        center += pad
         rot_mat = cv2.getRotationMatrix2D(center=center, angle=angle, scale=1)
+
+        self.original_image = np.pad(
+            self.original_image,
+            [[pad, pad], [pad, pad], [0, 0]],
+            constant_values=255,
+        )
+        self.mask = np.pad(
+            self.mask,
+            [[pad, pad], [pad, pad]],
+            constant_values=0,
+        )
+
         self.original_image = cv2.warpAffine(
             self.original_image,
             rot_mat,
             self.original_image.shape[:-1],
             borderValue=(255, 255, 255)
         )
+        self.mask = cv2.warpAffine(
+            self.mask,
+            rot_mat,
+            self.mask.shape,
+            borderValue=(0, 0, 0)
+        )
+        pad = int(0.8*pad)
+        self.original_image = self.original_image[pad:-pad, pad:-pad]
+        self.mask = self.mask[pad:-pad, pad:-pad]
 
         ### EXPERIMENTAL ###
         # Some scanners use a slightly gray background for areas without tissue. This
@@ -150,8 +175,6 @@ class Fragment:
         sat_thres = 15
         self.original_image_new[self.original_image_hsv[:, :, 1] < sat_thres] = 255
         ### EXPERIMENTAL ###
-
-        self.mask = cv2.warpAffine(self.mask, rot_mat, self.mask.shape)
 
         # Make smaller version for classifier
         if self.num_fragments == 4:
@@ -269,8 +292,8 @@ class Fragment:
                     bbox_corner_dist[:, 0])]).T
 
             elif self.location in ["top", "bottom"]:
-                bbox_corners_expansion = -np.vstack(np.zeros_like(bbox_corner_dist[:, 0]),
-                                                    [bbox_corner_dist[:, 1]*5]).T
+                bbox_corners_expansion = -np.vstack([np.zeros_like(bbox_corner_dist[:, 0]),
+                                                    [bbox_corner_dist[:, 1]*5]]).T
 
         # Case of 4 fragments expand uniformly.
         else:
@@ -303,10 +326,16 @@ class Fragment:
                 if self.location == "left":
                     start_corner = self.cnt_corners_loop[ul_cnt_corner_idx + 1]
                     end_corner = self.cnt_corners_loop[ul_cnt_corner_idx + 2]
-
+                elif self.location == "top":
+                    start_corner = self.cnt_corners_loop[ul_cnt_corner_idx + 2]
+                    end_corner = self.cnt_corners_loop[ul_cnt_corner_idx + 3]
                 elif self.location == "right":
                     start_corner = self.cnt_corners_loop[ul_cnt_corner_idx + 3]
                     end_corner = self.cnt_corners_loop[ul_cnt_corner_idx]
+                elif self.location == "bottom":
+                    start_corner = self.cnt_corners_loop[ul_cnt_corner_idx]
+                    end_corner = self.cnt_corners_loop[ul_cnt_corner_idx + 1]
+
 
             else:
                 # Compute distance from contour corners to surrounding bbox
@@ -454,16 +483,6 @@ class Fragment:
                     str(self.save_dir.joinpath("configuration_detection", self.fragment_name)),
                     cv2.cvtColor(self.original_image, cv2.COLOR_RGB2BGR),
                 )
-
-                # Also change the preprocessed images
-                # if self.rot_k != 0:
-                #     for path in [self.im_path, self.mask_path]:
-                #         temp = cv2.imread(str(path))
-                #         temp = np.rot90(temp, k=-self.rot_k)
-                #         cv2.imwrite(
-                #             str(path),
-                #             temp
-                #         )
 
         return
 
@@ -623,7 +642,8 @@ class Fragment:
                     bbox_corner_dist[:, 0])]).T
 
             elif self.location in ["top", "bottom"]:
-                bbox_corners_expansion = np.vstack(np.zeros_like(bbox_corner_dist[:, 0]), [bbox_corner_dist[:, 1]*5]).T
+                bbox_corners_expansion = np.vstack([np.zeros_like(bbox_corner_dist[:, 0]),
+                                                    [bbox_corner_dist[:, 1]*5]]).T
 
         # Case of 4 fragments expand uniformly.
         else:
@@ -647,13 +667,19 @@ class Fragment:
         if self.num_fragments == 2:
 
             if hasattr(self, "location"):
+
                 if self.location == "left":
                     start_corner = cnt_corners_loop[ul_cnt_corner_idx + 1]
                     end_corner = cnt_corners_loop[ul_cnt_corner_idx + 2]
-
+                elif self.location == "top":
+                    start_corner = cnt_corners_loop[ul_cnt_corner_idx + 2]
+                    end_corner = cnt_corners_loop[ul_cnt_corner_idx + 3]
                 elif self.location == "right":
                     start_corner = cnt_corners_loop[ul_cnt_corner_idx + 3]
                     end_corner = cnt_corners_loop[ul_cnt_corner_idx]
+                elif self.location == "bottom":
+                    start_corner = cnt_corners_loop[ul_cnt_corner_idx]
+                    end_corner = cnt_corners_loop[ul_cnt_corner_idx + 1]
 
             else:
                 # Compute distance from contour corners to surrounding bbox

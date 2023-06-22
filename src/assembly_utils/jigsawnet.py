@@ -198,6 +198,8 @@ def jigsawnet_scoring(parameters):
     tf.compat.v1.reset_default_graph()
     parameters["log"].setLevel(logging.WARNING)
 
+    del net, evaluator
+
     return
 
 
@@ -264,5 +266,7 @@ def SingleTest(checkpoint_root, K, net, is_training=False):
     # Close sessions after inference
     for sess in sessions:
         sess.close()
+
+    tf.compat.v1.reset_default_graph()
 
     return
