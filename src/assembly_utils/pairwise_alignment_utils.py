@@ -196,32 +196,52 @@ class Fragment:
         """
 
         if self.num_fragments == 4:
-            # Make a pseudo ensemble of the 8 variations of this image
-            flip = ["hor", "hor", "ver", "ver", "both", "both", "none", "none"]
-            rot = [0, 90, 0, 90, 0, 90, 0, 90]
-            true_labels = []
-            tform_images = []
 
-            # Get transformed images
-            for r, f in zip(rot, flip):
-                tform_im = self.classifier.transform_image(image=self.model_image, rot=r, flip=f)
-                tform_images.append(tform_im[np.newaxis, :])
+            if self.force_config:
+                complementary_config = {
+                    "ul": "lr",
+                    "ur": "ll",
+                    "lr": "ul",
+                    "ll": "ur"
+                }
+                name_to_label = {
+                    "ur" : 1,
+                    "lr" : 2,
+                    "ll" : 3,
+                    "ul" : 4
+                }
 
-            # Put batch of images in datagenerator for fast inference
-            stacked_images = np.vstack(tform_images)
-            datagen = ImageDataGenerator().flow(x=stacked_images, shuffle=False)
-            pred = self.classifier.model.predict(datagen)
-            pred = np.argmax(pred, axis=1) + 1
-            pred = pred.tolist()
+                complementary_label = complementary_config[self.location.lower()]
+                self.stitch_edge_label = name_to_label[complementary_label]
 
-            # Convert back to original label without flipping/rotating
-            for l, r, f in zip(pred, rot, flip):
-                tformed_label = self.classifier.transform_label(label=l, rot=r, flip=f)
-                true_labels.append(tformed_label)
+            else:
 
-            # Get majority vote
-            counter = Counter(true_labels)
-            self.stitch_edge_label = counter.most_common(1)[0][0]
+                # Make a pseudo ensemble of the 8 variations of this image
+                flip = ["hor", "hor", "ver", "ver", "both", "both", "none", "none"]
+                rot = [0, 90, 0, 90, 0, 90, 0, 90]
+                true_labels = []
+                tform_images = []
+
+                # Get transformed images
+                for r, f in zip(rot, flip):
+                    tform_im = self.classifier.transform_image(image=self.model_image, rot=r, flip=f)
+                    tform_images.append(tform_im[np.newaxis, :])
+
+                # Put batch of images in datagenerator for fast inference
+                stacked_images = np.vstack(tform_images)
+                datagen = ImageDataGenerator().flow(x=stacked_images, shuffle=False)
+                pred = self.classifier.model.predict(datagen)
+                pred = np.argmax(pred, axis=1) + 1
+                pred = pred.tolist()
+
+                # Convert back to original label without flipping/rotating
+                for l, r, f in zip(pred, rot, flip):
+                    tformed_label = self.classifier.transform_label(label=l, rot=r, flip=f)
+                    true_labels.append(tformed_label)
+
+                # Get majority vote
+                counter = Counter(true_labels)
+                self.stitch_edge_label = counter.most_common(1)[0][0]
 
         return
 
@@ -286,7 +306,7 @@ class Fragment:
         # Expand the bbox for a bit more robust point selection on the contour. We expand
         # the bbox in only one direction or uniformly, depending on whether we are dealing
         # with 2 or 4 fragments. These choices were based on empirical observations.
-        if hasattr(self, "location"):
+        if hasattr(self, "location") and self.num_fragments == 2:
             if self.location in ["left", "right"]:
                 bbox_corners_expansion = -np.vstack([bbox_corner_dist[:, 0]*5, np.zeros_like(
                     bbox_corner_dist[:, 0])]).T
@@ -404,7 +424,12 @@ class Fragment:
         Function to save the image orientation such that it matches the other fragment.
         """
 
-        complementary_config = {"top": "bottom", "right": "left", "bottom": "top", "left": "right"}
+        complementary_config = {
+            "top": "bottom",
+            "right": "left",
+            "bottom": "top",
+            "left": "right"
+        }
         clockwise_config = list(complementary_config.keys())
 
         # Determine the configuration of the fragment
@@ -636,7 +661,7 @@ class Fragment:
         bbox_corner_dist = bbox_center - bbox_points
 
         # Again expand bbox
-        if hasattr(self, "location"):
+        if hasattr(self, "location") and self.num_fragments == 2:
             if self.location in ["left", "right"]:
                 bbox_corners_expansion = np.vstack([bbox_corner_dist[:, 0]*5, np.zeros_like(
                     bbox_corner_dist[:, 0])]).T
@@ -1117,13 +1142,17 @@ def plot_stitch_edge_classification(fragments, parameters):
     label_to_name = {"1": "UR", "2": "LR", "3": "LL", "4": "UL"}
 
     plt.figure(figsize=(8, 8))
-    plt.suptitle("Stitch edge classification result", fontsize=18)
+    plt.suptitle("Stitch edge result", fontsize=18)
     for c, f in enumerate(fragments, 1):
         plt.subplot(2, 2, c)
         plt.title(f"pred: {label_to_name[str(f.stitch_edge_label)]}")
         plt.imshow(f.original_image)
         plt.plot(f.cnt_fragments[0][:, 0], f.cnt_fragments[0][:, 1], c="r")
         plt.plot(f.cnt_fragments[1][:, 0], f.cnt_fragments[1][:, 1], c="r")
+        plt.scatter(f.cnt_fragments[0][0, 0], f.cnt_fragments[0][0, 1], c="r")
+        plt.scatter(f.cnt_fragments[0][-1, 0], f.cnt_fragments[0][-1, 1], c="r")
+        plt.scatter(f.cnt_fragments[1][0, 0], f.cnt_fragments[1][0, 1], c="r")
+        plt.scatter(f.cnt_fragments[1][-1, 0], f.cnt_fragments[1][-1, 1], c="r")
         plt.axis("off")
     plt.tight_layout()
     plt.savefig(
