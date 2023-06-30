@@ -39,10 +39,10 @@ Your input data should be prepared as follows, where you make a separate raw_ima
             
 After preparing the input data in the aforementioned format, you can run PythoStitcher through the command line using:
 
-    docker run pythostitcher --datadir "/path/to/data" --savedir "/path/to/save/results" --resolution x
-where *datadir* refers to the directory with your input data, *savedir* refers to the location to save the result and *resolution* refers to the resolution in µm/pixel at which you want to save the final reconstruction. Example line to obtain the result for patient P000001 from our sample prostate dataset:
+    docker run -v /home/user:/home/user ghcr.io/computationalpathologygroup/pythostitcher --datadir "/home/user/data/patient_x" --savedir "/home/user/results" --resolution x
+where *datadir* refers to the directory with your input data, *savedir* refers to the location to save the result and *resolution* refers to the resolution in µm/pixel at which you want to save the final reconstruction. The  *-v /home/user:/home/user* flag is used to create a volume such that the container can access your local data directory. This can be any directory, as long as it is a parent directory for both the data and result directories. To obtain the result for patient P000001 from our sample prostate dataset you would run:
 
-    docker run pythostitcher --datadir "~/sample_data/prostate_P000001" --savedir "~/results" --resolution 0.25
+    docker run -v /home/user:/home/user ghcr.io/computationalpathologygroup/pythostitcher --datadir "/home/user/sample_data/prostate_P000001" --savedir "/home/user/results" --resolution 0.25
 
 #### Sample data 
 If you don't have any data available, but are still curious to try PythoStitcher, you can make use of our sample data available from <a href="https://zenodo.org/record/7636102"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.7636102.svg" alt="DOI"></a>. The sample data includes two prostatectomy cases, one case with four fragments and one case with two fragments. 
