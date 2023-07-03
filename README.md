@@ -40,9 +40,9 @@ Your input data should be prepared as follows, where you make a separate raw_ima
 After preparing the input data in the aforementioned format, you can run PythoStitcher through the command line using:
 
     docker run -v /home/user:/home/user ghcr.io/computationalpathologygroup/pythostitcher --datadir "/home/user/data/patient_x" --savedir "/home/user/results" --resolution x
-where *datadir* refers to the directory with your input data, *savedir* refers to the location to save the result and *resolution* refers to the resolution in µm/pixel at which you want to save the final reconstruction. The  *-v /home/user:/home/user* flag is used to create a volume such that the container can access your local data directory. This can be any directory, as long as it is a parent directory for both the data and result directories. To obtain the result for patient P000001 from our sample prostate dataset you would run:
+where *datadir* refers to the directory with your input data, *savedir* refers to the location to save the result and *resolution* refers to the resolution in µm/pixel at which you want to save the final reconstruction. The  *-v /home/user:/home/user* flag is used to create a volume such that the container can access your local data directory. This can be any directory, as long as it is a parent directory for both the data and result directories. To obtain the result for the prostatectomy case with four fragments (figure at the top) you would run:
 
-    docker run -v /home/user:/home/user ghcr.io/computationalpathologygroup/pythostitcher --datadir "/home/user/sample_data/prostate_P000001" --savedir "/home/user/results" --resolution 0.25
+    docker run -v /home/user:/home/user ghcr.io/computationalpathologygroup/pythostitcher --datadir "/home/user/data/prostate_4" --savedir "/home/user/results" --resolution 0.25
 
 #### Sample data 
 If you don't have any data available, but are still curious to try PythoStitcher, you can make use of our sample data available from <a href="https://zenodo.org/record/8093632"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.8093632.svg" alt="DOI"></a>. The sample data includes multiple prostatectomy cases with different sectioning approaches, please see the Zenodo record for more details. 
