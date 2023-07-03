@@ -109,6 +109,6 @@ def get_configuration_2_fragments(parameters):
     for file, loc in zip(original_filenames, locations):
         sol_dict[file] = loc
 
-    parameters["log"].log(parameters["my_level"], " > finished\n")
+    parameters["log"].log(parameters["my_level"], " - finished!\n")
 
     return [sol_dict]

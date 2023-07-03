@@ -6,9 +6,14 @@ def fetch_solutions(parameters):
     Function to fetch the solution of the fragment configuration for cases with 4 fragments.
     """
 
-    with open(
-        parameters["save_dir"].joinpath("configuration_detection", "location_solution.txt"), "r"
-    ) as f:
+    location_solution_file = parameters["save_dir"].joinpath("configuration_detection", "location_solution.txt")
+    assert location_solution_file.exists(), "Could not find location_solution.txt file, " \
+                                            "this is most likely because pythostitcher did not " \
+                                            "find any feasible solutions. Check the " \
+                                            "/configuration_detection directory to verify that " \
+                                            "the fragment classification is correct."
+
+    with open(location_solution_file, "r") as f:
         # Read content and process
         contents = f.readlines()
         contents = [i.rstrip("\n") for i in contents]
