@@ -13,6 +13,7 @@ from scipy.spatial import distance
 from keras_preprocessing.image import ImageDataGenerator
 from collections import Counter
 from sklearn.linear_model import TheilSenRegressor
+from scipy.spatial import distance
 
 
 class Fragment:
@@ -131,12 +132,12 @@ class Fragment:
         # Rotate the images such that the stitch edges are approximately perpendicular to
         # the XY-axis. The fragment classifier was also trained on these images.
         center = np.mean(cnt, axis=0)
-        angle = bbox[2] if bbox[2] < 45 else bbox[2] - 90
+        self.angle = bbox[2] if bbox[2] < 45 else bbox[2] - 90
 
         # Pad the image a bit for better rotation
         pad = int(self.original_image.shape[0] * 0.5)
         center += pad
-        rot_mat = cv2.getRotationMatrix2D(center=center, angle=angle, scale=1)
+        rot_mat = cv2.getRotationMatrix2D(center=center, angle=self.angle, scale=1)
 
         self.original_image = np.pad(
             self.original_image,
@@ -552,28 +553,8 @@ class Fragment:
         raw_image_dims = self.raw_image.getLevelDimensions(0)
         mask2raw_scaling = raw_image_dims[0] / mask_ds_level_dims[0]
 
-        # Get downsampled version of mask
-        lowres_image = self.raw_image.getUCharPatch(
-            startX=0,
-            startY=0,
-            width=image_ds_level_dims[0],
-            height=image_ds_level_dims[1],
-            level=int(self.landmark_level)
-        )
-
         ### STEP 2 ###
-        lowres_image_hsv = cv2.cvtColor(lowres_image, cv2.COLOR_RGB2HSV)
-        lowres_image_hsv = cv2.medianBlur(lowres_image_hsv[:, :, 1], 7)
-        _, otsu_mask = cv2.threshold(lowres_image_hsv, 0, 255, cv2.THRESH_OTSU +
-                                          cv2.THRESH_BINARY)
-        otsu_mask = (otsu_mask / np.max(otsu_mask)).astype("uint8")
-
-        # Postprocess the mask a bit
-        kernel = cv2.getStructuringElement(shape=cv2.MORPH_ELLIPSE, ksize=(8, 8))
-        otsu_mask = cv2.morphologyEx(
-            src=otsu_mask, op=cv2.MORPH_CLOSE, kernel=kernel, iterations=3
-        )
-
+        # Load tissue mask
         tissue_mask = self.raw_mask.getUCharPatch(
             startX=0,
             startY=0,
@@ -582,7 +563,6 @@ class Fragment:
             level=int(mask_ds_level)
         )
 
-        ### STEP 3 ###
         # Process tissue mask
         temp_pad = int(0.05 * tissue_mask.shape[0])
         tissue_mask = np.pad(
@@ -615,37 +595,9 @@ class Fragment:
             seedpoint,
             255
         )
-        tissue_mask = (
+        final_mask = (
                 1 - tissue_mask[temp_pad + 1: -(temp_pad + 1), temp_pad + 1: -(temp_pad + 1)]
         )
-
-        ### STEP 4 ###
-        # Combine masks
-        final_mask = otsu_mask * tissue_mask
-
-        # Postprocess similar to tissue segmentation mask. Get largest cc and floodfill.
-        num_labels, labeled_im, stats, _ = cv2.connectedComponentsWithStats(
-            final_mask, connectivity=8
-        )
-        assert num_labels > 1, "mask is empty"
-        largest_cc_label = np.argmax(stats[1:, -1]) + 1
-        final_mask = ((labeled_im == largest_cc_label) * 255).astype("uint8")
-
-        # Flood fill
-        offset = 5
-        final_mask = np.pad(
-            final_mask,
-            [[offset, offset], [offset, offset]],
-            mode="constant",
-            constant_values=0
-        )
-
-        seedpoint = (0, 0)
-        floodfill_mask = np.zeros(
-            (final_mask.shape[0] + 2, final_mask.shape[1] + 2)).astype("uint8")
-        _, _, final_mask, _ = cv2.floodFill(final_mask, floodfill_mask, seedpoint, 255)
-        final_mask = final_mask[1 + offset:-1 - offset, 1 + offset:-1 - offset]
-        final_mask = 1 - final_mask
 
         ### STEP 5 ###
         # Get contour
@@ -657,6 +609,7 @@ class Fragment:
         # Get enlarged bbox
         bbox = cv2.minAreaRect(cnt)
         bbox_points = cv2.boxPoints(bbox)
+        bbox_points = sort_counterclockwise(bbox_points)
         bbox_center = np.mean(bbox_points, axis=0)
         bbox_corner_dist = bbox_center - bbox_points
 
@@ -683,9 +636,12 @@ class Fragment:
         distances = distance.cdist(new_bbox_points, cnt)
         indices = np.argmin(distances, axis=1)
         cnt_corners = np.array([list(cnt[i, :]) for i in indices])
-        cnt_corners = sort_counterclockwise(cnt_corners)
         cnt_corners_loop = np.vstack([cnt_corners, cnt_corners])
-        ul_cnt_corner_idx = np.argmin(np.sum(cnt_corners**2, axis=1))
+
+        # Get index of upperleft bbox corner. We need this as the fragment label is encoded
+        # with respect to the upperleft corner.
+        bbox_points_rot, _ = warp_2d_points(bbox_points, bbox_center, self.angle, [0, 0])
+        ul_cnt_corner_idx = np.argmin(np.sum(bbox_points_rot**2, axis=1))
 
         # Get the contours
         cnt_fragments = []
@@ -756,6 +712,15 @@ class Fragment:
                     cnt_fragment = np.vstack([cnt[start_idx:], cnt[:end_idx]])
                 cnt_fragments.append(interpolate_contour(cnt_fragment))
 
+        debug = False
+        if debug:
+            colours = ["g", "r"]
+            plt.figure()
+            plt.imshow(final_mask)
+            for c, cnt in zip(colours, cnt_fragments):
+                plt.scatter(cnt[:, 0], cnt[:, 1], c=c)
+            plt.show()
+
         # Sample n points along each line
         line_a_idx = np.linspace(0, len(cnt_fragments[0])-1, self.n_samples).astype("int")
         line_a = cnt_fragments[0][line_a_idx]
@@ -779,12 +744,13 @@ class Fragment:
             lines
         )
 
-        debug = False
         if debug:
             colours = ["g", "r"]
             plt.figure()
-            plt.title("Stitch edge extraction from RDP")
+            plt.title("Landmark extraction")
+            plt.imshow(final_mask)
             for c, line in zip(colours, [line_a, line_b]):
+                line = (line/mask2raw_scaling).astype("int")
                 plt.scatter(line[:, 0], line[:, 1], c=c)
             plt.show()
 
