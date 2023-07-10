@@ -35,7 +35,7 @@ def fetch_solutions(parameters):
 
     # Only save top k best results scored by mse for actual full-res stitching. You
     # can change this number based on your requirements.
-    top_k = 3
+    top_k = parameters["top_k"]
     for s in sort_idx[:top_k]:
         temp_sol = dict()
 
