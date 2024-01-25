@@ -7,11 +7,7 @@ __pycache__/
 *.so
 
 # Local stuff
-info.txt
-results/
-src/preprocessing/prepare_data_oesophagus.py
-*.docx
-*.xlsx
+/model_weights/JigsawCNN_checkpoint
 .idea
 */.idea/
 algorithm_analysis/
