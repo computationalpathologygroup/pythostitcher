@@ -6,10 +6,10 @@
 
     
 ## What is PythoStitcher?
-Pythostitcher is a tool inspired by [AutoStitcher](https://www.nature.com/articles/srep29906) to stitch histopathology images into an artifical whole mount image. These artificial whole-mounts are indispensable for multimodal imaging research, since they greatly improve the ability to relate histopathology information to pre-operative imaging. PythoStitcher works fully automatically and is able to generate very high resolution (0.25 µm/pixel) whole-mounts. 
+Pythostitcher is a tool inspired by [AutoStitcher](https://www.nature.com/articles/srep29906) to stitch histopathology images into an artifical whole mount image. These artificial whole-mounts are indispensable for multimodal imaging research, since they greatly improve the ability to relate histopathology information to pre-operative imaging. PythoStitcher works fully automatically and is able to generate very high resolution (0.25 µm/pixel) whole-mounts. For a detailed description check out the official [PythoStitcher publication](https://www.nature.com/articles/s41598-024-52007-5) in Nature Scientific Reports.
 
 <p align="center">
-  <img width="640" height="480" src="./img/tform_progression.gif">
+  <img width="900" height="173" src="./img/figure2.png">
 </p>
 
 ## Does PythoStitcher also work on my data?
