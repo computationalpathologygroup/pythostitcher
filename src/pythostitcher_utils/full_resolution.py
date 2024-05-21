@@ -14,6 +14,7 @@ from .fuse_images_highres import fuse_images_highres
 from .gradient_blending import perform_blending
 from .line_utils import apply_im_tform_to_coords
 from .landmark_evaluation import evaluate_landmarks
+from .stain_normalization import *
 
 os.environ["VIPS_CONCURRENCY"] = "20"
 
@@ -522,6 +523,9 @@ def generate_full_res(parameters, log):
         f.process_image()
         f.save_multi_res_coords()
 
+    # Apply stain normalization after image has been processed
+    normalized_images = apply_fullres_stain_norm([f.final_image for f in full_res_fragments])
+
     ### DEBUGGING ###
     log.setLevel(logging.ERROR)
 
@@ -530,7 +534,7 @@ def generate_full_res(parameters, log):
     )
 
     # Add all images as the default stitching method
-    result_image = pyvips.Image.sum([f.final_image for f in full_res_fragments])
+    result_image = pyvips.Image.sum(normalized_images)
     if not result_image.format == "uchar":
         result_image = result_image.cast("uchar", shift=False)
 
