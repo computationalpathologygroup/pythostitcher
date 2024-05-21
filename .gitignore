@@ -11,6 +11,7 @@ __pycache__/
 .idea
 */.idea/
 algorithm_analysis/
+.vscode
 
 # Distribution / packaging
 
