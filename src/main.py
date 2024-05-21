@@ -271,7 +271,7 @@ def main():
         patients = sorted([i for i in data_dir.iterdir() if i.joinpath("raw_images").is_dir()])
 
         # Filter patients that have already been stitched
-        patients = sorted([i for i in patients if not save_dir.joinpath(i.name).is_dir()])
+        patients = sorted([i for i in patients if not save_dir.joinpath(i.name, "sol_1").is_dir()])
         print(f"\n### Identified {len(patients)} cases. ###")
 
         for pt in patients:
