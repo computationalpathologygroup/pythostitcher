@@ -2,6 +2,8 @@ import multiresolutionimageinterface as mir
 import numpy as np
 import cv2
 import matplotlib.pyplot as plt
+import torchstain
+from torchvision import transforms
 from scipy import ndimage
 
 
@@ -174,6 +176,32 @@ class Processor:
 
         return
 
+    def normalize_stains(self):
+        """
+        Function to normalize the stain of the image.
+        """
+        
+        # Only normalize stains for the other images
+        if self.count > 1:
+            
+            # Load reference image
+            ref_image = cv2.imread(str(self.save_dir.joinpath("preprocessed_images", f"fragment1.png")), cv2.IMREAD_COLOR)
+            ref_image = cv2.cvtColor(ref_image, cv2.COLOR_BGR2RGB)
+            
+            # Initialize stain normalizer
+            T = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Lambda(lambda x: x*255)
+            ])
+            stain_normalizer = torchstain.normalizers.ReinhardNormalizer(backend="torch")
+            stain_normalizer.fit(T(ref_image))
+            
+            # Apply stain normalization
+            self.image = stain_normalizer.normalize(T(self.image))
+            self.image = self.image.numpy().astype("uint8")
+        
+        return
+
     def save(self):
         """
         Function to save the downsampled image and mask
@@ -233,6 +261,7 @@ def prepare_data(parameters):
         data_processor.get_otsu_mask()
         data_processor.get_tissueseg_mask()
         data_processor.combine_masks()
+        data_processor.normalize_stains()
         data_processor.save()
 
     parameters["log"].log(parameters["my_level"], " > finished!\n")

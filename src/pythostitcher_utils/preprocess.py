@@ -38,6 +38,9 @@ def preprocess(fragments, parameters):
         # Read all original images
         f.read_image()
 
+        # Normalize the stain 
+        f.normalize_stain()
+
         # Preprocess (resize+pad) gray images
         f.downsample_image()
 

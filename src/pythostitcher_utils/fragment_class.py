@@ -3,6 +3,8 @@ import copy
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
+import torchstain
+from torchvision import transforms
 
 from sklearn.linear_model import TheilSenRegressor
 
@@ -117,9 +119,33 @@ class Fragment:
 
         # Apply rotation/flipping
         if self.rot_k != 0:
-            # self.original_image = np.rot90(self.original_image, k=self.rot_k, axes=(1, 0))
             self.original_image = np.rot90(self.original_image, k=-self.rot_k)
 
+        return
+
+    def normalize_stain(self):
+        """
+        """
+        
+        # Load reference image
+        ref_image = cv2.imread(
+            str(self.save_dir.joinpath("preprocessed_images", f"fragment1.png")), 
+            cv2.IMREAD_COLOR
+        )
+        ref_image = cv2.cvtColor(ref_image, cv2.COLOR_BGR2RGB)
+        
+        # Initialize stain normalizer
+        T = transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Lambda(lambda x: x*255)
+        ])
+        stain_normalizer = torchstain.normalizers.ReinhardNormalizer(backend="torch")
+        stain_normalizer.fit(T(ref_image))
+        
+        # Apply stain normalization
+        self.original_image = stain_normalizer.normalize(T(self.original_image.copy()))
+        self.original_image = self.original_image.numpy().astype("uint8")
+        
         return
 
     def downsample_image(self):
