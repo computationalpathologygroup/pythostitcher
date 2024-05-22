@@ -144,7 +144,7 @@ def run_case(data_dir, save_dir, output_res):
     /data
         /{Patient_identifier}
             /raw_images
-                {fragment_name}.mrxs§
+                {fragment_name}.mrxs
                 {fragment_name}.mrxs
             /raw_masks
                 {fragment_name}.tif
