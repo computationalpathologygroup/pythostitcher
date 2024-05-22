@@ -23,7 +23,6 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
 
     Output
         - Full resolution blended image
-        - Computational time for blending
     """
 
     # Load .tif of the mask
@@ -195,7 +194,6 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
                     )
 
                     # Show and save blended result if desired
-                    """
                     plt.figure(figsize=(12, 10))
                     plt.suptitle(f"Result at x {xstart} and y {ystart}", fontsize=24)
                     plt.subplot(231)
@@ -246,7 +244,6 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
                         f"{parameters['blend_dir']}/contour{str(c).zfill(3)}_tile{str(n_valid).zfill(4)}.png"
                     )
                     plt.close()
-                    """
 
                     ### PAPER FIGURE ###
                     """
@@ -300,13 +297,18 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
 
                     n_valid += 1
 
-                    # Insert blended image
-                    h, w = blend.shape[:2]
+                    # Fetch overlapping part from blended image and insert in image
+                    row, col = np.nonzero(overlap)
+                    w_start, w_end = np.min(col), np.max(col)
+                    h_start, h_end = np.min(row), np.max(row)
+                    blend_crop = blend[h_start:h_end, w_start:w_end]
+                    
+                    h, w = blend_crop.shape[:2]
                     bands = 3
                     dformat = "uchar"
-                    blend_image = pyvips.Image.new_from_memory(blend.ravel(), w, h, bands, dformat)
+                    blend_image = pyvips.Image.new_from_memory(blend_crop.ravel(), w, h, bands, dformat)
 
-                    result_image = result_image.insert(blend_image, xstart, ystart)
+                    result_image = result_image.insert(blend_image, xstart+w_start, ystart+h_start)
 
             else:
                 continue
