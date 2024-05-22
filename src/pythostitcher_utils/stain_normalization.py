@@ -127,6 +127,6 @@ def apply_fullres_stain_norm(images):
     # Apply stain normalization
     for image in images:
         norm_im = normalizer.transform(image)
-        normalized_images.append(norm_im)
+        normalized_images.append(norm_im.cast("uchar", shift=False))
 
     return normalized_images

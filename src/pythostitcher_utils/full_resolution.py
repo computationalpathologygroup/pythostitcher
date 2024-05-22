@@ -525,6 +525,8 @@ def generate_full_res(parameters, log):
 
     # Apply stain normalization after image has been processed
     normalized_images = apply_fullres_stain_norm([f.final_image for f in full_res_fragments])
+    for normalized_image, f in zip(normalized_images, full_res_fragments):
+        f.final_image = normalized_image.multiply(f.outputres_mask).cast("uchar", shift=False)
 
     ### DEBUGGING ###
     log.setLevel(logging.ERROR)
@@ -569,7 +571,7 @@ def generate_full_res(parameters, log):
     log.log(
         parameters["my_level"], f" > finished in {int(np.ceil((time.time()-start)/60))} mins!\n"
     )
-
+    
     # Remove temporary mask
     parameters["sol_save_dir"].joinpath("highres", "temp_mask.tif").unlink()
 
