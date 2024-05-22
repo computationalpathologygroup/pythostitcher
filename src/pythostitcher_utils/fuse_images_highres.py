@@ -309,50 +309,6 @@ def fuse_images_highres(images, masks):
     final_image = all_nonoverlap + all_overlap
     final_image_edit = copy.deepcopy(final_image)
 
-    # Check if there was any overlap between fragments
-    if any(is_overlap_list):
-
-        # Indices for getting patches
-        p1, p2 = int(np.floor(patch_size_mean / 2)), int(np.ceil(patch_size_mean / 2))
-
-        # Loop over all contours
-        for cnt in all_contours:
-
-            # Loop over points in each contour. Since we loop over a 3x3 grid for each
-            # point we can skip half of the points.
-            for pt in cnt[::2]:
-
-                xrange = np.arange(-1, 2)
-                yrange = np.arange(-1, 2)
-                grid = np.meshgrid(xrange, yrange)
-
-                for xx, yy in zip(grid[0].ravel(), grid[1].ravel()):
-
-                    # Get x, y value of pixel to analyze.
-                    x = (
-                        pt[1] - pad + xx
-                        if pt[1] - pad + xx < final_image.shape[0]
-                        else final_image.shape[0] - 1
-                    )
-                    y = (
-                        pt[0] - pad + yy
-                        if pt[0] - pad + yy < final_image.shape[1]
-                        else final_image.shape[1] - 1
-                    )
-
-                    # Get lower and upper bounds for the patch. Avoid potential negative
-                    # indexing or indexing out of bounds.
-                    x_lb = x - p1 if x - p1 > 0 else 0
-                    x_ub = x + p2 if x + p2 < final_image.shape[0] else final_image.shape[0] - 1
-                    y_lb = y - p1 if y - p1 > 0 else 0
-                    y_ub = y + p2 if y + p2 < final_image.shape[1] else final_image.shape[1] - 1
-
-                    # Extract patch, compute median pixel value and insert in image
-                    patch = final_image[x_lb:x_ub, y_lb:y_ub, :]
-                    patch = patch.reshape(int(patch.shape[0] * patch.shape[1]), patch.shape[2])
-                    fill_val = np.median(patch, axis=0)
-                    final_image_edit[x, y, :] = fill_val
-
     # Clipping may be necessary for areas where more than 2 fragments overlap
     final_image_edit = np.clip(final_image_edit, 0, 255).astype("uint8")
 
