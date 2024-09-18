@@ -36,7 +36,7 @@ class Processor:
         is provided, it will be created through some simple processing.
         """
 
-        # load raw image
+        # Load raw image
         self.raw_image = self.opener.open(str(self.image_filename))
         assert self.raw_image.valid(), "Loaded image was not valid"
 
@@ -44,6 +44,14 @@ class Processor:
         if self.mask_provided:
             self.raw_mask = self.opener.open(str(self.mask_filename))
             assert self.raw_mask.valid(), "Loaded mask was not valid"
+
+        # Use a plausible default value for the image level [issue #4]
+        if self.new_level > self.raw_image.getNumberOfLevels():
+            print(f"The image_level parameter in the parameter_config.json file ({self.new_level}) "
+                  f"is larger than the number of available levels in the image "
+                  f"({self.raw_image.getNumberOfLevels()}). Using {self.raw_image.getNumberOfLevels() - 2} "
+                  f"as default, consider modifying the config file.")
+            self.new_level = self.raw_image.getNumberOfLevels() - 2
 
         # Get downsampled image
         self.new_dims = self.raw_image.getLevelDimensions(self.new_level)
@@ -265,5 +273,6 @@ def prepare_data(parameters):
         data_processor.save()
 
     parameters["log"].log(parameters["my_level"], " > finished!\n")
+    parameters["image_level"] = data_processor.new_level
 
     return
