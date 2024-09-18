@@ -547,7 +547,7 @@ def generate_full_res(parameters, log):
 
     # Save temp .tif version of mask for later use in blending
     parameters["tif_mask_path"] = str(
-        parameters["sol_save_dir"].joinpath("highres", "temp_mask.tif")
+        parameters["sol_save_dir"].joinpath("highres", "stitched_image_tissuemask.tif")
     )
     log.log(parameters["my_level"], f"Saving temporary mask at {parameters['output_res']} µm/pixel")
     start = time.time()
@@ -572,9 +572,6 @@ def generate_full_res(parameters, log):
         parameters["my_level"], f" > finished in {int(np.ceil((time.time()-start)/60))} mins!\n"
     )
     
-    # Remove temporary mask
-    parameters["sol_save_dir"].joinpath("highres", "temp_mask.tif").unlink()
-
     # Ensure output image has spacing attribute
     xyres = 1000 / full_res_fragments[0].output_spacing
     result_image_save = result_image.copy(xres=xyres, yres=xyres)
@@ -588,7 +585,7 @@ def generate_full_res(parameters, log):
     result_image_save.write_to_file(
         str(
             parameters["sol_save_dir"].joinpath(
-                "highres", f"stitched_image_{parameters['output_res']}_micron.tif"
+                "highres", "stitched_image.tif"
             )
         ),
         tile=True,
