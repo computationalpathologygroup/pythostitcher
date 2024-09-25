@@ -45,7 +45,7 @@ where *datadir* refers to the directory with your input data, *savedir* refers t
     docker run -v /home/user:/home/user ghcr.io/computationalpathologygroup/pythostitcher --datadir "/home/user/data/prostate_4" --savedir "/home/user/results" --resolution 0.25
 
 #### Sample data 
-If you don't have any data available, but are still curious to try PythoStitcher, you can make use of our sample data available from <a href="https://zenodo.org/record/8093632"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.8093632.svg" alt="DOI"></a>. The sample data includes multiple prostatectomy cases with different sectioning approaches, please see the Zenodo record for more details. 
+If you don't have any data available, but are still curious to try PythoStitcher, you can make use of our sample data available from <a href="https://zenodo.org/records/13786929"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.13786929.svg" alt="DOI"></a>. The sample data includes multiple prostatectomy cases with different sectioning approaches, please see the Zenodo record for more details. 
 
 ## Acknowledgements
 The development of PythoStitcher would not have been possible without the open-sourcing of [JigsawNet](https://github.com/Lecanyu/JigsawNet), [ASAP](https://github.com/computationalpathologygroup/ASAP) and [PyVips](https://github.com/libvips/pyvips).
