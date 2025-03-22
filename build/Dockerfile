@@ -219,14 +219,10 @@ RUN wget https://github.com/computationalpathologygroup/pythostitcher/archive/re
     tar xf ${PYTHOSTITCHER_VERSION}.tar.gz
 
 # === Download JigsawNet model weights in PythoStitcher directory ===
-# The weights will be downloaded from my Google Drive since they were modified to fit PythoStitcher. 
-# The original JigsawNet weights (https://github.com/Lecanyu/JigsawNet) will NOT work. 
-ENV FILE_ID 1jmee9j5dKemu62MNl7UwXx8_0QrXYwJU
-RUN wget --save-cookies cookies.txt 'https://drive.google.com/uc?export=download&id='$FILE_ID -O- \
-     | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1/p' > confirm.txt
-RUN wget --load-cookies cookies.txt -O JigsawCNN_checkpoint.zip \
-     'https://drive.google.com/uc?export=download&id='$FILE_ID'&confirm='$(<confirm.txt)
-RUN unzip /home/user/JigsawCNN_checkpoint.zip -d /home/user/pythostitcher-${PYTHOSTITCHER_VERSION}/model_weights/
+# Download JigsawNet weights from Google Drive
+RUN pip3 install gdown
+RUN gdown --id 1_LALxlkyJ-X_EKr-ralYbPwtbPb1gM-E -O JigsawCNN_checkpoint.zip && \
+    unzip /home/user/JigsawCNN_checkpoint.zip -d /home/user/pythostitcher-${PYTHOSTITCHER_VERSION}/model_weights/
 
 # === Configure stop signal. ===
 STOPSIGNAL SIGINT

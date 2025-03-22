@@ -52,7 +52,7 @@ beautifulsoup4==4.11.1
     # via nbconvert
 binaryornot==0.4.4
     # via cookiecutter
-bleach==5.0.0
+bleach
     # via nbconvert
 boto3==1.23.3
     # via neptune-client
@@ -623,10 +623,6 @@ pyasn1-modules==0.2.8
     # via
     #   google-auth
     #   oauth2client
-pycocotools==2.0.4
-    # via
-    #   object-detection
-    #   tf-models-official
 pycparser==2.21
     # via cffi
 pydantic==1.9.1
