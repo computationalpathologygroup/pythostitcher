@@ -19,5 +19,5 @@ else
   printf "Executing command: %s\n\n" "$*"
 
   # Execute the passed command.
-  sudo --user=user --set-home python3 /home/user/pythostitcher-0.3.1/src/main.py "${@}"
+  sudo --user=user --set-home python3 /home/user/pythostitcher-0.3.2/src/main.py "${@}"
 fi
