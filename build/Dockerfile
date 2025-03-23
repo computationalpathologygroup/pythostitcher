@@ -221,8 +221,8 @@ RUN wget https://github.com/computationalpathologygroup/pythostitcher/archive/re
 # === Download JigsawNet model weights in PythoStitcher directory ===
 # Download JigsawNet weights from Google Drive
 RUN pip3 install gdown
-RUN gdown --id 1_LALxlkyJ-X_EKr-ralYbPwtbPb1gM-E -O JigsawCNN_checkpoint.zip && \
-    unzip /home/user/JigsawCNN_checkpoint.zip -d /home/user/pythostitcher-${PYTHOSTITCHER_VERSION}/model_weights/
+RUN gdown --id 1ogT0jPUqPBOcDnUYJHs0emCItxJqveQS -O JigsawCNN_checkpoint.zip && \
+    unzip -o /home/user/JigsawCNN_checkpoint.zip -d /home/user/pythostitcher-${PYTHOSTITCHER_VERSION}/model_weights/
 
 # === Configure stop signal. ===
 STOPSIGNAL SIGINT
