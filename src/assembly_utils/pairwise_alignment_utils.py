@@ -166,7 +166,6 @@ class Fragment:
         self.original_image = self.original_image[pad:-pad, pad:-pad]
         self.mask = self.mask[pad:-pad, pad:-pad]
 
-        ### EXPERIMENTAL ###
         # Some scanners use a slightly gray background for areas without tissue. This
         # may confuse the fragment classifier since the model was trained on images with
         # a perfect white background [255, 255, 255]. Hence, gray colours are
@@ -175,7 +174,6 @@ class Fragment:
         self.original_image_new = copy.copy(self.original_image)
         sat_thres = 15
         self.original_image_new[self.original_image_hsv[:, :, 1] < sat_thres] = 255
-        ### EXPERIMENTAL ###
 
         # Make smaller version for classifier
         if self.num_fragments == 4:
