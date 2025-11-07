@@ -562,7 +562,10 @@ class Fragment:
         )
 
         # Process tissue mask
+        if len(tissue_mask.shape) > 2:
+            tissue_mask = np.squeeze(np.mean(tissue_mask, axis=2))
         temp_pad = int(0.05 * tissue_mask.shape[0])
+        tissue_mask = (((tissue_mask / np.max(tissue_mask)) > 0.5) * 255).astype("uint8")
         tissue_mask = np.pad(
             np.squeeze(tissue_mask),
             [[temp_pad, temp_pad], [temp_pad, temp_pad]],

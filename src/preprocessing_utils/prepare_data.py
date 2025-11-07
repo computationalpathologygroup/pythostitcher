@@ -65,8 +65,9 @@ class Processor:
             ]
             mask_level = mask_dims.index(self.new_dims)
             self.mask = self.raw_mask.getUCharPatch(0, 0, *self.new_dims, mask_level)
-            self.mask = np.squeeze(self.mask)
-            self.mask = ((self.mask / np.max(self.mask)) * 255).astype("uint8")
+            if len(self.mask.shape) > 2:
+                self.mask = np.squeeze(np.mean(self.mask, axis=2))
+            self.mask = (((self.mask / np.max(self.mask)) > 0.5) * 255).astype("uint8")
 
         else:
             raise ValueError("PythoStitcher requires a tissue mask for stitching")
