@@ -10,7 +10,7 @@ ARG NUMPY_VERSION=1.21.5
 ARG PYTORCH_VERSION=1.10.2
 ARG TORCHVISION_VERSION=0.11.3
 ARG TENSORFLOW_VERSION=2.8.0 
-ARG VIPS_VERSION=8.13.0
+ARG VIPS_VERSION=8.17.1
 ARG PYTHOSTITCHER_VERSION=0.3.2
 
 ARG BUILD_JOBS=16
@@ -120,7 +120,7 @@ RUN apt-get update --fix-missing && \
         nano vim \
         tmux screen \
         htop \
-        g++ ninja-build \
+        g++ ninja-build pkg-config python3-pip \
         rsync \
         pv \
 		meson \
@@ -141,12 +141,13 @@ RUN apt-get update --fix-missing && \
 # == Install VIPS  ==
 ARG VIPS_VERSION
 
-RUN wget https://github.com/libvips/libvips/releases/download/v${VIPS_VERSION}/vips-${VIPS_VERSION}.tar.gz -P /tmp && \
-    tar -xf /tmp/vips-${VIPS_VERSION}.tar.gz --directory /tmp/ && \
+RUN pip3 install --no-cache-dir "meson>=0.55" && \
+    wget https://github.com/libvips/libvips/releases/download/v${VIPS_VERSION}/vips-${VIPS_VERSION}.tar.xz -P /tmp && \
+    tar -xf /tmp/vips-${VIPS_VERSION}.tar.xz --directory /tmp/ && \
     cd /tmp/vips-${VIPS_VERSION} && \
-    ./configure && \
-    make && \
-    sudo -S make install && \
+    /usr/local/bin/meson setup build --prefix=/usr && \
+    ninja -C build && \
+    sudo -S ninja -C build install && \
     cd .. && \
     sudo -S ldconfig
 
@@ -221,7 +222,7 @@ RUN wget https://github.com/computationalpathologygroup/pythostitcher/archive/re
 # === Download JigsawNet model weights in PythoStitcher directory ===
 # Download JigsawNet weights from Google Drive
 RUN pip3 install gdown
-RUN gdown --id 1ogT0jPUqPBOcDnUYJHs0emCItxJqveQS -O JigsawCNN_checkpoint.zip && \
+RUN gdown --id 1cXslE3tA8tAGjucbuO6ipRkFdjVCqVOD -O JigsawCNN_checkpoint.zip && \
     unzip -o /home/user/JigsawCNN_checkpoint.zip -d /home/user/pythostitcher-${PYTHOSTITCHER_VERSION}/model_weights/
 
 # === Configure stop signal. ===

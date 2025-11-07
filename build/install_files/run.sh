@@ -7,13 +7,12 @@ env | grep '^SLURM_\|^NVIDIA_' >> /etc/environment
 echo "PYTHONUNBUFFERED=1" >> /etc/environment
 
 # Check if extra arguments were given and execute it as a command.
-if [ -z "$2" ]; then
+if [ -z "$1" ]; then
   # Print the command for logging.
-  printf "No extra arguments given, running jupyter and sshd\n\n"
+  printf "No extra arguments given, running bash\n\n"
 
-  # Start the SSH daemon and a Jupyter notebook.
-  /usr/sbin/sshd
-  sudo --user=user --set-home /bin/bash -c '/usr/local/bin/jupyter lab --ip=0.0.0.0 --port=8888 --no-browser --NotebookApp.token='
+  # Run bash
+  /bin/bash
 else
   # Print the command for logging.
   printf "Executing command: %s\n\n" "$*"
