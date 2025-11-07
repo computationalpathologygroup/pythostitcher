@@ -1,4 +1,5 @@
 {
+	"output_res": 0.25,
 	"top_k": 6,
 	"resolutions": [0.05, 0.15, 0.45, 1],
 	"image_level": 7,

@@ -102,9 +102,7 @@ def get_configuration_2_fragments(parameters):
 
     # Save original filenames and their location
     sol_dict = dict()
-    original_filenames = sorted(
-        [i.name for i in parameters["data_dir"].joinpath("raw_images").iterdir() if not i.is_dir()]
-    )
+    original_filenames = parameters["raw_image_names"]
 
     for file, loc in zip(original_filenames, locations):
         sol_dict[file] = loc

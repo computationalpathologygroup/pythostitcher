@@ -4,6 +4,8 @@ import logging
 import os
 import pathlib
 
+import pandas as pd
+
 from assembly_utils.detect_configuration import detect_configuration
 from preprocessing_utils.prepare_data import prepare_data
 from pythostitcher_utils.fragment_class import Fragment
@@ -12,164 +14,36 @@ from pythostitcher_utils.get_resname import get_resname
 from pythostitcher_utils.optimize_stitch import optimize_stitch
 from pythostitcher_utils.preprocess import preprocess
 
-os.environ["VIPS_CONCURRENCY"] = "20"
 
-
-def load_parameter_configuration(data_dir, save_dir, output_res):
+def _load_base_parameters(config_path):
     """
-    Convenience function to load all the PythoStitcher parameters and pack them up
-    in a dictionary for later use.
+    Load JSON config and convert model weight paths to absolute.
     """
+    
+    config_file = pathlib.Path(config_path)
+    assert config_file.exists(), f"parameter config file not found at {config_file}"
 
-    # Verify its existence
-    config_file = pathlib.Path().absolute().parent.joinpath("config/parameter_config.json")
-    assert config_file.exists(), "parameter config file not found, ensure that cwd == ~/pythostitcher/src"
-
-    # Load main parameter config
     with open(config_file) as f:
         parameters = json.load(f)
 
-    # Convert model weight paths to absolute paths
+    # Convert relative paths to absolute paths relative to config file location
+    config_dir = config_file.parent
+    
     parameters["weights_fragment_classifier"] = (
-        pathlib.Path().absolute().parent.joinpath(parameters["weights_fragment_classifier"])
+        config_dir.parent.joinpath(parameters["weights_fragment_classifier"])
     )
     parameters["weights_jigsawnet"] = (
-        pathlib.Path().absolute().parent.joinpath(parameters["weights_jigsawnet"])
+        config_dir.parent.joinpath(parameters["weights_jigsawnet"])
     )
-
-    # Insert parsed arguments
-    parameters["data_dir"] = data_dir
-    parameters["save_dir"] = save_dir
-    parameters["patient_idx"] = data_dir.name
-    parameters["output_res"] = output_res
-    parameters["fragment_names"] = sorted([
-        i.name for i in data_dir.joinpath("raw_images").iterdir() if not i.is_dir()
-    ])
-    parameters["n_fragments"] = len(parameters["fragment_names"])
-    parameters["resolution_scaling"] = [
-        i / parameters["resolutions"][0] for i in parameters["resolutions"]
-    ]
-
-    parameters["raw_image_names"] = sorted(
-        [i.name for i in data_dir.joinpath("raw_images").iterdir() if not i.is_dir()]
-    )
-    if data_dir.joinpath("raw_masks").is_dir():
-        parameters["raw_mask_names"] = sorted(
-            [i.name for i in data_dir.joinpath("raw_masks").iterdir()]
-        )
-    else:
-        parameters["raw_mask_names"] = [None] * len(parameters["raw_image_names"])
-
-    # Some assertions
-    assert parameters["n_fragments"] in [
-        2, 4,
-    ], "pythostitcher only supports stitching 2/4 fragments"
-
-    # Make directories for later saving
-    dirnames = [
-        pathlib.Path(parameters["save_dir"]),
-        pathlib.Path(parameters["save_dir"]).joinpath("configuration_detection", "checks"),
-    ]
-
-    for d in dirnames:
-        if not d.is_dir():
-            d.mkdir(parents=True)
-
+    
     return parameters
 
 
-def collect_arguments():
+def _setup_logging(save_dir, my_level):
     """
-    Function to parse arguments into main function
+    Initialize logging for a case.
     """
-
-    # Parse arguments
-    parser = argparse.ArgumentParser(
-        description="Stitch histopathology images into a pseudo whole-mount image"
-    )
-    parser.add_argument(
-        "--datadir",
-        required=True,
-        type=pathlib.Path,
-        help="Path to the case to stitch"
-    )
-    parser.add_argument(
-        "--savedir",
-        required=True,
-        type=pathlib.Path,
-        help="Directory to save the results",
-    )
-    parser.add_argument(
-        "--resolution",
-        required=True,
-        default=1,
-        type=float,
-        help="Output resolution (µm/pixel) of the reconstructed image. Should be roughly "
-        "in range of 0.25-16 with a factor 2 between steps (0.25-0.50-1.00 etc).",
-    )
-    args = parser.parse_args()
-
-    # Extract arguments
-    data_dir = pathlib.Path(args.datadir)
-    resolution = args.resolution
-
-    assert data_dir.is_dir(), "provided patient directory doesn't exist"
-    assert resolution > 0, "output resolution cannot be negative"
-
-    if not data_dir.joinpath("raw_images").is_dir():
-        mode = "batch"
-        save_dir = pathlib.Path(args.savedir)
-    else:
-        mode = "single"
-        save_dir = pathlib.Path(args.savedir).joinpath(data_dir.name)
-
-    return data_dir, save_dir, resolution, mode
-
-
-def run_case(data_dir, save_dir, output_res):
-    """
-    PythoStitcher is an automated and robust program for stitching prostate tissue
-    fragments into a whole histological section.
-
-    Original paper: https://www.nature.com/articles/srep29906
-    Original Matlab code by Greg Penzias, 2016
-    Python implementation by Daan Schouten, 2022
-
-    Please see the data directory for how to structure the input images for
-    Pythostitcher. The general structure is as follows, where Patient_identifier denotes
-    any (anonymized) patient identifier. The current version requires either two or four
-    fragments, support for other amounts of fragments might be added in a future version.
-
-    ___________________________
-    /data
-        /{Patient_identifier}
-            /raw_images
-                {fragment_name}.mrxs
-                {fragment_name}.mrxs
-            /raw_masks
-                {fragment_name}.tif
-                {fragment_name}.tif
-    ___________________________
-
-    """
-
-    # Sanity checks
-    assert data_dir.joinpath("raw_images").is_dir(), "patient has no 'raw_images' directory"
-    assert (
-        len(list(data_dir.joinpath("raw_images").iterdir())) > 0
-    ), "no images found in 'raw_images' directory"
-
-    print(
-        f"\nRunning job with following parameters:"
-        f"\n - Data dir: {data_dir}"
-        f"\n - Save dir: {save_dir}"
-        f"\n - Output resolution: {output_res} µm/pixel\n"
-    )
-
-    # Collect arguments
-    parameters = load_parameter_configuration(data_dir, save_dir, output_res)
-
-    # Initiate logging file
+    
     logfile = save_dir.joinpath("pythostitcher_log.txt")
     if logfile.exists():
         logfile.unlink()
@@ -181,105 +55,150 @@ def run_case(data_dir, save_dir, output_res):
         datefmt="%Y-%m-%d %H:%M:%S",
         force=True
     )
-    logging.addLevelName(parameters["my_level"], "output")
-    log = logging.getLogger(f"{data_dir.name}")
+    logging.addLevelName(my_level, "output")
+    
+    return logging.getLogger(f"{save_dir.name}")
 
-    parameters["log"] = log
-    parameters["log"].log(parameters["my_level"], f"Running job with following parameters:")
-    parameters["log"].log(parameters["my_level"], f" - Data dir: {parameters['data_dir']}")
-    parameters["log"].log(parameters["my_level"], f" - Save dir: {parameters['save_dir']}")
-    parameters["log"].log(
-        parameters["my_level"], f" - Output resolution: {parameters['output_res']}\n"
+
+def load_parameters(image_paths, mask_paths, save_dir, base_parameters):
+    """
+    Build parameters dict from dataframe-provided paths.
+    """
+    
+    parameters = base_parameters.copy()
+
+    parameters["save_dir"] = save_dir
+    parameters["data_dir"] = save_dir
+    parameters["patient_idx"] = save_dir.name
+
+    parameters["raw_image_paths"] = [pathlib.Path(p) for p in image_paths]
+    parameters["raw_mask_paths"] = [pathlib.Path(p) for p in mask_paths]
+    parameters["raw_image_names"] = [p.name for p in parameters["raw_image_paths"]]
+    parameters["raw_mask_names"] = [p.name for p in parameters["raw_mask_paths"]]
+    parameters["fragment_names"] = parameters["raw_image_names"]
+    parameters["n_fragments"] = len(parameters["raw_image_paths"])
+    parameters["resolution_scaling"] = [i / parameters["resolutions"][0] for i in parameters["resolutions"]]
+
+    save_dir.mkdir(parents=True, exist_ok=True)
+    save_dir.joinpath("configuration_detection", "checks").mkdir(parents=True, exist_ok=True)
+
+    return parameters
+
+
+def run_case(parameters):
+    """
+    Execute the full stitching pipeline for one case.
+    """
+    
+    save_dir = parameters["save_dir"]
+    output_res = parameters["output_res"]
+
+    print(
+        f"\nRunning job:"
+        f"\n - Save dir: {save_dir}"
+        f"\n - Output resolution: {output_res} µm/pixel\n"
     )
 
-    if not data_dir.joinpath("raw_masks").is_dir():
-        parameters["log"].log(
-            parameters["my_level"],
-            f"WARNING: PythoStitcher did not find any raw tissuemasks. If you intend to use "
-            f"PythoStitcher with pregenerated tissuemasks, please put these files in "
-            f"[{data_dir.joinpath('raw_masks')}]. If no tissuemasks are supplied, "
-            f"PythoStitcher will use a generic tissue segmentation which may not perform "
-            f"as well for your use case. In addition, PythoStitcher will not "
-            f"be able to generate the full resolution end result.",
-        )
+    log = _setup_logging(save_dir, parameters["my_level"])
+    parameters["log"] = log
+    log.log(parameters["my_level"], f"Running job with output resolution: {output_res} µm/pixel\n")
 
-    ### MAIN PYTHOSTITCHER #s##
-    # Preprocess data
     prepare_data(parameters=parameters)
-
-    # Detect configuration of fragments. Return the 3 most likely configurations in order
-    # of likelihood.
     solutions = detect_configuration(parameters=parameters)
 
-    # Loop over all solutions
     for count_sol, sol in enumerate(solutions, 1):
-        parameters["log"].log(parameters["my_level"], f"### Exploring solution {count_sol} ###")
+        log.log(parameters["my_level"], f"### Exploring solution {count_sol} ###")
         parameters["detected_configuration"] = sol
         parameters["num_sol"] = count_sol
-        parameters["sol_save_dir"] = parameters["save_dir"].joinpath(f"sol_{count_sol}")
+        parameters["sol_save_dir"] = save_dir.joinpath(f"sol_{count_sol}")
 
         for count_res, res in enumerate(parameters["resolutions"]):
-
-            # Set current iteration
             parameters["iteration"] = count_res
             parameters["res_name"] = get_resname(res)
             parameters["fragment_names"] = [sol[i].lower() for i in sorted(sol)]
 
-            fragments = []
-            for im_path, fragment_name in sol.items():
-                fragments.append(
-                    Fragment(im_path=im_path, fragment_name=fragment_name, kwargs=parameters)
-                )
+            fragments = [
+                Fragment(im_path=im_path, fragment_name=fragment_name, kwargs=parameters)
+                for im_path, fragment_name in sol.items()
+            ]
 
-            # Preprocess all images to a usable format for PythoStitcher
             preprocess(fragments=fragments, parameters=parameters)
-
-            # Get optimal stitch using a genetic algorithm
             optimize_stitch(parameters=parameters)
 
-        # Generate full resolution blended image
         generate_full_res(parameters=parameters, log=log)
+        log.log(parameters["my_level"], f"### Succesfully stitched solution {count_sol} ###\n")
 
-        parameters["log"].log(
-            parameters["my_level"], f"### Succesfully stitched solution {count_sol} ###\n",
-        )
-
-    parameters["log"].log(
-        parameters["my_level"], f"\nPythoStitcher completed!",
-    )
+    log.log(parameters["my_level"], "PythoStitcher completed!")
     del parameters, log
-
+    
     return
+
+
+def parse_dataframe(df_path):
+    """
+    Parse CSV/XLSX and return validated cases grouped by savepath.
+    """
+    
+    df = pd.read_csv(df_path) if df_path.suffix.lower() == ".csv" else pd.read_excel(df_path)
+    
+    required_cols = {"imagepath", "maskpath", "savepath"}
+    assert required_cols.issubset(set(df.columns)), "df must have columns imagepath, maskpath, savepath"
+
+    grouped = df.groupby("savepath")
+    cases = []
+
+    for savepath, group in grouped:
+        ordered = group.sort_values("imagepath")
+        
+        if len(ordered) not in [2, 4]:
+            print(f"WARNING: case [{savepath}] has {len(ordered)} fragments; only 2 or 4 supported. Skipping.")
+            continue
+
+        image_paths = [pathlib.Path(p) for p in ordered["imagepath"]]
+        mask_paths = [pathlib.Path(p) for p in ordered["maskpath"]]
+
+        if not all(p.exists() for p in image_paths + mask_paths):
+            print(f"WARNING: Missing files for case [{pathlib.Path(savepath).name}]; skipping.")
+            continue
+
+        cases.append({
+            "image_paths": image_paths,
+            "mask_paths": mask_paths,
+            "save_dir": pathlib.Path(savepath),
+        })
+
+    return cases
 
 
 def main():
     """
-    Main function to run PythoStitcher. PythoStitcher will automatically figure out if
-    the provided data directory contains multiple patients. If so, it will initiate
-    batch mode. Otherwise it will run in single mode.
+    Main function to run PythoStitcher using dataframe-driven batch.
     """
+    
+    parser = argparse.ArgumentParser(description="Stitch histopathology images into a pseudo whole-mount image")
+    parser.add_argument("--df", required=True, type=pathlib.Path, 
+                        help="Path to a CSV/XLSX with columns: imagepath, maskpath, savepath")
+    parser.add_argument("--config", required=True, type=pathlib.Path,
+                        help="Path to the parameter configuration JSON file")
+    args = parser.parse_args()
 
-    # Get arguments and determine single/batch mode
-    data_dir, save_dir, output_res, mode = collect_arguments()
+    assert args.df.suffix.lower() in [".csv", ".xlsx"], "df must be .csv or .xlsx"
+    assert args.df.exists(), "df path doesn't exist"
+    assert args.config.exists(), "config path doesn't exist"
+    assert args.config.suffix.lower() == ".json", "config must be a .json file"
 
-    # Run PythoStitcher for a single case or a batch of cases.
-    if mode == "single":
-        run_case(data_dir, save_dir, output_res)
-    elif mode == "batch":
+    base_parameters = _load_base_parameters(args.config)
+    assert "output_res" in base_parameters, "config must contain 'output_res' parameter"
+    assert base_parameters["output_res"] > 0, "output resolution cannot be negative"
 
-        # Extract valid patients
-        patients = sorted([i for i in data_dir.iterdir() if i.joinpath("raw_images").is_dir()])
+    cases = parse_dataframe(args.df)
+    print(f"\n### Identified {len(cases)} cases. ###")
 
-        # Filter patients that have already been stitched
-        patients = sorted([i for i in patients if not save_dir.joinpath(i.name, "sol_1").is_dir()])
-        print(f"\n### Identified {len(patients)} cases. ###")
-
-        for pt in patients:
-
-            pt_data_dir = data_dir.joinpath(pt.name)
-            pt_save_dir = save_dir.joinpath(pt.name)
-            run_case(pt_data_dir, pt_save_dir, output_res)
-
+    for case in cases:
+        parameters = load_parameters(case["image_paths"], case["mask_paths"], 
+                                      case["save_dir"], base_parameters)
+        run_case(parameters)
+        
     return
 
 
