@@ -35,6 +35,8 @@ class Fragment:
 
         self.save_dir = kwargs["save_dir"]
         self.data_dir = kwargs["data_dir"]
+        self.raw_image_paths = kwargs.get("raw_image_paths", [])
+        self.raw_mask_paths = kwargs.get("raw_mask_paths", [])
         self.im_path = self.save_dir.joinpath(f"preprocessed_images/{self.fragment_name}")
         self.mask_path = self.save_dir.joinpath(f"preprocessed_masks/{self.fragment_name}")
         self.res = kwargs["resolutions"][0]
@@ -526,18 +528,11 @@ class Fragment:
         ### STEP 1 ###
         # Load raw image
         self.opener = mir.MultiResolutionImageReader()
-        self.raw_image_dir = self.data_dir.joinpath("raw_images")
-        self.raw_image_path = self.raw_image_dir.joinpath(
-            self.all_fragment_names[self.fragment_name_idx]
-        )
+        self.raw_image_path = self.raw_image_paths[self.fragment_name_idx]
         self.raw_image = self.opener.open(str(self.raw_image_path))
 
         # Load raw mask
-        self.raw_mask_dir = self.data_dir.joinpath("raw_masks")
-        raw_mask_names = sorted([i.name for i in self.raw_mask_dir.iterdir()])
-        self.raw_mask_path = self.raw_mask_dir.joinpath(
-            raw_mask_names[self.fragment_name_idx]
-        )
+        self.raw_mask_path = self.raw_mask_paths[self.fragment_name_idx]
         self.raw_mask = self.opener.open(str(self.raw_mask_path))
 
         # Compute size differences between image and mask

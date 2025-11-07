@@ -25,13 +25,7 @@ def fetch_solutions(parameters):
 
     # Gather all solutions
     final_solutions = []
-    original_filenames = sorted(
-        [
-            i.name
-            for i in parameters["data_dir"].joinpath("raw_images").iterdir()
-            if not i.is_dir()
-        ]
-    )
+    original_filenames = parameters["raw_image_names"]
 
     # Only save top k best results scored by mse for actual full-res stitching. You
     # can change this number based on your requirements.

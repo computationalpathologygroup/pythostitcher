@@ -34,14 +34,14 @@ class FullResImage:
         self.raw_mask_name = parameters["raw_mask_names"][self.idx]
         self.save_dir = parameters["sol_save_dir"]
         self.data_dir = parameters["data_dir"]
-        self.raw_image_path = self.data_dir.joinpath("raw_images", self.raw_image_name)
+        self.raw_image_path = parameters["raw_image_paths"][self.idx]
         self.orientation = parameters["detected_configuration"][self.raw_image_name].lower()
         self.rot_k = parameters["rot_steps"][self.raw_image_name]
         self.resolutions = parameters["resolutions"]
         self.resolution_scaling = parameters["resolution_scaling"]
 
         if self.raw_mask_name:
-            self.raw_mask_path = parameters["data_dir"].joinpath("raw_masks", self.raw_mask_name)
+            self.raw_mask_path = parameters["raw_mask_paths"][self.idx]
 
         self.last_res = parameters["resolutions"][-1]
         self.res_name = get_resname(self.last_res)

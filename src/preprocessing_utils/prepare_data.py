@@ -242,20 +242,11 @@ def prepare_data(parameters):
 
     parameters["log"].log(parameters["my_level"], "Preprocessing raw images...")
 
-    # Get all image files
-    image_files = sorted(
-        [i for i in parameters["data_dir"].joinpath("raw_images").iterdir() if not i.is_dir()]
-    )
+    # Use explicit lists from parameters
+    image_files = parameters.get("raw_image_paths", [])
+    mask_files = parameters.get("raw_mask_paths", [])
 
-    # Get mask files if these are provided
-    masks_provided = parameters["data_dir"].joinpath("raw_masks").is_dir()
-    if masks_provided:
-        mask_files = sorted([i for i in parameters["data_dir"].joinpath("raw_masks").iterdir()])
-        assert len(image_files) == len(mask_files), "found unequal number of image/mask files!"
-    else:
-        mask_files = [None] * len(image_files)
-
-    # Process and save image with corresponding mask (if available)
+    # Process and save image with corresponding mask
     for c, vars in enumerate(zip(image_files, mask_files), 1):
         image, mask = vars
         parameters["log"].log(parameters["my_level"], f" - {image.name.split('.')[0]}")
