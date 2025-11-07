@@ -23,7 +23,7 @@ def load_parameter_configuration(data_dir, save_dir, output_res):
 
     # Verify its existence
     config_file = pathlib.Path().absolute().parent.joinpath("config/parameter_config.json")
-    assert config_file.exists(), "parameter config file not found"
+    assert config_file.exists(), "parameter config file not found, ensure that cwd == ~/pythostitcher/src"
 
     # Load main parameter config
     with open(config_file) as f:
