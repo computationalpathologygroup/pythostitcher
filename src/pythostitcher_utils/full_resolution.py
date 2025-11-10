@@ -550,10 +550,6 @@ def generate_full_res(parameters, log):
     result_mask = pyvips.Image.sum([f.outputres_mask for f in full_res_fragments])
     if not result_mask.format == "uchar":
         result_mask = result_mask.cast("uchar", shift=False)
-    # Ensure binary mask: clip summed values to 0/1
-    result_mask = (result_mask > 0).ifthenelse(1, 0)
-    if not result_mask.format == "uchar":
-        result_mask = result_mask.cast("uchar", shift=False)
 
     # Save temp .tif version of mask for later use in blending
     parameters["tif_mask_path"] = str(
