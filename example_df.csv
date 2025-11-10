@@ -1,0 +1,3 @@
+﻿image_path,mask_path,save_path,force_config_path,landmark_paths
+/home/user/data/case01/images/image01.mrxs,/home/user/data/case01/masks/image01.tif,/home/user/results/case01,/home/user/data/case01/force_config.txt,/home/user/data/case01/image01_landmarks.npy
+/home/user/data/case01/images/image02.mrxs,/home/user/data/case01/masks/image02.tif,/home/user/results/case01,/home/user/data/case01/force_config.txt,/home/user/data/case01/image02_landmarks.npy

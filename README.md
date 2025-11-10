@@ -28,26 +28,24 @@ Your input data should consist of a dataframe (.csv) specifying all the paths fo
 	- mask_path - path to the corresponding tissue foreground mask of the WSI (.tif)
 	- save_path - dir to save all the results for a given case
 	- force_config_path [OPTIONAL] - optional path to the force_config file that can be used to force a specific fragment configuration
-	- landmark_paths [OPTIONAL] - optional path to a landmarks.npy file holding landmarks (at level 0) which can be warped together with the WSIs 
+	- landmark_paths [OPTIONAL] - optional path to a npy file holding landmarks (at level 0) which can be warped together with the WSIs 
 
 Ensure each `mask_path` corresponds to its `image_path`. Files can live anywhere accessible to the container (e.g., under `/data`).
 
-Example CSV (two fragments for one case):
+Example CSV (two fragments for one case). See also the example_df.csv file as example.
 
-	cases.csv
 	imagepath,maskpath,savepath
 	/home/user/data/case01/images/image1.mrxs,/home/user/data/case01/masks/image1_mask.tif,/home/user/results/case01
 	/home/user/data/case01/images/image2.mrxs,/home/user/data/case01/masks/image2_mask.tif,/home/user/results/case01
 
 All global settings can be modified through the parameter_config.json file. A template is included at `config/parameter_config.json`.
 
-
 #### Usage instructions
             
 After preparing the dataframe and configuration JSON, run PythoStitcher via:
 
-	docker run -v /home/user:/home/user ghcr.io/computationalpathologygroup/pythostitcher --df "/home/user/data/cases.csv" --config "/home/user/config/parameter_config.json"
-`--df` points to your CSV/XLSX with the required columns, and `--config` points to the parameter JSON. The `-v /home/user:/home/user` flag mounts your local directories so the container can access both input data and output locations.
+	docker run -v /home/user:/home/user ghcr.io/computationalpathologygroup/pythostitcher:latest --df "/home/user/data/cases.csv" --config "/home/user/config/parameter_config.json"
+`--df` points to your csv with the required columns, and `--config` points to the parameter JSON. The `-v /home/user:/home/user` flag mounts your local directories so the container can access both input data and output locations.
 
 #### Sample data 
 If you don't have any data available, but are still curious to try PythoStitcher, you can make use of our sample data available from <a href="https://zenodo.org/records/13786929"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.13786929.svg" alt="DOI"></a>. The sample data includes multiple prostatectomy cases with different sectioning approaches, please see the Zenodo record for more details. 
