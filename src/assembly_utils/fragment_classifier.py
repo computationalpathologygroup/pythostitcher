@@ -19,23 +19,30 @@ class Classifier:
         self.batch_size = 8
         self.model_size = 224
         self.num_classes = 4
+        
+        # Fix to prevent unfettered VRAM consumption
+        gpus = tf.config.experimental.list_physical_devices("GPU")
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
 
     def build_model(self):
         """ Build the EfficientNet model """
 
         # Create base model
-        inputs = layers.Input(shape=(self.model_size, self.model_size, 3))
-
-        self.model = EfficientNetB0(include_top=False, input_tensor=inputs, weights=None)
-
+        self.model = EfficientNetB0(
+            include_top=False, 
+            input_shape=(self.model_size, self.model_size, 3), 
+            weights=None
+        )
+        
         # Add classification head
         x = layers.GlobalAveragePooling2D(name="avg_pool")(self.model.output)
         x = layers.BatchNormalization()(x)
         x = layers.Dropout(0.5, name="top_dropout")(x)
         outputs = layers.Dense(self.num_classes, activation="softmax", name="pred")(x)
-
-        # Buiild final model
-        self.model = tf.keras.Model(inputs, outputs, name="EfficientNet_B0")
+        
+        # Build final model
+        self.model = tf.keras.Model(self.model.input, outputs, name="EfficientNet_B0")
         self.model.load_weights(self.weights_path)
         self.model.trainable = False
 

@@ -16,8 +16,6 @@ from .line_utils import apply_im_tform_to_coords
 from .landmark_evaluation import evaluate_landmarks
 from .stain_normalization import *
 
-os.environ["VIPS_CONCURRENCY"] = "20"
-
 
 class FullResImage:
     """
