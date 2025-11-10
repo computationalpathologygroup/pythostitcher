@@ -22,27 +22,32 @@ It is highly recommended to run PythoStitcher as a Docker container, since Pytho
 	docker pull ghcr.io/computationalpathologygroup/pythostitcher:latest
 
 #### Data preparation
-Your input data should be prepared as follows, where you make a separate raw_images and raw_masks directory for your high resolution image and tissue mask files, respectively. Ensure that the name of the tissue mask is exactly the same as that of the image. If you want to enforce the location of each fragment in the final reconstruction, you can include a force_config.txt file. See the example_force_config.txt file on how to format this. If you leave out this file, PythoStitcher will automatically determine the optimal configuration of the tissue fragments.
+Your input data should consist of a dataframe (.csv) specifying all the paths for the high resolution image and tissue mask files per case. Each case is defined by multiple rows (2 or 4) sharing the same `save_path`, which dictates where the results will be saved. Required and optional columns:
 	
-	data/ 
-	└── patient_ID
-	|    └── raw_images
-	|        ├── image1
-	|        └── image2
-	|    └── raw_masks
-	|        ├── image1
-	|        └── image2
-	│    └── force_config.txt [OPTIONAL]
+	- image_path - path to the full resolution WSI (.mrxs or .tif)
+	- mask_path - path to the corresponding tissue foreground mask of the WSI (.tif)
+	- save_path - dir to save all the results for a given case
+	- force_config_path [OPTIONAL] - optional path to the force_config file that can be used to force a specific fragment configuration
+	- landmark_paths [OPTIONAL] - optional path to a landmarks.npy file holding landmarks (at level 0) which can be warped together with the WSIs 
+
+Ensure each `mask_path` corresponds to its `image_path`. Files can live anywhere accessible to the container (e.g., under `/data`).
+
+Example CSV (two fragments for one case):
+
+	cases.csv
+	imagepath,maskpath,savepath
+	/home/user/data/case01/images/image1.mrxs,/home/user/data/case01/masks/image1_mask.tif,/home/user/results/case01
+	/home/user/data/case01/images/image2.mrxs,/home/user/data/case01/masks/image2_mask.tif,/home/user/results/case01
+
+All global settings can be modified through the parameter_config.json file. A template is included at `config/parameter_config.json`.
 
 
 #### Usage instructions
             
-After preparing the input data in the aforementioned format, you can run PythoStitcher through the command line using:
+After preparing the dataframe and configuration JSON, run PythoStitcher via:
 
-    docker run -v /home/user:/home/user ghcr.io/computationalpathologygroup/pythostitcher --datadir "/home/user/data/patient_x" --savedir "/home/user/results" --resolution x
-where *datadir* refers to the directory with your input data, *savedir* refers to the location to save the result and *resolution* refers to the resolution in µm/pixel at which you want to save the final reconstruction. The  *-v /home/user:/home/user* flag is used to create a volume such that the container can access your local data directory. This can be any directory, as long as it is a parent directory for both the data and result directories. To obtain the result for the prostatectomy case with four fragments (figure at the top) you would run:
-
-    docker run -v /home/user:/home/user ghcr.io/computationalpathologygroup/pythostitcher --datadir "/home/user/data/prostate_4" --savedir "/home/user/results" --resolution 0.25
+	docker run -v /home/user:/home/user ghcr.io/computationalpathologygroup/pythostitcher --df "/home/user/data/cases.csv" --config "/home/user/config/parameter_config.json"
+`--df` points to your CSV/XLSX with the required columns, and `--config` points to the parameter JSON. The `-v /home/user:/home/user` flag mounts your local directories so the container can access both input data and output locations.
 
 #### Sample data 
 If you don't have any data available, but are still curious to try PythoStitcher, you can make use of our sample data available from <a href="https://zenodo.org/records/13786929"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.13786929.svg" alt="DOI"></a>. The sample data includes multiple prostatectomy cases with different sectioning approaches, please see the Zenodo record for more details. 

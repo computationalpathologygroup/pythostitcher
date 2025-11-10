@@ -212,29 +212,29 @@ def run_case(parameters):
 
 def parse_dataframe(df_path):
     """
-    Parse CSV/XLSX and return validated cases grouped by savepath.
+    Parse CSV/XLSX and return validated cases grouped by save_path.
     """
     
     df = pd.read_csv(df_path) if df_path.suffix.lower() == ".csv" else pd.read_excel(df_path)
     
-    required_cols = {"imagepath", "maskpath", "savepath"}
-    assert required_cols.issubset(set(df.columns)), "df must have columns imagepath, maskpath, savepath"
+    required_cols = {"image_path", "mask_path", "save_path"}
+    assert required_cols.issubset(set(df.columns)), "df must have columns image_path, mask_path, save_path"
 
-    grouped = df.groupby("savepath")
+    grouped = df.groupby("save_path")
     cases = []
 
-    for savepath, group in grouped:
-        ordered = group.sort_values("imagepath")
+    for save_path, group in grouped:
+        ordered = group.sort_values("image_path")
         
         if len(ordered) not in [2, 4]:
-            print(f"WARNING: case [{savepath}] has {len(ordered)} fragments; only 2 or 4 supported. Skipping.")
+            print(f"WARNING: case [{save_path}] has {len(ordered)} fragments; only 2 or 4 supported. Skipping.")
             continue
 
-        image_paths = [Path(p) for p in ordered["imagepath"]]
-        mask_paths = [Path(p) for p in ordered["maskpath"]]
+        image_paths = [Path(p) for p in ordered["image_path"]]
+        mask_paths = [Path(p) for p in ordered["mask_path"]]
 
         if not all(p.exists() for p in image_paths + mask_paths):
-            print(f"WARNING: Missing files for case [{Path(savepath).name}]; skipping.")
+            print(f"WARNING: Missing files for case [{Path(save_path).name}]; skipping.")
             continue
 
         # Scan for optional columns force_config and landmarks
@@ -244,7 +244,7 @@ def parse_dataframe(df_path):
         cases.append({
             "image_paths": image_paths,
             "mask_paths": mask_paths,
-            "save_path": Path(savepath),
+            "save_path": Path(save_path),
             "force_config_path": force_config_path,
             "landmark_paths": landmark_paths,
         })
