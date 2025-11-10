@@ -48,6 +48,16 @@ def jigsawnet_scoring(parameters):
                 bg_color = [int(i) for i in line]
                 bg_color = bg_color[::-1]
 
+    # Preload and cache fragment images to avoid repeated disk IO
+    fragment_image_cache = {}
+    for idx in range(parameters["n_fragments"]):
+        img_path = parameters["save_dir"].joinpath(
+            "configuration_detection", f"fragment{str(idx+1)}.png"
+        )
+        img = cv2.imread(str(img_path))
+        if img is not None:
+            fragment_image_cache[idx] = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+
     # Create lists to save results
     all_inference_images = []
     all_inference_prob = []
@@ -67,18 +77,9 @@ def jigsawnet_scoring(parameters):
         trans = alignment.transform
         raw_stitch_line = alignment.stitchLine
 
-        # Load images to be stitched
-        image1_path = parameters["save_dir"].joinpath(
-            "configuration_detection", f"fragment{str(v1+1)}.png"
-        )
-        image1 = cv2.imread(str(image1_path))
-        image1 = cv2.cvtColor(image1, cv2.COLOR_BGR2RGB)
-
-        image2_path = parameters["save_dir"].joinpath(
-            "configuration_detection", f"fragment{str(v2+1)}.png"
-        )
-        image2 = cv2.imread(str(image2_path))
-        image2 = cv2.cvtColor(image2, cv2.COLOR_BGR2RGB)
+        # Load images to be stitched (from cache)
+        image1 = fragment_image_cache[v1]
+        image2 = fragment_image_cache[v2]
 
         # Get the fused image with the pairwise alignment
         fusion_output = FusionImage(image1, image2, trans, bg_color)
@@ -229,14 +230,23 @@ def SingleTest(checkpoint_root, K, net, is_training=False):
     sessions = []
     saver = tf.compat.v1.train.Saver(max_to_keep=10)
 
+    # Configure GPU memory growth to prevent full pre-allocation per session
+    config = tf.compat.v1.ConfigProto()
+    config.gpu_options.allow_growth = True
+
+    # Resolve checkpoints once to avoid repeated scanning
+    checkpoints = []
     for i in range(K):
         check_point = os.path.join(checkpoint_root, "g%d" % i)
-        sess = tf.compat.v1.Session()
+        checkpoints.append(tf.train.latest_checkpoint(check_point))
+
+    for i in range(K):
+        sess = tf.compat.v1.Session(config=config)
         sess_init_op = tf.group(
             tf.compat.v1.global_variables_initializer(), tf.compat.v1.local_variables_initializer()
         )
         sess.run(sess_init_op)
-        saver.restore(sess, tf.train.latest_checkpoint(check_point))
+        saver.restore(sess, checkpoints[i])
         sessions.append(sess)
 
     # Inference on JigsawNet. Note how this is only performed with batch_size=1. Perhaps

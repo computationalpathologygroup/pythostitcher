@@ -2,7 +2,7 @@ import argparse
 import json
 import logging
 import os
-import pathlib
+from pathlib import Path
 
 import pandas as pd
 
@@ -20,7 +20,7 @@ def _load_base_parameters(config_path):
     Load JSON config and convert model weight paths to absolute.
     """
     
-    config_file = pathlib.Path(config_path)
+    config_file = Path(config_path)
     assert config_file.exists(), f"parameter config file not found at {config_file}"
 
     with open(config_file) as f:
@@ -60,26 +60,26 @@ def _setup_logging(save_dir, my_level):
     return logging.getLogger(f"{save_dir.name}")
 
 
-def load_parameters(image_paths, mask_paths, save_dir, base_parameters):
+def load_parameters(image_paths, mask_paths, save_path, force_config_path, landmark_paths, base_parameters):
     """
     Build parameters dict from dataframe-provided paths.
     """
     
     parameters = base_parameters.copy()
 
-    parameters["save_dir"] = save_dir
-    parameters["patient_idx"] = save_dir.name
+    parameters["save_dir"] = save_path
+    parameters["patient_idx"] = save_path.name
 
-    parameters["raw_image_paths"] = [pathlib.Path(p) for p in image_paths]
-    parameters["raw_mask_paths"] = [pathlib.Path(p) for p in mask_paths]
+    parameters["raw_image_paths"] = [Path(p) for p in image_paths]
+    parameters["raw_mask_paths"] = [Path(p) for p in mask_paths]
     parameters["raw_image_names"] = [p.name for p in parameters["raw_image_paths"]]
     parameters["raw_mask_names"] = [p.name for p in parameters["raw_mask_paths"]]
     parameters["fragment_names"] = parameters["raw_image_names"]
     parameters["n_fragments"] = len(parameters["raw_image_paths"])
     parameters["resolution_scaling"] = [i / parameters["resolutions"][0] for i in parameters["resolutions"]]
 
-    save_dir.mkdir(parents=True, exist_ok=True)
-    save_dir.joinpath("configuration_detection", "checks").mkdir(parents=True, exist_ok=True)
+    parameters["save_dir"].mkdir(parents=True, exist_ok=True)
+    parameters["save_dir"].joinpath("configuration_detection", "checks").mkdir(parents=True, exist_ok=True)
 
     return parameters
 
@@ -153,17 +153,23 @@ def parse_dataframe(df_path):
             print(f"WARNING: case [{savepath}] has {len(ordered)} fragments; only 2 or 4 supported. Skipping.")
             continue
 
-        image_paths = [pathlib.Path(p) for p in ordered["imagepath"]]
-        mask_paths = [pathlib.Path(p) for p in ordered["maskpath"]]
+        image_paths = [Path(p) for p in ordered["imagepath"]]
+        mask_paths = [Path(p) for p in ordered["maskpath"]]
 
         if not all(p.exists() for p in image_paths + mask_paths):
-            print(f"WARNING: Missing files for case [{pathlib.Path(savepath).name}]; skipping.")
+            print(f"WARNING: Missing files for case [{Path(savepath).name}]; skipping.")
             continue
+
+        # Scan for optional columns force_config and landmarks
+        force_config_path = ordered["force_config_path"].dropna().iloc[0] if "force_config_path" in ordered.columns else None
+        landmark_paths = [Path(p) for p in ordered["landmark_paths"]] if "landmark_paths" in ordered.columns else None
 
         cases.append({
             "image_paths": image_paths,
             "mask_paths": mask_paths,
-            "save_dir": pathlib.Path(savepath),
+            "save_path": Path(savepath),
+            "force_config_path": force_config_path,
+            "landmark_paths": landmark_paths,
         })
 
     return cases
@@ -175,9 +181,9 @@ def main():
     """
     
     parser = argparse.ArgumentParser(description="Stitch histopathology images into a pseudo whole-mount image")
-    parser.add_argument("--df", required=True, type=pathlib.Path, 
-                        help="Path to a CSV/XLSX with columns: imagepath, maskpath, savepath")
-    parser.add_argument("--config", required=True, type=pathlib.Path,
+    parser.add_argument("--df", required=True, type=Path, 
+                        help="Path to a CSV/XLSX with columns: imagepath, maskpath, savepath, and optional force_config, landmark_path")
+    parser.add_argument("--config", required=True, type=Path,
                         help="Path to the parameter configuration JSON file")
     args = parser.parse_args()
 
@@ -194,8 +200,14 @@ def main():
     print(f"\n### Identified {len(cases)} cases. ###")
 
     for case in cases:
-        parameters = load_parameters(case["image_paths"], case["mask_paths"], 
-                                      case["save_dir"], base_parameters)
+        parameters = load_parameters(
+            image_paths=case["image_paths"], 
+            mask_paths=case["mask_paths"], 
+            save_path=case["save_path"], 
+            force_config_path=case["force_config_path"],
+            landmark_paths=case["landmark_paths"],
+            base_parameters=base_parameters
+        )
         run_case(parameters)
         
     return

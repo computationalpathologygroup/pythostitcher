@@ -10,10 +10,8 @@ import copy
 
 from skimage.morphology import skeletonize
 from scipy.spatial import distance
-from keras_preprocessing.image import ImageDataGenerator
 from collections import Counter
 from sklearn.linear_model import TheilSenRegressor
-from scipy.spatial import distance
 
 
 class Fragment:
@@ -34,9 +32,10 @@ class Fragment:
         self.original_name = self.all_fragment_names[self.fragment_name_idx].split(".")[0]
 
         self.save_dir = kwargs["save_dir"]
-        self.data_dir = kwargs["data_dir"]
         self.raw_image_paths = kwargs.get("raw_image_paths", [])
         self.raw_mask_paths = kwargs.get("raw_mask_paths", [])
+        self.force_config_path = kwargs.get("force_config_path", None)
+        self.landmark_paths = kwargs.get("landmark_paths", None)
         self.im_path = self.save_dir.joinpath(f"preprocessed_images/{self.fragment_name}")
         self.mask_path = self.save_dir.joinpath(f"preprocessed_masks/{self.fragment_name}")
         self.res = kwargs["resolutions"][0]
@@ -45,11 +44,11 @@ class Fragment:
         self.landmark_level = kwargs["image_level"]
         self.n_samples = 10
 
-        self.force_config = self.data_dir.joinpath("force_config.txt").exists()
+        self.force_config = self.force_config_path is not None
         if self.force_config:
 
             self.config_dict = dict()
-            with open(self.data_dir.joinpath("force_config.txt"), "r") as f:
+            with open(self.force_config_path, "r") as f:
                 data = f.readlines()
                 for line in data:
                     self.config_dict[line.split(":")[0]] = line.split(":")[-1].rstrip("\n")
@@ -63,14 +62,13 @@ class Fragment:
         if not self.save_dir.joinpath("landmarks").is_dir():
             self.save_dir.joinpath("landmarks").mkdir()
 
-        landmark_path = self.data_dir.joinpath(f"fragment{self.fragment_name_idx+1}_coordinates.npy")
-        if landmark_path.exists():
+        if self.landmark_paths is not None:
             print("Using provided landmarks")
             dst = self.save_dir.joinpath(
                 "landmarks", f"fragment{self.fragment_name_idx+1}_coordinates.npy"
             )
 
-            shutil.copyfile(landmark_path, dst)
+            shutil.copyfile(self.landmark_paths[self.fragment_name_idx], dst)
             self.require_landmark_computation = False
         else:
             self.require_landmark_computation = True
@@ -228,10 +226,9 @@ class Fragment:
                     tform_im = self.classifier.transform_image(image=self.model_image, rot=r, flip=f)
                     tform_images.append(tform_im[np.newaxis, :])
 
-                # Put batch of images in datagenerator for fast inference
+                # Stack images for batch inference
                 stacked_images = np.vstack(tform_images)
-                datagen = ImageDataGenerator().flow(x=stacked_images, shuffle=False)
-                pred = self.classifier.model.predict(datagen)
+                pred = self.classifier.model.predict(stacked_images, verbose=0)
                 pred = np.argmax(pred, axis=1) + 1
                 pred = pred.tolist()
 
