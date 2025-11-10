@@ -2,6 +2,7 @@ import argparse
 import json
 import logging
 import os
+import shutil
 from pathlib import Path
 
 import pandas as pd
@@ -13,6 +14,45 @@ from pythostitcher_utils.full_resolution import generate_full_res
 from pythostitcher_utils.get_resname import get_resname
 from pythostitcher_utils.optimize_stitch import optimize_stitch
 from pythostitcher_utils.preprocess import preprocess
+
+
+def _copy_file_to_local(source_path, local_dir):
+    """
+    Copy a file from NAS to local directory.
+    
+    Args:
+        source_path: Path to source file on NAS
+        local_dir: Local directory (e.g., /opt/input)
+    
+    Returns:
+        Path to the local copy
+    """
+    local_dir = Path(local_dir)
+    local_dir.mkdir(parents=True, exist_ok=True)
+    
+    local_path = local_dir.joinpath(source_path.name)
+    
+    try:
+        shutil.copy2(source_path, local_path)
+    except Exception as e:
+        raise RuntimeError(f"Failed to copy {source_path} to {local_path}: {e}")
+    
+    return local_path
+
+
+def _cleanup_local_directory(local_dir):
+    """
+    Remove local directory and all its contents.
+    
+    Args:
+        local_dir: Directory to remove
+    """
+    local_dir = Path(local_dir)
+    if local_dir.exists():
+        try:
+            shutil.rmtree(local_dir)
+        except Exception as e:
+            raise RuntimeError(f"Failed to cleanup {local_dir}: {e}")
 
 
 def _load_base_parameters(config_path):
@@ -70,10 +110,28 @@ def load_parameters(image_paths, mask_paths, save_path, force_config_path, landm
     parameters["save_dir"] = save_path
     parameters["patient_idx"] = save_path.name
 
-    parameters["raw_image_paths"] = [Path(p) for p in image_paths]
-    parameters["raw_mask_paths"] = [Path(p) for p in mask_paths]
-    parameters["raw_image_names"] = [p.name for p in parameters["raw_image_paths"]]
-    parameters["raw_mask_names"] = [p.name for p in parameters["raw_mask_paths"]]
+    # Store original paths for reference
+    parameters["original_image_paths"] = [Path(p) for p in image_paths]
+    parameters["original_mask_paths"] = [Path(p) for p in mask_paths]
+    
+    # Handle read_local: copy files to /opt/input if enabled
+    if parameters.get("read_local", False):
+        local_input_dir = Path("/opt/input")
+        
+        parameters["raw_image_paths"] = [
+            _copy_file_to_local(Path(p), local_input_dir) for p in image_paths
+        ]
+        parameters["raw_mask_paths"] = [
+            _copy_file_to_local(Path(p), local_input_dir) for p in mask_paths
+        ]
+        parameters["local_input_dir"] = local_input_dir
+    else:
+        parameters["raw_image_paths"] = [Path(p) for p in image_paths]
+        parameters["raw_mask_paths"] = [Path(p) for p in mask_paths]
+        parameters["local_input_dir"] = None
+    
+    parameters["raw_image_names"] = [p.name for p in parameters["original_image_paths"]]
+    parameters["raw_mask_names"] = [p.name for p in parameters["original_mask_paths"]]
     parameters["fragment_names"] = parameters["raw_image_names"]
     parameters["n_fragments"] = len(parameters["raw_image_paths"])
     parameters["resolution_scaling"] = [i / parameters["resolutions"][0] for i in parameters["resolutions"]]
@@ -128,6 +186,11 @@ def run_case(parameters):
         log.log(parameters["my_level"], f"### Succesfully stitched solution {count_sol} ###\n")
 
     log.log(parameters["my_level"], "PythoStitcher completed!")
+    
+    # Cleanup local input files if read_local was enabled
+    if parameters.get("local_input_dir") is not None:
+        _cleanup_local_directory(parameters["local_input_dir"])
+    
     del parameters, log
     
     return

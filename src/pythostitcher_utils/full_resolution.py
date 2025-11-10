@@ -8,6 +8,8 @@ import copy
 import matplotlib.pyplot as plt
 import logging
 import math
+import shutil
+from pathlib import Path
 
 from .get_resname import get_resname
 from .fuse_images_highres import fuse_images_highres
@@ -585,19 +587,47 @@ def generate_full_res(parameters, log):
         parameters["my_level"], f"Saving blended end result at {parameters['output_res']} µm/pixel"
     )
     start = time.time()
-
-    result_image_save.write_to_file(
-        str(
-            parameters["sol_save_dir"].joinpath(
-                "highres", "stitched_image.tif"
-            )
-        ),
-        tile=True,
-        compression="jpeg",
-        bigtiff=True,
-        pyramid=True,
-        Q=80,
-    )
+    
+    # Determine output path based on write_local setting
+    final_output_path = parameters["sol_save_dir"].joinpath("highres", "stitched_image.tif")
+    
+    if parameters.get("write_local", False):
+        local_output_dir = Path("/opt/output")
+        local_output_dir.mkdir(parents=True, exist_ok=True)
+        local_output_path = local_output_dir.joinpath("stitched_image.tif")
+        
+        # Write to local directory first
+        result_image_save.write_to_file(
+            str(local_output_path),
+            tile=True,
+            compression="jpeg",
+            bigtiff=True,
+            pyramid=True,
+            Q=80,
+        )
+        
+        # Copy to final destination on NAS
+        try:
+            shutil.copy2(local_output_path, final_output_path)
+        except Exception as e:
+            raise RuntimeError(f"Failed to copy {local_output_path} to {final_output_path}: {e}")
+        
+        # Cleanup local copy immediately
+        try:
+            local_output_path.unlink()
+        except Exception as e:
+            raise RuntimeError(f"Failed to delete local output file {local_output_path}: {e}")
+    else:
+        # Write directly to final destination
+        result_image_save.write_to_file(
+            str(final_output_path),
+            tile=True,
+            compression="jpeg",
+            bigtiff=True,
+            pyramid=True,
+            Q=80,
+        )
+    
     log.log(
         parameters["my_level"], f" > finished in {int(np.ceil((time.time()-start)/60))} mins!\n"
     )

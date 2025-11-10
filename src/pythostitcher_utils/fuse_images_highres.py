@@ -224,6 +224,10 @@ def fuse_images_highres(images, masks):
                 for c in actual_cnts:
                     all_contours.append(c)
                     bbox = cv2.minAreaRect(c)
+                    
+                    # Prevent surpassing max support dim in cv2
+                    if int(bbox[1][0]) >= 32767 or int(bbox[1][1]) >= 32767:
+                        continue
 
                     # Get the gradient and its reverse
                     if is_horizontal:
@@ -245,39 +249,47 @@ def fuse_images_highres(images, masks):
                     all_grads.append(grad)
                     all_grads_rev.append(grad_rev)
 
-                all_grad = np.sum(all_grads, axis=0)
-                all_grad_rev = np.sum(all_grads_rev, axis=0)
+                # Skip case if it didnt meet cv2 requirements
+                if len(all_grads) == 0:
+                    continue
+                else:
+                    all_grad = np.sum(all_grads, axis=0)
+                    all_grad_rev = np.sum(all_grads_rev, axis=0)
 
-                # Save the gradients
-                gradients[(q1_name, q2_name)] = all_grad_rev
-                gradients[(q2_name, q1_name)] = all_grad
+                    # Save the gradients
+                    gradients[(q1_name, q2_name)] = all_grad_rev
+                    gradients[(q2_name, q1_name)] = all_grad
 
             # In case of only 1 valid contour
             elif len(actual_cnts) == 1:
                 c = np.squeeze(actual_cnts)
                 all_contours.append(c)
                 bbox = cv2.minAreaRect(c)
+                
+                # Prevent surpassing max support dim in cv2
+                if bbox[1][0] >= 32767 or bbox[1][1] >= 32767:
+                    continue
+                else:
+                    # Get the gradient and its reverse
+                    if is_horizontal:
+                        all_grad, all_grad_rev = get_gradients(
+                            bbox=bbox,
+                            overlap=overlap_pad,
+                            direction="horizontal",
+                            pad=pad,
+                        )
 
-                # Get the gradient and its reverse
-                if is_horizontal:
-                    all_grad, all_grad_rev = get_gradients(
-                        bbox=bbox,
-                        overlap=overlap_pad,
-                        direction="horizontal",
-                        pad=pad,
-                    )
+                    elif is_vertical:
+                        all_grad, all_grad_rev = get_gradients(
+                            bbox=bbox,
+                            overlap=overlap_pad,
+                            direction="vertical",
+                            pad=pad,
+                        )
 
-                elif is_vertical:
-                    all_grad, all_grad_rev = get_gradients(
-                        bbox=bbox,
-                        overlap=overlap_pad,
-                        direction="vertical",
-                        pad=pad,
-                    )
-
-                # Save the gradients
-                gradients[(q1_name, q2_name)] = all_grad_rev
-                gradients[(q2_name, q1_name)] = all_grad
+                    # Save the gradients
+                    gradients[(q1_name, q2_name)] = all_grad_rev
+                    gradients[(q2_name, q1_name)] = all_grad
 
             # Rare case when there is 1 contour but this contour is not valid and
             # basically an artefact. In this case we treat this as nonoverlap.
