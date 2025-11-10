@@ -16,6 +16,17 @@ from pythostitcher_utils.optimize_stitch import optimize_stitch
 from pythostitcher_utils.preprocess import preprocess
 
 
+def _write_completion_marker(save_dir: Path, marker_name: str = ".complete"):
+    """
+    Atomically write a completion marker in the case save directory.
+    """
+    tmp_path = save_dir.joinpath(f"{marker_name}.tmp")
+    final_path = save_dir.joinpath(marker_name)
+    with open(tmp_path, "w") as f:
+        f.write("ok\n")
+    os.replace(tmp_path, final_path)
+
+
 def _copy_file_to_local(source_path, local_dir):
     """
     Copy a file from NAS to local directory.
@@ -192,6 +203,9 @@ def run_case(parameters):
         _cleanup_local_directory(parameters["local_input_dir"])
     
     del parameters, log
+    
+    # Write per-case completion marker for downstream orchestration
+    _write_completion_marker(save_dir)
     
     return
 
