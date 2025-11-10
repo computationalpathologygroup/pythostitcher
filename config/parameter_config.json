@@ -6,6 +6,7 @@
 	"pad_fraction": 0.5,
 	"slice_idx": "slice_0",
 	"my_level": 45,
+	"stain_normalization": false,
 	
 	"n_solutions": 40,
 	"n_generations": [400, 200, 200, 100],

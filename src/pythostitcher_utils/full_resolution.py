@@ -31,13 +31,13 @@ class FullResImage:
         self.raw_image_name = parameters["raw_image_names"][self.idx]
         self.raw_mask_name = parameters["raw_mask_names"][self.idx]
         self.save_dir = parameters["sol_save_dir"]
-        self.data_dir = parameters["data_dir"]
         self.raw_image_path = parameters["raw_image_paths"][self.idx]
         self.orientation = parameters["detected_configuration"][self.raw_image_name].lower()
         self.rot_k = parameters["rot_steps"][self.raw_image_name]
         self.resolutions = parameters["resolutions"]
         self.resolution_scaling = parameters["resolution_scaling"]
-
+        self.stain_normalization = parameters["stain_normalization"]
+        
         if self.raw_mask_name:
             self.raw_mask_path = parameters["raw_mask_paths"][self.idx]
 
@@ -46,7 +46,6 @@ class FullResImage:
         self.slice_idx = parameters["slice_idx"]
         self.ps_level = parameters["image_level"]
 
-        self.data_dir = parameters["data_dir"]
         self.ps_mask_path = self.save_dir.joinpath(
             "images", self.slice_idx, self.res_name, f"fragment_{self.orientation}_mask.png"
         )
@@ -520,21 +519,28 @@ def generate_full_res(parameters, log):
         f.combine_masks()
         f.process_image()
         f.save_multi_res_coords()
-
-    # Apply stain normalization after image has been processed
-    normalized_images = apply_fullres_stain_norm([f.final_image for f in full_res_fragments])
-    for normalized_image, f in zip(normalized_images, full_res_fragments):
-        f.final_image = normalized_image.multiply(f.outputres_mask).cast("uchar", shift=False)
-
-    ### DEBUGGING ###
-    log.setLevel(logging.ERROR)
-
+    
     log.log(
         parameters["my_level"], f" > finished in {int(np.ceil((time.time()-start)/60))} mins!\n"
     )
 
+    # Optional stain normalization - compute heavy!
+    if parameters["stain_normalization"]:
+        
+        log.log(parameters["my_level"], "Applying stain normalization")
+        start = time.time()
+        
+        # Apply stain normalization
+        normalized_images = apply_fullres_stain_norm([f.final_image for f in full_res_fragments])
+        
+        # Mask background to prevent artefacts
+        for normalized_image, f in zip(normalized_images, full_res_fragments):
+            f.final_image = normalized_image.multiply(f.outputres_mask).cast("uchar", shift=False)
+            
+        log.log(parameters["my_level"], f" > finished in {int(np.ceil((time.time()-start)/60))} mins!\n")
+
     # Add all images as the default stitching method
-    result_image = pyvips.Image.sum(normalized_images)
+    result_image = pyvips.Image.sum([f.final_image for f in full_res_fragments])
     if not result_image.format == "uchar":
         result_image = result_image.cast("uchar", shift=False)
 

@@ -32,7 +32,6 @@ class Fragment:
         self.resolutions = kwargs["resolutions"]
         self.nbins = kwargs["nbins"]
         self.hist_sizes = kwargs["hist_sizes"]
-        self.data_dir = kwargs["data_dir"]
         self.original_image_idx = kwargs["fragment_names"].index(self.final_orientation) + 1
         self.im_path = self.save_dir.joinpath(
             "preprocessed_images", f"fragment{self.original_image_idx}.png"

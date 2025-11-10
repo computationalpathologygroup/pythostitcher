@@ -68,7 +68,6 @@ def load_parameters(image_paths, mask_paths, save_dir, base_parameters):
     parameters = base_parameters.copy()
 
     parameters["save_dir"] = save_dir
-    parameters["data_dir"] = save_dir
     parameters["patient_idx"] = save_dir.name
 
     parameters["raw_image_paths"] = [pathlib.Path(p) for p in image_paths]
