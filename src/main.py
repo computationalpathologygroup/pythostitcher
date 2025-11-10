@@ -265,8 +265,8 @@ def main():
     args = parser.parse_args()
 
     assert args.df.suffix.lower() in [".csv", ".xlsx"], "df must be .csv or .xlsx"
-    assert args.df.exists(), "df path doesn't exist"
-    assert args.config.exists(), "config path doesn't exist"
+    assert args.df.exists(), f"df path {args.df} doesn't exist"
+    assert args.config.exists(), f"config path {args.config} doesn't exist"
     assert args.config.suffix.lower() == ".json", "config must be a .json file"
 
     base_parameters = _load_base_parameters(args.config)
@@ -285,7 +285,11 @@ def main():
             landmark_paths=case["landmark_paths"],
             base_parameters=base_parameters
         )
-        run_case(parameters)
+        try:
+            run_case(parameters)
+        except Exception as e:
+            print(f"ERROR: Failed to run case {case['save_path']}: {e}")
+            continue
         
     return
 

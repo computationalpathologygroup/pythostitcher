@@ -8,7 +8,7 @@
 	"my_level": 45,
 	"stain_normalization": false,
 	"read_local": false,
-	"write_local": true,
+	"write_local": false,
 	
 	"n_solutions": 40,
 	"n_generations": [400, 200, 200, 100],
