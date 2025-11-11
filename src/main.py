@@ -1,6 +1,7 @@
 import os
 os.environ["VIPS_CONCURRENCY"] = "8"
 import argparse
+import shutil
 from pathlib import Path
 
 import pandas as pd
@@ -60,6 +61,9 @@ def load_parameters(image_paths, mask_paths, save_path, force_config_path, landm
 
     parameters["save_dir"].mkdir(parents=True, exist_ok=True)
     parameters["save_dir"].joinpath("configuration_detection", "checks").mkdir(parents=True, exist_ok=True)
+
+    # Save config file
+    shutil.copyfile(parameters["config_path"], parameters["save_dir"].joinpath("parameter_config.json"))
 
     return parameters
 
@@ -184,7 +188,7 @@ def main():
     assert "output_res" in base_parameters, "config must contain 'output_res' parameter"
     assert base_parameters["output_res"] > 0, "output resolution cannot be negative"
 
-    # Configure pyvips (no-ops if not provided)
+    # Configure pyvips
     _configure_pyvips(base_parameters)
 
     cases = parse_dataframe(args.df)
@@ -200,11 +204,11 @@ def main():
                 landmark_paths=case["landmark_paths"],
                 base_parameters=base_parameters
             )
-            try:
-                run_case(parameters)
-            except Exception as e:
-                print(f"ERROR: Failed to run case {case['save_path']}: {e}")
-                continue
+            # try:
+            run_case(parameters)
+            # except Exception as e:
+            #     print(f"ERROR: Failed to run case {case['save_path']}: {e}")
+            #     continue
         else:
             print(f"Case {case['save_path']} already completed. Skipping.")
             continue

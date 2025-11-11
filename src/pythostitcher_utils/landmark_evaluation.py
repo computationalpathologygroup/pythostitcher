@@ -96,7 +96,7 @@ class LandmarkEvaluator:
         # Load stitched image
         self.opener = mir.MultiResolutionImageReader()
         self.image_path = str(
-            self.image_dir.joinpath(f"stitched_image_{self.output_res}_micron.tif")
+            self.image_dir.joinpath(f"stitched_image.tif")
         )
         self.image = self.opener.open(str(self.image_path))
 

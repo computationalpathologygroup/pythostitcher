@@ -70,17 +70,22 @@ def _load_base_parameters(config_path):
     """
     Load JSON config and convert model weight paths to absolute.
     """
+    
     config_file = Path(config_path)
     assert config_file.exists(), f"parameter config file not found at {config_file}"
+    
     with open(config_file) as f:
         parameters = json.load(f)
     config_dir = config_file.parent
+    
     parameters["weights_fragment_classifier"] = (
         config_dir.parent.joinpath(parameters["weights_fragment_classifier"])
     )
     parameters["weights_jigsawnet"] = (
         config_dir.parent.joinpath(parameters["weights_jigsawnet"])
     )
+    parameters["config_path"] = config_path
+    
     return parameters
 
 

@@ -541,55 +541,63 @@ def generate_full_res(parameters, log):
             
         log.log(parameters["my_level"], f" > finished in {int(np.ceil((time.time()-start)/60))} mins!\n")
 
+    # Ensure output mask has correct spacing attribute
+    xyres = 1000 / full_res_fragments[0].output_spacing
+    
     # Add all images as the default stitching method
     result_image = pyvips.Image.sum([f.final_image for f in full_res_fragments])
+    result_image = result_image.copy(xres=xyres, yres=xyres)
     if not result_image.format == "uchar":
         result_image = result_image.cast("uchar", shift=False)
 
     # Do the same for masks
-    result_mask = pyvips.Image.sum([f.outputres_mask for f in full_res_fragments])
-    if not result_mask.format == "uchar":
-        result_mask = result_mask.cast("uchar", shift=False)
+    blending_mask = pyvips.Image.sum([f.outputres_mask for f in full_res_fragments])
+    blending_mask = blending_mask.copy(xres=xyres, yres=xyres)
+    if not blending_mask.format == "uchar":
+        blending_mask = blending_mask.cast("uchar", shift=False)
 
-    # Save temp .tif version of mask for later use in blending
+    # Create binary copy of mask
+    result_mask = blending_mask.copy(xres=xyres, yres=xyres)
+    result_mask = (result_mask > 0).ifthenelse(255, 0).cast("uchar", shift=False)
+
+    # Save temp .tif version of mask for later use in (optional) blending
     parameters["tif_mask_path"] = str(
         parameters["sol_save_dir"].joinpath("highres", "stitched_image_tissuemask.tif")
     )
-    log.log(parameters["my_level"], f"Saving temporary mask at {parameters['output_res']} µm/pixel")
-    start = time.time()
-    result_mask.write_to_file(
-        parameters["tif_mask_path"],
-        tile=True,
-        compression="lzw",
-        bigtiff=True,
-        pyramid=True,
-        bitdepth=2,
-        predictor="none",
-        region_shrink="mode",
-        tile_width=2048,
-        tile_height=2048,
+    parameters["blending_mask_path"] = str(
+        parameters["sol_save_dir"].joinpath("highres", "stitched_blending_mask.tif")
     )
-    log.log(
-        parameters["my_level"], f" > finished in {int(np.ceil((time.time()-start)/60))} mins!\n"
-    )
+    if parameters["blend_overlapping_fragments"]:
+        log.log(parameters["my_level"], f"Saving blending mask at {parameters['output_res']} µm/pixel")
+        start = time.time()
+        blending_mask.write_to_file(
+            parameters["blending_mask_path"],
+            tile=True,
+            compression="lzw",
+            bigtiff=True,
+            pyramid=True,
+            predictor="none",
+            region_shrink="mode",
+            tile_width=2048,
+            tile_height=2048,
+        )
+        log.log(
+            parameters["my_level"], f" > finished in {int(np.ceil((time.time()-start)/60))} mins!\n"
+        )
 
-    # Perform blending in areas of overlap
-    log.log(parameters["my_level"], "Blending areas of overlap")
-    start = time.time()
-    result_image = perform_blending(
-        result_image, result_mask, full_res_fragments, log, parameters
-    )
-    log.log(
-        parameters["my_level"], f" > finished in {int(np.ceil((time.time()-start)/60))} mins!\n"
-    )
+        # Perform blending in areas of overlap
+        log.log(parameters["my_level"], "Blending areas of overlap")
+        start = time.time()
+        result_image = perform_blending(
+            result_image, result_mask, full_res_fragments, log, parameters
+        )
+        log.log(
+            parameters["my_level"], f" > finished in {int(np.ceil((time.time()-start)/60))} mins!\n"
+        )
     
-    # Ensure output image has spacing attribute
-    xyres = 1000 / full_res_fragments[0].output_spacing
-    result_image_save = result_image.copy(xres=xyres, yres=xyres)
-
     # Save final result
     log.log(
-        parameters["my_level"], f"Saving blended end result at {parameters['output_res']} µm/pixel"
+        parameters["my_level"], f"Saving stitched end result at {parameters['output_res']} µm/pixel"
     )
     start = time.time()
     
@@ -602,7 +610,7 @@ def generate_full_res(parameters, log):
         local_output_path = local_output_dir.joinpath("stitched_image.tif")
         
         # Write to local directory first
-        result_image_save.write_to_file(
+        result_image.write_to_file(
             str(local_output_path),
             tile=True,
             compression="jpeg",
@@ -626,7 +634,7 @@ def generate_full_res(parameters, log):
             raise RuntimeError(f"Failed to delete local output file {local_output_path}: {e}")
     else:
         # Write directly to final destination
-        result_image_save.write_to_file(
+        result_image.write_to_file(
             str(final_output_path),
             tile=True,
             compression="jpeg",
@@ -641,10 +649,68 @@ def generate_full_res(parameters, log):
         parameters["my_level"], f" > finished in {int(np.ceil((time.time()-start)/60))} mins!\n"
     )
 
+    # Save result mask
+    log.log(
+        parameters["my_level"], f"Saving tissue mask at {parameters['output_res']} µm/pixel"
+    )
+    start = time.time()
+    
+    # Determine mask output path based on write_local setting
+    final_mask_path = parameters["sol_save_dir"].joinpath("highres", "stitched_image_tissuemask.tif")
+    
+    if parameters.get("write_local", False):
+        local_output_dir = Path("/opt/output")
+        local_output_dir.mkdir(parents=True, exist_ok=True)
+        local_mask_path = local_output_dir.joinpath("stitched_image_tissuemask.tif")
+        
+        # Write to local directory first
+        result_mask.write_to_file(
+            str(local_mask_path),
+            tile=True,
+            compression="lzw",
+            bigtiff=True,
+            pyramid=True,
+            bitdepth=2,
+            predictor="none",
+            region_shrink="mode",
+            tile_width=2048,
+            tile_height=2048,
+        )
+        
+        # Copy to final destination on NAS
+        try:
+            shutil.copy2(local_mask_path, final_mask_path)
+        except Exception as e:
+            raise RuntimeError(f"Failed to copy {local_mask_path} to {final_mask_path}: {e}")
+        
+        # Cleanup local copy immediately
+        try:
+            local_mask_path.unlink()
+        except Exception as e:
+            raise RuntimeError(f"Failed to delete local mask file {local_mask_path}: {e}")
+    else:
+        # Write directly to final destination
+        result_mask.write_to_file(
+            str(final_mask_path),
+            tile=True,
+            compression="lzw",
+            bigtiff=True,
+            pyramid=True,
+            bitdepth=2,
+            predictor="none",
+            region_shrink="mode",
+            tile_width=2048,
+            tile_height=2048,
+        )
+    
+    log.log(
+        parameters["my_level"], f" > finished in {int(np.ceil((time.time()-start)/60))} mins!\n"
+    )
+
     # Evaluate residual registration mismatch
     evaluate_landmarks(parameters)
 
     # Clean up for next solution
-    del full_res_fragments, result_mask, result_image, result_image_save
+    del full_res_fragments, result_mask, blending_mask, result_image
 
     return

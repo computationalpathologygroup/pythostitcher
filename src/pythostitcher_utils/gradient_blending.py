@@ -27,7 +27,7 @@ def perform_blending(result_image, result_mask, full_res_fragments, log, paramet
 
     # Load .tif of the mask
     opener = mir.MultiResolutionImageReader()
-    tif_mask = opener.open(parameters["tif_mask_path"])
+    tif_mask = opener.open(parameters["blending_mask_path"])
 
     # Get output level closest to a 4k image
     best_mask_output_dims = 4000
@@ -408,7 +408,7 @@ def correct_orientation(mask, result_image, parameters, debug_visualization):
         result_image.write_to_file(
             str(
                 parameters["sol_save_dir"].joinpath(
-                    "highres", f"stitched_image_{parameters['output_res']}_micron.tif"
+                    "highres", f"stitched_image.tif"
                 )
             ),
             tile=True,
@@ -421,7 +421,7 @@ def correct_orientation(mask, result_image, parameters, debug_visualization):
         opener = mir.MultiResolutionImageReader()
         result_image_tif = opener.open(str(
             parameters["sol_save_dir"].joinpath(
-                "highres", f"stitched_image_{parameters['output_res']}_micron.tif"
+                "highres", f"stitched_image.tif"
             )))
 
         # Get lowres version
