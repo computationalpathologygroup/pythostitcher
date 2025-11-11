@@ -1,114 +1,25 @@
-import argparse
-import json
-import logging
 import os
-import shutil
+os.environ["VIPS_CONCURRENCY"] = "8"
+import argparse
 from pathlib import Path
 
 import pandas as pd
 
 from assembly_utils.detect_configuration import detect_configuration
 from preprocessing_utils.prepare_data import prepare_data
+from preprocessing_utils.startup_utils import (
+    _configure_pyvips,
+    _write_completion_marker,
+    _copy_file_to_local,
+    _cleanup_local_directory,
+    _load_base_parameters,
+    _setup_logging,
+)
 from pythostitcher_utils.fragment_class import Fragment
 from pythostitcher_utils.full_resolution import generate_full_res
 from pythostitcher_utils.get_resname import get_resname
 from pythostitcher_utils.optimize_stitch import optimize_stitch
 from pythostitcher_utils.preprocess import preprocess
-
-
-def _write_completion_marker(save_dir: Path, marker_name: str = ".complete"):
-    """
-    Atomically write a completion marker in the case save directory.
-    """
-    tmp_path = save_dir.joinpath(f"{marker_name}.tmp")
-    final_path = save_dir.joinpath(marker_name)
-    with open(tmp_path, "w") as f:
-        f.write("ok\n")
-    os.replace(tmp_path, final_path)
-
-
-def _copy_file_to_local(source_path, local_dir):
-    """
-    Copy a file from NAS to local directory.
-    
-    Args:
-        source_path: Path to source file on NAS
-        local_dir: Local directory (e.g., /opt/input)
-    
-    Returns:
-        Path to the local copy
-    """
-    local_dir = Path(local_dir)
-    local_dir.mkdir(parents=True, exist_ok=True)
-    
-    local_path = local_dir.joinpath(source_path.name)
-    
-    try:
-        shutil.copy2(source_path, local_path)
-    except Exception as e:
-        raise RuntimeError(f"Failed to copy {source_path} to {local_path}: {e}")
-    
-    return local_path
-
-
-def _cleanup_local_directory(local_dir):
-    """
-    Remove local directory and all its contents.
-    
-    Args:
-        local_dir: Directory to remove
-    """
-    local_dir = Path(local_dir)
-    if local_dir.exists():
-        try:
-            shutil.rmtree(local_dir)
-        except Exception as e:
-            raise RuntimeError(f"Failed to cleanup {local_dir}: {e}")
-
-
-def _load_base_parameters(config_path):
-    """
-    Load JSON config and convert model weight paths to absolute.
-    """
-    
-    config_file = Path(config_path)
-    assert config_file.exists(), f"parameter config file not found at {config_file}"
-
-    with open(config_file) as f:
-        parameters = json.load(f)
-
-    # Convert relative paths to absolute paths relative to config file location
-    config_dir = config_file.parent
-    
-    parameters["weights_fragment_classifier"] = (
-        config_dir.parent.joinpath(parameters["weights_fragment_classifier"])
-    )
-    parameters["weights_jigsawnet"] = (
-        config_dir.parent.joinpath(parameters["weights_jigsawnet"])
-    )
-    
-    return parameters
-
-
-def _setup_logging(save_dir, my_level):
-    """
-    Initialize logging for a case.
-    """
-    
-    logfile = save_dir.joinpath("pythostitcher_log.txt")
-    if logfile.exists():
-        logfile.unlink()
-
-    logging.basicConfig(
-        filename=logfile,
-        level=logging.WARNING,
-        format="%(asctime)s    %(message)s",
-        datefmt="%Y-%m-%d %H:%M:%S",
-        force=True
-    )
-    logging.addLevelName(my_level, "output")
-    
-    return logging.getLogger(f"{save_dir.name}")
 
 
 def load_parameters(image_paths, mask_paths, save_path, force_config_path, landmark_paths, base_parameters):
@@ -273,24 +184,30 @@ def main():
     assert "output_res" in base_parameters, "config must contain 'output_res' parameter"
     assert base_parameters["output_res"] > 0, "output resolution cannot be negative"
 
+    # Configure pyvips (no-ops if not provided)
+    _configure_pyvips(base_parameters)
+
     cases = parse_dataframe(args.df)
     print(f"\n### Identified {len(cases)} cases. ###")
 
     for case in cases:
-        parameters = load_parameters(
-            image_paths=case["image_paths"], 
-            mask_paths=case["mask_paths"], 
-            save_path=case["save_path"], 
-            force_config_path=case["force_config_path"],
-            landmark_paths=case["landmark_paths"],
-            base_parameters=base_parameters
-        )
-        try:
-            run_case(parameters)
-        except Exception as e:
-            print(f"ERROR: Failed to run case {case['save_path']}: {e}")
+        if not case["save_path"].joinpath(".complete").exists():
+            parameters = load_parameters(
+                image_paths=case["image_paths"], 
+                mask_paths=case["mask_paths"], 
+                save_path=case["save_path"], 
+                force_config_path=case["force_config_path"],
+                landmark_paths=case["landmark_paths"],
+                base_parameters=base_parameters
+            )
+            try:
+                run_case(parameters)
+            except Exception as e:
+                print(f"ERROR: Failed to run case {case['save_path']}: {e}")
+                continue
+        else:
+            print(f"Case {case['save_path']} already completed. Skipping.")
             continue
-        
     return
 
 

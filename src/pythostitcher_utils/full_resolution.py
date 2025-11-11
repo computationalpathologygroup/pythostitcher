@@ -563,6 +563,11 @@ def generate_full_res(parameters, log):
         compression="lzw",
         bigtiff=True,
         pyramid=True,
+        bitdepth=2,
+        predictor="none",
+        region_shrink="mode",
+        tile_width=2048,
+        tile_height=2048,
     )
     log.log(
         parameters["my_level"], f" > finished in {int(np.ceil((time.time()-start)/60))} mins!\n"
@@ -604,6 +609,8 @@ def generate_full_res(parameters, log):
             bigtiff=True,
             pyramid=True,
             Q=80,
+            tile_width=2048,
+            tile_height=2048,
         )
         
         # Copy to final destination on NAS
@@ -626,6 +633,8 @@ def generate_full_res(parameters, log):
             bigtiff=True,
             pyramid=True,
             Q=80,
+            tile_width=2048,
+            tile_height=2048,
         )
     
     log.log(

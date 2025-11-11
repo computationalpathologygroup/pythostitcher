@@ -1,6 +1,6 @@
 {
-	"output_res": 0.25,
-	"top_k": 6,
+	"output_res": 0.50,
+	"top_k": 3,
 	"resolutions": [0.05, 0.15, 0.45, 1],
 	"image_level": 7,
 	"pad_fraction": 0.5,
@@ -9,6 +9,13 @@
 	"stain_normalization": false,
 	"read_local": false,
 	"write_local": false,
+	
+	"pyvips": {
+		"cache_max": 2000,
+		"cache_max_files": 4096,
+		"cache_max_mem_gb": 8,
+		"cache_trace": false
+	},
 	
 	"n_solutions": 40,
 	"n_generations": [400, 200, 200, 100],
