@@ -15,6 +15,7 @@ algorithm_analysis/
 /data
 /results
 .devcontainer
+full-repo-context.txt
 
 # Distribution / packaging
 
