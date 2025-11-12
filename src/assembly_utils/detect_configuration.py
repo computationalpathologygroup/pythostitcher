@@ -44,7 +44,7 @@ def detect_configuration(parameters):
         if not solution_file.exists():
             global_assembly(parameters)
 
-        # Retrieve the three best solutions in rank of likelihood
+        # Retrieve the k best solutions in rank of likelihood
         solutions = fetch_solutions(parameters)
 
     else:
