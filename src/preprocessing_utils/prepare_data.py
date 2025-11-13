@@ -151,7 +151,7 @@ class Processor:
         """
 
         # Combine
-        self.final_mask = self.otsu_mask * self.mask
+        self.final_mask = self.mask
 
         # Postprocess similar to tissue segmentation mask. Get largest cc and floodfill.
         num_labels, labeled_im, stats, _ = cv2.connectedComponentsWithStats(

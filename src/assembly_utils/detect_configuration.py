@@ -33,7 +33,7 @@ def detect_configuration(parameters):
             "configuration_detection",
             "filtered_alignments.txt"
         )
-        if not alignments_file.exists():
+        if parameters["alignment_score"] == "jigsawnet" and not alignments_file.exists():
             jigsawnet_scoring(parameters)
 
         # Use the JigsawNet scores to determine feasible assemblies

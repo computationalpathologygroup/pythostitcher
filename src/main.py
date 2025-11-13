@@ -108,7 +108,8 @@ def run_case(parameters):
             preprocess(fragments=fragments, parameters=parameters)
             optimize_stitch(parameters=parameters)
 
-        generate_full_res(parameters=parameters, log=log)
+        ### TEMP REMOVE THIS PART, JUST DETECT CONFIG, THEN HAND TO HGX LATER ###
+        # generate_full_res(parameters=parameters, log=log)
         log.log(parameters["my_level"], f"### Succesfully stitched solution {count_sol} ###\n")
 
     log.log(parameters["my_level"], "PythoStitcher completed!")
@@ -121,7 +122,7 @@ def run_case(parameters):
     
     # Write per-case completion marker for downstream orchestration
     _write_completion_marker(save_dir)
-    
+
     return
 
 
@@ -204,11 +205,12 @@ def main():
                 landmark_paths=case["landmark_paths"],
                 base_parameters=base_parameters
             )
-            # try:
-            run_case(parameters)
-            # except Exception as e:
-            #     print(f"ERROR: Failed to run case {case['save_path']}: {e}")
-            #     continue
+            try:
+                run_case(parameters)
+            except Exception as e:
+                print(f"ERROR: Failed to run case {case['save_path']}: {e}")
+                del case, parameters
+                continue
         else:
             print(f"Case {case['save_path']} already completed. Skipping.")
             continue
