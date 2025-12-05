@@ -36,7 +36,6 @@ class Assembler:
 
         self.available_files = list(self.case_path.iterdir())
         self.mandatory_files = [
-            "filtered_alignments.txt",
             "bg_color.txt",
             "fragment_list.txt",
             "fragment*.png",

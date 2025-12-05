@@ -204,11 +204,11 @@ def main():
                 landmark_paths=case["landmark_paths"],
                 base_parameters=base_parameters
             )
-            # try:
-            run_case(parameters)
-            # except Exception as e:
-            #     print(f"ERROR: Failed to run case {case['save_path']}: {e}")
-            #     continue
+            try:
+                run_case(parameters)
+            except Exception as e:
+                print(f"ERROR: Failed to run case {case['save_path']}: {e}")
+                continue
         else:
             print(f"Case {case['save_path']} already completed. Skipping.")
             continue

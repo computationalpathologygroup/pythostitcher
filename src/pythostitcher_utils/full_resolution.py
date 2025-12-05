@@ -170,7 +170,9 @@ class FullResImage:
         )
 
         # Convert mask for opencv processing
+        self.tissueseg_mask = self.tissueseg_mask - np.min(self.tissueseg_mask)
         self.tissueseg_mask = self.tissueseg_mask / np.max(self.tissueseg_mask)
+        
         self.tissueseg_mask = (self.tissueseg_mask * 255).astype("uint8")
         self.scaling_mask2outputres = self.outputres_image_dims[0] / self.tissueseg_mask.shape[1]
 
@@ -259,7 +261,7 @@ class FullResImage:
         self.line_b = (self.line_b / self.scaling_coords2outputres).astype("int")
 
         # Combine masks
-        self.final_mask = self.otsu_mask * self.tissueseg_mask
+        self.final_mask = self.tissueseg_mask
 
         # Postprocess similar to tissue segmentation mask. Get largest cc and floodfill.
         num_labels, labeled_im, stats, _ = cv2.connectedComponentsWithStats(
